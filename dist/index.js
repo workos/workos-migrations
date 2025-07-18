@@ -14,40 +14,43 @@ async function getAuth0Credentials() {
         clientSecret: process.env.AUTH0_CLIENT_SECRET,
         domain: process.env.AUTH0_API_DOMAIN,
     };
-    if (envCredentials.clientId && envCredentials.clientSecret && envCredentials.domain) {
-        console.log(chalk_1.default.green('✓ Using Auth0 credentials from environment variables'));
+    if (envCredentials.clientId &&
+        envCredentials.clientSecret &&
+        envCredentials.domain) {
+        console.log(chalk_1.default.green("✓ Using Auth0 credentials from environment variables"));
         return {
             clientId: envCredentials.clientId,
             clientSecret: envCredentials.clientSecret,
             domain: envCredentials.domain,
         };
     }
-    console.log(chalk_1.default.yellow('Auth0 credentials not found in environment variables.'));
-    console.log(chalk_1.default.gray('Please provide them below:\n'));
+    console.log(chalk_1.default.yellow("Auth0 credentials not found in environment variables."));
+    console.log(chalk_1.default.gray("Please provide them below:\n"));
     const answers = await inquirer_1.default.prompt([
         {
-            type: 'input',
-            name: 'clientId',
-            message: 'Enter Auth0 Client ID:',
-            validate: (input) => input.length > 0 || 'Client ID is required',
+            type: "input",
+            name: "clientId",
+            message: "Enter Auth0 Client ID:",
+            validate: (input) => input.length > 0 || "Client ID is required",
             default: envCredentials.clientId || undefined,
         },
         {
-            type: 'password',
-            name: 'clientSecret',
-            message: 'Enter Auth0 Client Secret:',
-            validate: (input) => input.length > 0 || 'Client Secret is required',
-            mask: '*',
+            type: "password",
+            name: "clientSecret",
+            message: "Enter Auth0 Client Secret:",
+            validate: (input) => input.length > 0 || "Client Secret is required",
+            default: envCredentials.clientSecret || undefined,
+            mask: "*",
         },
         {
-            type: 'input',
-            name: 'domain',
-            message: 'Enter Auth0 API Domain (e.g., your-tenant.auth0.com):',
+            type: "input",
+            name: "domain",
+            message: "Enter Auth0 API Domain (e.g., your-tenant.auth0.com):",
             validate: (input) => {
                 if (input.length === 0)
-                    return 'Domain is required';
-                if (!input.includes('.'))
-                    return 'Please enter a valid domain';
+                    return "Domain is required";
+                if (!input.includes("."))
+                    return "Please enter a valid domain";
                 return true;
             },
             default: envCredentials.domain || undefined,
@@ -58,17 +61,17 @@ async function getAuth0Credentials() {
 async function showMainMenu() {
     const { action } = await inquirer_1.default.prompt([
         {
-            type: 'list',
-            name: 'action',
-            message: 'What would you like to do?',
+            type: "list",
+            name: "action",
+            message: "What would you like to do?",
             choices: [
                 {
-                    name: 'Export connections and applications from Auth0',
-                    value: 'export',
+                    name: "Export connections and applications from Auth0",
+                    value: "export",
                 },
                 {
-                    name: 'Exit',
-                    value: 'exit',
+                    name: "Exit",
+                    value: "exit",
                 },
             ],
         },
@@ -76,25 +79,25 @@ async function showMainMenu() {
     return action;
 }
 async function main() {
-    console.log(chalk_1.default.blue.bold('\n🔄 Auth0 Connection Migration Tool\n'));
+    console.log(chalk_1.default.blue.bold("\n🔄 Auth0 Connection Migration Tool\n"));
     try {
         const action = await showMainMenu();
-        if (action === 'exit') {
-            console.log(chalk_1.default.gray('Goodbye! 👋'));
+        if (action === "exit") {
+            console.log(chalk_1.default.gray("Goodbye! 👋"));
             process.exit(0);
         }
-        if (action === 'export') {
+        if (action === "export") {
             const credentials = await getAuth0Credentials();
             const auth0Client = new auth0_client_1.Auth0Client(credentials);
-            console.log(chalk_1.default.blue('\n📡 Connecting to Auth0...'));
+            console.log(chalk_1.default.blue("\n📡 Connecting to Auth0..."));
             await auth0Client.authenticate();
-            console.log(chalk_1.default.green('✓ Successfully authenticated with Auth0'));
-            console.log(chalk_1.default.blue('📥 Exporting connections and applications...'));
+            console.log(chalk_1.default.green("✓ Successfully authenticated with Auth0"));
+            console.log(chalk_1.default.blue("📥 Exporting connections and applications..."));
             await (0, export_1.exportConnections)(auth0Client);
         }
     }
     catch (error) {
-        console.error(chalk_1.default.red('❌ Error:'), error instanceof Error ? error.message : 'Unknown error');
+        console.error(chalk_1.default.red("❌ Error:"), error instanceof Error ? error.message : "Unknown error");
         process.exit(1);
     }
 }

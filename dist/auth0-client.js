@@ -5,6 +5,15 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Auth0Client = void 0;
 const axios_1 = __importDefault(require("axios"));
+const ssoStrategies = [
+    "ad",
+    "adfs",
+    "auth0-adldap",
+    "oidc",
+    "okta",
+    "pingfederate",
+    "samlp",
+];
 class Auth0Client {
     constructor(credentials) {
         this.credentials = credentials;
@@ -20,25 +29,25 @@ class Auth0Client {
                 client_id: this.credentials.clientId,
                 client_secret: this.credentials.clientSecret,
                 audience: `https://${this.credentials.domain}/api/v2/`,
-                grant_type: 'client_credentials',
+                grant_type: "client_credentials",
             }, {
                 headers: {
-                    'Content-Type': 'application/json',
+                    "Content-Type": "application/json",
                 },
             });
             this.accessToken = response.data.access_token;
-            this.httpClient.defaults.headers.common['Authorization'] = `Bearer ${this.accessToken}`;
+            this.httpClient.defaults.headers.common["Authorization"] = `Bearer ${this.accessToken}`;
         }
         catch (error) {
-            throw new Error(`Failed to authenticate with Auth0: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            throw new Error(`Failed to authenticate with Auth0: ${error instanceof Error ? error.message : "Unknown error"}`);
         }
     }
     async getClients() {
         if (!this.accessToken) {
-            throw new Error('Not authenticated. Call authenticate() first.');
+            throw new Error("Not authenticated. Call authenticate() first.");
         }
         try {
-            const response = await this.httpClient.get('/clients', {
+            const response = await this.httpClient.get("/clients", {
                 params: {
                     per_page: 100,
                     include_totals: true,
@@ -49,16 +58,16 @@ class Auth0Client {
             return Array.isArray(data) ? data : data.clients || [];
         }
         catch (error) {
-            throw new Error(`Failed to fetch clients: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            throw new Error(`Failed to fetch clients: ${error instanceof Error ? error.message : "Unknown error"}`);
         }
     }
     async getConnections() {
         if (!this.accessToken) {
-            throw new Error('Not authenticated. Call authenticate() first.');
+            throw new Error("Not authenticated. Call authenticate() first.");
         }
         try {
             // First, try to fetch all connections without filtering by strategy
-            const response = await this.httpClient.get('/connections', {
+            const response = await this.httpClient.get("/connections", {
                 params: {
                     per_page: 100,
                     include_totals: true,
@@ -66,9 +75,10 @@ class Auth0Client {
             });
             // When include_totals is true, the response has {connections: [...], total: number}
             const data = response.data;
-            const allConnections = Array.isArray(data) ? data : data.connections || [];
+            const allConnections = Array.isArray(data)
+                ? data
+                : data.connections || [];
             // Filter for SSO strategies
-            const ssoStrategies = ['ad', 'adfs', 'saml', 'oidc', 'okta', 'ping-federate', 'pingfederate'];
             return allConnections.filter((conn) => ssoStrategies.includes(conn.strategy.toLowerCase()));
         }
         catch (error) {
@@ -77,11 +87,10 @@ class Auth0Client {
         }
     }
     async getConnectionsByStrategy() {
-        const ssoStrategies = ['ad', 'adfs', 'saml', 'oidc', 'okta', 'pingfederate'];
         const allConnections = [];
         for (const strategy of ssoStrategies) {
             try {
-                const response = await this.httpClient.get('/connections', {
+                const response = await this.httpClient.get("/connections", {
                     params: {
                         strategy: strategy,
                         per_page: 100,
@@ -95,7 +104,7 @@ class Auth0Client {
             }
             catch (error) {
                 // Skip strategies that cause errors (might not be supported in this tenant)
-                console.log(`Skipping strategy ${strategy}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                console.log(`Skipping strategy ${strategy}: ${error instanceof Error ? error.message : "Unknown error"}`);
                 continue;
             }
         }
