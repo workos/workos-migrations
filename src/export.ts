@@ -1,7 +1,11 @@
-import fs from 'fs';
-import path from 'path';
-import chalk from 'chalk';
-import { Auth0Client, Auth0Client as Auth0ClientType, Auth0Connection } from './auth0-client';
+import fs from "fs";
+import path from "path";
+import chalk from "chalk";
+import {
+  Auth0Client,
+  Auth0Client as Auth0ClientType,
+  Auth0Connection,
+} from "./auth0-client";
 
 interface ExportReport {
   timestamp: string;
@@ -30,7 +34,6 @@ interface ConnectionReport {
   display_name: string;
   enabled_clients: EnabledClientInfo[];
   options: Record<string, any>;
-  full_connection_data: Auth0Connection;
 }
 
 interface EnabledClientInfo {
@@ -39,19 +42,21 @@ interface EnabledClientInfo {
   app_type: string;
 }
 
-export async function exportConnections(auth0Client: Auth0Client): Promise<void> {
+export async function exportConnections(
+  auth0Client: Auth0Client
+): Promise<void> {
   try {
-    console.log(chalk.blue('📊 Fetching clients...'));
+    console.log(chalk.blue("📊 Fetching clients..."));
     const clients = await auth0Client.getClients();
     console.log(chalk.green(`✓ Found ${clients.length} clients`));
 
-    console.log(chalk.blue('🔗 Fetching connections...'));
+    console.log(chalk.blue("🔗 Fetching connections..."));
     const connections = await auth0Client.getConnections();
     console.log(chalk.green(`✓ Found ${connections.length} connections`));
 
     const report = generateReport(clients, connections);
-    
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
     const filename = `auth0-export-${timestamp}.json`;
     const filepath = path.join(process.cwd(), filename);
 
@@ -60,28 +65,42 @@ export async function exportConnections(auth0Client: Auth0Client): Promise<void>
     console.log(chalk.green(`\n✅ Export completed successfully!`));
     console.log(chalk.blue(`📁 Report saved to: ${filepath}`));
     console.log(chalk.gray(`\n📊 Summary:`));
-    console.log(chalk.gray(`   • Total clients: ${report.summary.total_clients}`));
-    console.log(chalk.gray(`   • Total connections: ${report.summary.total_connections}`));
-    
+    console.log(
+      chalk.gray(`   • Total clients: ${report.summary.total_clients}`)
+    );
+    console.log(
+      chalk.gray(`   • Total connections: ${report.summary.total_connections}`)
+    );
+
     if (Object.keys(report.summary.connections_by_strategy).length > 0) {
       console.log(chalk.gray(`   • Connections by strategy:`));
-      Object.entries(report.summary.connections_by_strategy).forEach(([strategy, count]) => {
-        console.log(chalk.gray(`     - ${strategy}: ${count}`));
-      });
+      Object.entries(report.summary.connections_by_strategy).forEach(
+        ([strategy, count]) => {
+          console.log(chalk.gray(`     - ${strategy}: ${count}`));
+        }
+      );
     }
-
   } catch (error) {
-    throw new Error(`Export failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    throw new Error(
+      `Export failed: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`
+    );
   }
 }
 
-function generateReport(clients: Auth0ClientType[], connections: Auth0Connection[]): ExportReport {
-  const clientMap = new Map(clients.map(client => [client.client_id, client]));
-  
-  const clientReports: ClientReport[] = clients.map(client => {
+function generateReport(
+  clients: Auth0ClientType[],
+  connections: Auth0Connection[]
+): ExportReport {
+  const clientMap = new Map(
+    clients.map((client) => [client.client_id, client])
+  );
+
+  const clientReports: ClientReport[] = clients.map((client) => {
     const enabledConnections = connections
-      .filter(conn => conn.enabled_clients.includes(client.client_id))
-      .map(conn => conn.name);
+      .filter((conn) => conn.enabled_clients.includes(client.client_id))
+      .map((conn) => conn.name);
 
     return {
       client_id: client.client_id,
@@ -92,30 +111,31 @@ function generateReport(clients: Auth0ClientType[], connections: Auth0Connection
     };
   });
 
-  const connectionReports: ConnectionReport[] = connections.map(connection => {
-    const enabledClientInfos: EnabledClientInfo[] = connection.enabled_clients
-      .map(clientId => {
-        const client = clientMap.get(clientId);
-        if (!client) return null;
-        
-        return {
-          client_id: clientId,
-          client_name: client.name,
-          app_type: client.app_type,
-        };
-      })
-      .filter((info): info is EnabledClientInfo => info !== null);
+  const connectionReports: ConnectionReport[] = connections.map(
+    (connection) => {
+      const enabledClientInfos: EnabledClientInfo[] = connection.enabled_clients
+        .map((clientId) => {
+          const client = clientMap.get(clientId);
+          if (!client) return null;
 
-    return {
-      connection_id: connection.id,
-      name: connection.name,
-      strategy: connection.strategy,
-      display_name: connection.display_name || connection.name,
-      enabled_clients: enabledClientInfos,
-      options: connection.options || {},
-      full_connection_data: connection,
-    };
-  });
+          return {
+            client_id: clientId,
+            client_name: client.name,
+            app_type: client.app_type,
+          };
+        })
+        .filter((info): info is EnabledClientInfo => info !== null);
+
+      return {
+        connection_id: connection.id,
+        name: connection.name,
+        strategy: connection.strategy,
+        display_name: connection.display_name || connection.name,
+        enabled_clients: enabledClientInfos,
+        options: connection.options || {},
+      };
+    }
+  );
 
   const connectionsByStrategy = connections.reduce((acc, conn) => {
     acc[conn.strategy] = (acc[conn.strategy] || 0) + 1;
@@ -124,7 +144,7 @@ function generateReport(clients: Auth0ClientType[], connections: Auth0Connection
 
   return {
     timestamp: new Date().toISOString(),
-    auth0_domain: '', // Will be filled by the calling function if needed
+    auth0_domain: "", // Will be filled by the calling function if needed
     clients: clientReports,
     connections: connectionReports,
     summary: {
@@ -134,4 +154,3 @@ function generateReport(clients: Auth0ClientType[], connections: Auth0Connection
     },
   };
 }
-

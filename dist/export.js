@@ -9,14 +9,14 @@ const path_1 = __importDefault(require("path"));
 const chalk_1 = __importDefault(require("chalk"));
 async function exportConnections(auth0Client) {
     try {
-        console.log(chalk_1.default.blue('📊 Fetching clients...'));
+        console.log(chalk_1.default.blue("📊 Fetching clients..."));
         const clients = await auth0Client.getClients();
         console.log(chalk_1.default.green(`✓ Found ${clients.length} clients`));
-        console.log(chalk_1.default.blue('🔗 Fetching connections...'));
+        console.log(chalk_1.default.blue("🔗 Fetching connections..."));
         const connections = await auth0Client.getConnections();
         console.log(chalk_1.default.green(`✓ Found ${connections.length} connections`));
         const report = generateReport(clients, connections);
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
         const filename = `auth0-export-${timestamp}.json`;
         const filepath = path_1.default.join(process.cwd(), filename);
         fs_1.default.writeFileSync(filepath, JSON.stringify(report, null, 2));
@@ -33,15 +33,15 @@ async function exportConnections(auth0Client) {
         }
     }
     catch (error) {
-        throw new Error(`Export failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        throw new Error(`Export failed: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
 }
 function generateReport(clients, connections) {
-    const clientMap = new Map(clients.map(client => [client.client_id, client]));
-    const clientReports = clients.map(client => {
+    const clientMap = new Map(clients.map((client) => [client.client_id, client]));
+    const clientReports = clients.map((client) => {
         const enabledConnections = connections
-            .filter(conn => conn.enabled_clients.includes(client.client_id))
-            .map(conn => conn.name);
+            .filter((conn) => conn.enabled_clients.includes(client.client_id))
+            .map((conn) => conn.name);
         return {
             client_id: client.client_id,
             name: client.name,
@@ -50,9 +50,9 @@ function generateReport(clients, connections) {
             enabled_connections: enabledConnections,
         };
     });
-    const connectionReports = connections.map(connection => {
+    const connectionReports = connections.map((connection) => {
         const enabledClientInfos = connection.enabled_clients
-            .map(clientId => {
+            .map((clientId) => {
             const client = clientMap.get(clientId);
             if (!client)
                 return null;
@@ -70,7 +70,6 @@ function generateReport(clients, connections) {
             display_name: connection.display_name || connection.name,
             enabled_clients: enabledClientInfos,
             options: connection.options || {},
-            full_connection_data: connection,
         };
     });
     const connectionsByStrategy = connections.reduce((acc, conn) => {
@@ -79,7 +78,7 @@ function generateReport(clients, connections) {
     }, {});
     return {
         timestamp: new Date().toISOString(),
-        auth0_domain: '', // Will be filled by the calling function if needed
+        auth0_domain: "", // Will be filled by the calling function if needed
         clients: clientReports,
         connections: connectionReports,
         summary: {
