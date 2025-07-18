@@ -106,20 +106,14 @@ function generateReport(clients: Auth0ClientType[], connections: Auth0Connection
       })
       .filter((info): info is EnabledClientInfo => info !== null);
 
-    // Sanitize sensitive information from options
-    const sanitizedOptions = sanitizeOptions(connection.options || {});
-
     return {
       connection_id: connection.id,
       name: connection.name,
       strategy: connection.strategy,
       display_name: connection.display_name || connection.name,
       enabled_clients: enabledClientInfos,
-      options: sanitizedOptions,
-      full_connection_data: {
-        ...connection,
-        options: sanitizedOptions,
-      },
+      options: connection.options || {},
+      full_connection_data: connection,
     };
   });
 
@@ -141,50 +135,3 @@ function generateReport(clients: Auth0ClientType[], connections: Auth0Connection
   };
 }
 
-function sanitizeOptions(options: Record<string, any>): Record<string, any> {
-  const sensitiveKeys = [
-    'client_secret',
-    'clientSecret',
-    'secret',
-    'password',
-    'private_key',
-    'privateKey',
-    'signing_key',
-    'signingKey',
-    'certificate_key',
-    'certificateKey',
-    'key',
-    'token',
-    'api_key',
-    'apiKey'
-  ];
-
-  const sanitized = JSON.parse(JSON.stringify(options)); // Deep clone
-
-  function redactSensitiveValues(obj: any, path: string = ''): any {
-    if (typeof obj !== 'object' || obj === null) {
-      return obj;
-    }
-
-    if (Array.isArray(obj)) {
-      return obj.map((item, index) => redactSensitiveValues(item, `${path}[${index}]`));
-    }
-
-    const result: any = {};
-    for (const [key, value] of Object.entries(obj)) {
-      const currentPath = path ? `${path}.${key}` : key;
-      const lowerKey = key.toLowerCase();
-      
-      if (sensitiveKeys.some(sensitiveKey => lowerKey.includes(sensitiveKey.toLowerCase()))) {
-        result[key] = '[REDACTED]';
-      } else if (typeof value === 'object' && value !== null) {
-        result[key] = redactSensitiveValues(value, currentPath);
-      } else {
-        result[key] = value;
-      }
-    }
-    return result;
-  }
-
-  return redactSensitiveValues(sanitized);
-}
