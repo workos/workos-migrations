@@ -117,37 +117,55 @@ export class Auth0Client {
       throw new Error('Not authenticated. Call authenticate() first.');
     }
 
-    const ssoStrategies = ['ad', 'adfs', 'saml', 'oidc', 'okta', 'ping-federate'];
+    try {
+      // First, try to fetch all connections without filtering by strategy
+      const response = await this.httpClient.get('/connections', {
+        params: {
+          per_page: 100,
+          include_totals: true,
+        },
+      });
+
+      // When include_totals is true, the response has {connections: [...], total: number}
+      const data = response.data;
+      const allConnections = Array.isArray(data) ? data : data.connections || [];
+      
+      // Filter for SSO strategies
+      const ssoStrategies = ['ad', 'adfs', 'saml', 'oidc', 'okta', 'ping-federate', 'pingfederate'];
+      return allConnections.filter((conn: Auth0Connection) => 
+        ssoStrategies.includes(conn.strategy.toLowerCase())
+      );
+    } catch (error) {
+      // If that fails, try the individual strategy approach with correct strategy names
+      return await this.getConnectionsByStrategy();
+    }
+  }
+
+  private async getConnectionsByStrategy(): Promise<Auth0Connection[]> {
+    const ssoStrategies = ['ad', 'adfs', 'saml', 'oidc', 'okta', 'pingfederate'];
     const allConnections: Auth0Connection[] = [];
 
-    try {
-      for (const strategy of ssoStrategies) {
-        let page = 0;
-        let hasMore = true;
+    for (const strategy of ssoStrategies) {
+      try {
+        const response = await this.httpClient.get('/connections', {
+          params: {
+            strategy: strategy,
+            per_page: 100,
+            include_totals: true,
+          },
+        });
 
-        while (hasMore) {
-          const response = await this.httpClient.get('/connections', {
-            params: {
-              strategy: strategy,
-              per_page: 100,
-              page: page,
-              include_totals: true,
-            },
-          });
-
-          // When include_totals is true, the response has {connections: [...], total: number}
-          const data = response.data;
-          const connections = Array.isArray(data) ? data : data.connections || [];
-          allConnections.push(...connections);
-
-          hasMore = connections.length === 100;
-          page++;
-        }
+        // When include_totals is true, the response has {connections: [...], total: number}
+        const data = response.data;
+        const connections = Array.isArray(data) ? data : data.connections || [];
+        allConnections.push(...connections);
+      } catch (error) {
+        // Skip strategies that cause errors (might not be supported in this tenant)
+        console.log(`Skipping strategy ${strategy}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        continue;
       }
-
-      return allConnections;
-    } catch (error) {
-      throw new Error(`Failed to fetch connections: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
+
+    return allConnections;
   }
 }

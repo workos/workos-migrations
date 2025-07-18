@@ -53,6 +53,7 @@ export declare class Auth0Client {
     authenticate(): Promise<void>;
     getClients(): Promise<Auth0Client[]>;
     getConnections(): Promise<Auth0Connection[]>;
+    private getConnectionsByStrategy;
 }
 export {};
 //# sourceMappingURL=auth0-client.d.ts.map
