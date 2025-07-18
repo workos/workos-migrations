@@ -97,14 +97,16 @@ export class Auth0Client {
     }
 
     try {
-      const response = await this.httpClient.get<Auth0Client[]>('/clients', {
+      const response = await this.httpClient.get('/clients', {
         params: {
           per_page: 100,
           include_totals: true,
         },
       });
 
-      return response.data;
+      // When include_totals is true, the response has {clients: [...], total: number}
+      const data = response.data;
+      return Array.isArray(data) ? data : data.clients || [];
     } catch (error) {
       throw new Error(`Failed to fetch clients: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -124,7 +126,7 @@ export class Auth0Client {
         let hasMore = true;
 
         while (hasMore) {
-          const response = await this.httpClient.get<Auth0Connection[]>('/connections', {
+          const response = await this.httpClient.get('/connections', {
             params: {
               strategy: strategy,
               per_page: 100,
@@ -133,7 +135,9 @@ export class Auth0Client {
             },
           });
 
-          const connections = Array.isArray(response.data) ? response.data : [];
+          // When include_totals is true, the response has {connections: [...], total: number}
+          const data = response.data;
+          const connections = Array.isArray(data) ? data : data.connections || [];
           allConnections.push(...connections);
 
           hasMore = connections.length === 100;

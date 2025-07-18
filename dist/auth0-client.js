@@ -44,7 +44,9 @@ class Auth0Client {
                     include_totals: true,
                 },
             });
-            return response.data;
+            // When include_totals is true, the response has {clients: [...], total: number}
+            const data = response.data;
+            return Array.isArray(data) ? data : data.clients || [];
         }
         catch (error) {
             throw new Error(`Failed to fetch clients: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -69,7 +71,9 @@ class Auth0Client {
                             include_totals: true,
                         },
                     });
-                    const connections = Array.isArray(response.data) ? response.data : [];
+                    // When include_totals is true, the response has {connections: [...], total: number}
+                    const data = response.data;
+                    const connections = Array.isArray(data) ? data : data.connections || [];
                     allConnections.push(...connections);
                     hasMore = connections.length === 100;
                     page++;
