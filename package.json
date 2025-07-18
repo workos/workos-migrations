@@ -3,9 +3,7 @@
   "version": "1.0.0",
   "description": "CLI tool to migrate Auth0 enterprise connections and applications",
   "main": "dist/index.js",
-  "bin": {
-    "migrate-auth0-connections": "dist/index.js"
-  },
+  "bin": "dist/index.js",
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
