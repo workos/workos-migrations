@@ -44,8 +44,9 @@ The tool generates a timestamped JSON file containing:
 
 - All clients/applications with their basic information
 - All enterprise connections with their complete configuration options
+- All custom domains and their configurations
 - Mapping of which clients are enabled for each connection
-- Summary statistics by connection strategy
+- Summary statistics by connection strategy and custom domains
 
 ## Auth0 Setup
 
@@ -54,6 +55,7 @@ To use this tool, you need to create a Machine-to-Machine application in Auth0 w
 - `read:clients`
 - `read:connections`
 - `read:connections_options`
+- `read:custom_domains`
 
 ### Setting up the Machine-to-Machine Application
 
@@ -70,6 +72,7 @@ To use this tool, you need to create a Machine-to-Machine application in Auth0 w
      - ✅ `read:clients` - Required to fetch application/client data
      - ✅ `read:connections` - Required to fetch connection data
      - ✅ `read:connections_options` - Required to fetch complete connection configuration including sensitive options
+     - ✅ `read:custom_domains` - Required to fetch custom domain configurations
    - Click **Update**
 
 3. **Get Credentials**:

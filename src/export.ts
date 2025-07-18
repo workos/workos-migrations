@@ -5,6 +5,7 @@ import {
   Auth0Client,
   Auth0Client as Auth0ClientType,
   Auth0Connection,
+  Auth0CustomDomain,
 } from "./auth0-client";
 
 interface ExportReport {
@@ -12,9 +13,11 @@ interface ExportReport {
   auth0_domain: string;
   clients: ClientReport[];
   connections: ConnectionReport[];
+  custom_domains: Auth0CustomDomain[];
   summary: {
     total_clients: number;
     total_connections: number;
+    total_custom_domains: number;
     connections_by_strategy: Record<string, number>;
   };
 }
@@ -54,7 +57,11 @@ export async function exportConnections(
     const connections = await auth0Client.getConnections();
     console.log(chalk.green(`✓ Found ${connections.length} connections`));
 
-    const report = generateReport(clients, connections);
+    console.log(chalk.blue("🌐 Fetching custom domains..."));
+    const customDomains = await auth0Client.getCustomDomains();
+    console.log(chalk.green(`✓ Found ${customDomains.length} custom domains`));
+
+    const report = generateReport(clients, connections, customDomains);
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
     const filename = `auth0-export-${timestamp}.json`;
@@ -70,6 +77,9 @@ export async function exportConnections(
     );
     console.log(
       chalk.gray(`   • Total connections: ${report.summary.total_connections}`)
+    );
+    console.log(
+      chalk.gray(`   • Total custom domains: ${report.summary.total_custom_domains}`)
     );
 
     if (Object.keys(report.summary.connections_by_strategy).length > 0) {
@@ -91,7 +101,8 @@ export async function exportConnections(
 
 function generateReport(
   clients: Auth0ClientType[],
-  connections: Auth0Connection[]
+  connections: Auth0Connection[],
+  customDomains: Auth0CustomDomain[]
 ): ExportReport {
   const clientMap = new Map(
     clients.map((client) => [client.client_id, client])
@@ -147,9 +158,11 @@ function generateReport(
     auth0_domain: "", // Will be filled by the calling function if needed
     clients: clientReports,
     connections: connectionReports,
+    custom_domains: customDomains,
     summary: {
       total_clients: clients.length,
       total_connections: connections.length,
+      total_custom_domains: customDomains.length,
       connections_by_strategy: connectionsByStrategy,
     },
   };

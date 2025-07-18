@@ -126,11 +126,24 @@ class Auth0Client {
         }
         return allConnections;
     }
+    async getCustomDomains() {
+        if (!this.accessToken) {
+            throw new Error("Not authenticated. Call authenticate() first.");
+        }
+        try {
+            const response = await this.httpClient.get("/custom-domains");
+            return Array.isArray(response.data) ? response.data : [];
+        }
+        catch (error) {
+            throw new Error(`Failed to fetch custom domains: ${error instanceof Error ? error.message : "Unknown error"}`);
+        }
+    }
 }
 exports.Auth0Client = Auth0Client;
 Auth0Client.REQUIRED_SCOPES = [
     "read:clients",
     "read:connections",
-    "read:connections_options"
+    "read:connections_options",
+    "read:custom_domains"
 ];
 //# sourceMappingURL=auth0-client.js.map

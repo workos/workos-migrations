@@ -57,6 +57,19 @@ export interface Auth0Connection {
   display_name: string;
 }
 
+export interface Auth0CustomDomain {
+  custom_domain_id: string;
+  domain: string;
+  primary: boolean;
+  status: string;
+  type: string;
+  verification: {
+    methods: any[];
+  };
+  custom_client_ip_header?: string;
+  tls_policy?: string;
+}
+
 const ssoStrategies = [
   "ad",
   "adfs",
@@ -75,7 +88,8 @@ export class Auth0Client {
   private static readonly REQUIRED_SCOPES = [
     "read:clients",
     "read:connections",
-    "read:connections_options"
+    "read:connections_options",
+    "read:custom_domains"
   ];
 
   constructor(private credentials: Auth0Credentials) {
@@ -222,5 +236,22 @@ export class Auth0Client {
     }
 
     return allConnections;
+  }
+
+  async getCustomDomains(): Promise<Auth0CustomDomain[]> {
+    if (!this.accessToken) {
+      throw new Error("Not authenticated. Call authenticate() first.");
+    }
+
+    try {
+      const response = await this.httpClient.get("/custom-domains");
+      return Array.isArray(response.data) ? response.data : [];
+    } catch (error) {
+      throw new Error(
+        `Failed to fetch custom domains: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
+    }
   }
 }

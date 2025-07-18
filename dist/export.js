@@ -15,7 +15,10 @@ async function exportConnections(auth0Client) {
         console.log(chalk_1.default.blue("🔗 Fetching connections..."));
         const connections = await auth0Client.getConnections();
         console.log(chalk_1.default.green(`✓ Found ${connections.length} connections`));
-        const report = generateReport(clients, connections);
+        console.log(chalk_1.default.blue("🌐 Fetching custom domains..."));
+        const customDomains = await auth0Client.getCustomDomains();
+        console.log(chalk_1.default.green(`✓ Found ${customDomains.length} custom domains`));
+        const report = generateReport(clients, connections, customDomains);
         const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
         const filename = `auth0-export-${timestamp}.json`;
         const filepath = path_1.default.join(process.cwd(), filename);
@@ -25,6 +28,7 @@ async function exportConnections(auth0Client) {
         console.log(chalk_1.default.gray(`\n📊 Summary:`));
         console.log(chalk_1.default.gray(`   • Total clients: ${report.summary.total_clients}`));
         console.log(chalk_1.default.gray(`   • Total connections: ${report.summary.total_connections}`));
+        console.log(chalk_1.default.gray(`   • Total custom domains: ${report.summary.total_custom_domains}`));
         if (Object.keys(report.summary.connections_by_strategy).length > 0) {
             console.log(chalk_1.default.gray(`   • Connections by strategy:`));
             Object.entries(report.summary.connections_by_strategy).forEach(([strategy, count]) => {
@@ -36,7 +40,7 @@ async function exportConnections(auth0Client) {
         throw new Error(`Export failed: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
 }
-function generateReport(clients, connections) {
+function generateReport(clients, connections, customDomains) {
     const clientMap = new Map(clients.map((client) => [client.client_id, client]));
     const clientReports = clients.map((client) => {
         const enabledConnections = connections
@@ -81,9 +85,11 @@ function generateReport(clients, connections) {
         auth0_domain: "", // Will be filled by the calling function if needed
         clients: clientReports,
         connections: connectionReports,
+        custom_domains: customDomains,
         summary: {
             total_clients: clients.length,
             total_connections: connections.length,
+            total_custom_domains: customDomains.length,
             connections_by_strategy: connectionsByStrategy,
         },
     };

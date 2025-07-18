@@ -45,6 +45,18 @@ export interface Auth0Connection {
     metadata: any;
     display_name: string;
 }
+export interface Auth0CustomDomain {
+    custom_domain_id: string;
+    domain: string;
+    primary: boolean;
+    status: string;
+    type: string;
+    verification: {
+        methods: any[];
+    };
+    custom_client_ip_header?: string;
+    tls_policy?: string;
+}
 export declare class Auth0Client {
     private credentials;
     private httpClient;
@@ -57,6 +69,7 @@ export declare class Auth0Client {
     getClients(): Promise<Auth0Client[]>;
     getConnections(): Promise<Auth0Connection[]>;
     private getConnectionsByStrategy;
+    getCustomDomains(): Promise<Auth0CustomDomain[]>;
 }
 export {};
 //# sourceMappingURL=auth0-client.d.ts.map
