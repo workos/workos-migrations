@@ -29,12 +29,8 @@ interface ConnectionReport {
   strategy: string;
   display_name: string;
   enabled_clients: EnabledClientInfo[];
-  options_summary: {
-    has_custom_domain: boolean;
-    has_certificate: boolean;
-    has_metadata_mapping: boolean;
-    strategy_specific_options: Record<string, any>;
-  };
+  options: Record<string, any>;
+  full_connection_data: Auth0Connection;
 }
 
 interface EnabledClientInfo {
@@ -110,14 +106,8 @@ function generateReport(clients: Auth0ClientType[], connections: Auth0Connection
       })
       .filter((info): info is EnabledClientInfo => info !== null);
 
-    const options = connection.options || {};
-    
-    const optionsSummary = {
-      has_custom_domain: !!(options.domain || options.tenant_domain),
-      has_certificate: !!(options.signing_cert || options.certificate || options.x509_cert),
-      has_metadata_mapping: !!(options.field_map || options.attribute_map || options.user_id_attribute),
-      strategy_specific_options: extractStrategySpecificOptions(connection.strategy, options),
-    };
+    // Sanitize sensitive information from options
+    const sanitizedOptions = sanitizeOptions(connection.options || {});
 
     return {
       connection_id: connection.id,
@@ -125,7 +115,11 @@ function generateReport(clients: Auth0ClientType[], connections: Auth0Connection
       strategy: connection.strategy,
       display_name: connection.display_name || connection.name,
       enabled_clients: enabledClientInfos,
-      options_summary: optionsSummary,
+      options: sanitizedOptions,
+      full_connection_data: {
+        ...connection,
+        options: sanitizedOptions,
+      },
     };
   });
 
@@ -147,39 +141,50 @@ function generateReport(clients: Auth0ClientType[], connections: Auth0Connection
   };
 }
 
-function extractStrategySpecificOptions(strategy: string, options: any): Record<string, any> {
-  const strategyOptions: Record<string, any> = {};
+function sanitizeOptions(options: Record<string, any>): Record<string, any> {
+  const sensitiveKeys = [
+    'client_secret',
+    'clientSecret',
+    'secret',
+    'password',
+    'private_key',
+    'privateKey',
+    'signing_key',
+    'signingKey',
+    'certificate_key',
+    'certificateKey',
+    'key',
+    'token',
+    'api_key',
+    'apiKey'
+  ];
 
-  switch (strategy) {
-    case 'saml':
-      if (options.signInEndpoint) strategyOptions.signInEndpoint = options.signInEndpoint;
-      if (options.signatureAlgorithm) strategyOptions.signatureAlgorithm = options.signatureAlgorithm;
-      if (options.digestAlgorithm) strategyOptions.digestAlgorithm = options.digestAlgorithm;
-      if (options.nameIdentifierFormat) strategyOptions.nameIdentifierFormat = options.nameIdentifierFormat;
-      break;
+  const sanitized = JSON.parse(JSON.stringify(options)); // Deep clone
+
+  function redactSensitiveValues(obj: any, path: string = ''): any {
+    if (typeof obj !== 'object' || obj === null) {
+      return obj;
+    }
+
+    if (Array.isArray(obj)) {
+      return obj.map((item, index) => redactSensitiveValues(item, `${path}[${index}]`));
+    }
+
+    const result: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      const currentPath = path ? `${path}.${key}` : key;
+      const lowerKey = key.toLowerCase();
       
-    case 'oidc':
-      if (options.discovery_url) strategyOptions.discovery_url = options.discovery_url;
-      if (options.client_id) strategyOptions.client_id = '[REDACTED]';
-      if (options.authorization_endpoint) strategyOptions.authorization_endpoint = options.authorization_endpoint;
-      if (options.token_endpoint) strategyOptions.token_endpoint = options.token_endpoint;
-      break;
-      
-    case 'ad':
-    case 'adfs':
-      if (options.tenant_domain) strategyOptions.tenant_domain = options.tenant_domain;
-      if (options.domain_aliases) strategyOptions.domain_aliases = options.domain_aliases;
-      break;
-      
-    case 'okta':
-      if (options.domain) strategyOptions.domain = options.domain;
-      if (options.client_id) strategyOptions.client_id = '[REDACTED]';
-      break;
-      
-    case 'ping-federate':
-      if (options.tenant_domain) strategyOptions.tenant_domain = options.tenant_domain;
-      break;
+      if (sensitiveKeys.some(sensitiveKey => lowerKey.includes(sensitiveKey.toLowerCase()))) {
+        result[key] = '[REDACTED]';
+      } else if (typeof value === 'object' && value !== null) {
+        result[key] = redactSensitiveValues(value, currentPath);
+      } else {
+        result[key] = value;
+      }
+    }
+    return result;
   }
 
-  return strategyOptions;
+  return redactSensitiveValues(sanitized);
 }
