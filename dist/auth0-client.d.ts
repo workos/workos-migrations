@@ -49,8 +49,11 @@ export declare class Auth0Client {
     private credentials;
     private httpClient;
     private accessToken;
+    private grantedScopes;
+    private static readonly REQUIRED_SCOPES;
     constructor(credentials: Auth0Credentials);
     authenticate(): Promise<void>;
+    private validateScopes;
     getClients(): Promise<Auth0Client[]>;
     getConnections(): Promise<Auth0Connection[]>;
     private getConnectionsByStrategy;

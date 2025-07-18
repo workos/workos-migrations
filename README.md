@@ -34,8 +34,8 @@ If environment variables are not provided, the CLI will prompt you for the requi
 ## Features
 
 - **Export Connections and Applications**: Exports all SSO connections (AD, ADFS, SAML, OIDC, Okta, PingFederate) and their associated applications
-- **Detailed Reporting**: Generates comprehensive JSON reports with connection configurations and client associations
-- **Secure**: Redacts sensitive information in the export (client secrets, etc.)
+- **Complete Configuration Export**: Includes full connection options and configuration details for migration
+- **Scope Validation**: Automatically validates required Auth0 Management API scopes
 - **Interactive CLI**: User-friendly prompts with validation
 
 ## Output
@@ -43,7 +43,7 @@ If environment variables are not provided, the CLI will prompt you for the requi
 The tool generates a timestamped JSON file containing:
 
 - All clients/applications with their basic information
-- All enterprise connections with their configurations
+- All enterprise connections with their complete configuration options
 - Mapping of which clients are enabled for each connection
 - Summary statistics by connection strategy
 
@@ -53,6 +53,30 @@ To use this tool, you need to create a Machine-to-Machine application in Auth0 w
 
 - `read:clients`
 - `read:connections`
+- `read:connections_options`
+
+### Setting up the Machine-to-Machine Application
+
+1. **Create the Application**:
+   - Go to your Auth0 Dashboard
+   - Navigate to **Applications** > **Create Application**
+   - Choose **Machine to Machine Applications**
+   - Select the **Auth0 Management API**
+
+2. **Configure Scopes**:
+   - In the application settings, go to the **APIs** tab
+   - Click on **Auth0 Management API**
+   - Enable the following scopes:
+     - ✅ `read:clients` - Required to fetch application/client data
+     - ✅ `read:connections` - Required to fetch connection data
+     - ✅ `read:connections_options` - Required to fetch complete connection configuration including sensitive options
+   - Click **Update**
+
+3. **Get Credentials**:
+   - Copy the **Client ID** and **Client Secret** from the application settings
+   - Note your Auth0 domain (e.g., `your-tenant.auth0.com`)
+
+The tool will automatically validate that your application has all required scopes and provide helpful error messages if any are missing.
 
 ## Development
 

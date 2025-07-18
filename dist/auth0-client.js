@@ -18,6 +18,7 @@ class Auth0Client {
     constructor(credentials) {
         this.credentials = credentials;
         this.accessToken = null;
+        this.grantedScopes = [];
         this.httpClient = axios_1.default.create({
             baseURL: `https://${credentials.domain}/api/v2`,
             timeout: 30000,
@@ -36,10 +37,25 @@ class Auth0Client {
                 },
             });
             this.accessToken = response.data.access_token;
+            this.grantedScopes = response.data.scope ? response.data.scope.split(" ") : [];
             this.httpClient.defaults.headers.common["Authorization"] = `Bearer ${this.accessToken}`;
+            // Validate that we have all required scopes
+            this.validateScopes();
         }
         catch (error) {
             throw new Error(`Failed to authenticate with Auth0: ${error instanceof Error ? error.message : "Unknown error"}`);
+        }
+    }
+    validateScopes() {
+        const missingScopes = Auth0Client.REQUIRED_SCOPES.filter(scope => !this.grantedScopes.includes(scope));
+        if (missingScopes.length > 0) {
+            throw new Error(`❌ Missing required Auth0 Management API scopes: ${missingScopes.join(", ")}\n\n` +
+                `Required scopes for this tool:\n` +
+                `${Auth0Client.REQUIRED_SCOPES.map(scope => `  • ${scope}`).join("\n")}\n\n` +
+                `Please ensure your Machine-to-Machine application has these scopes enabled in the Auth0 Dashboard:\n` +
+                `1. Go to Applications > [Your M2M App] > APIs > Auth0 Management API\n` +
+                `2. Enable the missing scopes: ${missingScopes.join(", ")}\n` +
+                `3. Save changes and try again`);
         }
     }
     async getClients() {
@@ -112,4 +128,9 @@ class Auth0Client {
     }
 }
 exports.Auth0Client = Auth0Client;
+Auth0Client.REQUIRED_SCOPES = [
+    "read:clients",
+    "read:connections",
+    "read:connections_options"
+];
 //# sourceMappingURL=auth0-client.js.map

@@ -10,6 +10,7 @@ interface Auth0TokenResponse {
   access_token: string;
   token_type: string;
   expires_in: number;
+  scope?: string;
 }
 
 export interface Auth0Client {
@@ -69,6 +70,13 @@ const ssoStrategies = [
 export class Auth0Client {
   private httpClient: AxiosInstance;
   private accessToken: string | null = null;
+  private grantedScopes: string[] = [];
+
+  private static readonly REQUIRED_SCOPES = [
+    "read:clients",
+    "read:connections",
+    "read:connections_options"
+  ];
 
   constructor(private credentials: Auth0Credentials) {
     this.httpClient = axios.create({
@@ -95,14 +103,37 @@ export class Auth0Client {
       );
 
       this.accessToken = response.data.access_token;
+      this.grantedScopes = response.data.scope ? response.data.scope.split(" ") : [];
+      
       this.httpClient.defaults.headers.common[
         "Authorization"
       ] = `Bearer ${this.accessToken}`;
+
+      // Validate that we have all required scopes
+      this.validateScopes();
     } catch (error) {
       throw new Error(
         `Failed to authenticate with Auth0: ${
           error instanceof Error ? error.message : "Unknown error"
         }`
+      );
+    }
+  }
+
+  private validateScopes(): void {
+    const missingScopes = Auth0Client.REQUIRED_SCOPES.filter(
+      scope => !this.grantedScopes.includes(scope)
+    );
+
+    if (missingScopes.length > 0) {
+      throw new Error(
+        `❌ Missing required Auth0 Management API scopes: ${missingScopes.join(", ")}\n\n` +
+        `Required scopes for this tool:\n` +
+        `${Auth0Client.REQUIRED_SCOPES.map(scope => `  • ${scope}`).join("\n")}\n\n` +
+        `Please ensure your Machine-to-Machine application has these scopes enabled in the Auth0 Dashboard:\n` +
+        `1. Go to Applications > [Your M2M App] > APIs > Auth0 Management API\n` +
+        `2. Enable the missing scopes: ${missingScopes.join(", ")}\n` +
+        `3. Save changes and try again`
       );
     }
   }
