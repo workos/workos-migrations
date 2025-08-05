@@ -266,19 +266,6 @@ program
         });
     }
 });
-// List available providers
-program
-    .command('providers')
-    .description('List all available providers')
-    .action(() => {
-    console.log(chalk_1.default.blue('Available providers:\n'));
-    (0, providers_1.getAllProviders)().forEach(provider => {
-        const status = provider.name === 'auth0' ?
-            chalk_1.default.green('✓ Available') :
-            chalk_1.default.yellow('🚧 Coming soon');
-        console.log(`  ${provider.displayName} (${provider.name}) - ${status}`);
-    });
-});
 // Default to interactive mode if no command is provided
 if (process.argv.length === 2) {
     const cli = new cli_1.CLI();

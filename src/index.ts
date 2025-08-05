@@ -3,7 +3,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { CLI } from './cli';
-import { getProvider, getAllProviders } from './providers';
+import { getProvider } from './providers';
 import { Auth0Client } from './providers/auth0';
 import { CSVClient, getAllTemplates } from './providers/csv';
 import { getProviderCredentials } from './utils/config';
@@ -265,20 +265,6 @@ program
       });
   }
 });
-
-// List available providers
-program
-  .command('providers')
-  .description('List all available providers')
-  .action(() => {
-    console.log(chalk.blue('Available providers:\n'));
-    getAllProviders().forEach(provider => {
-      const status = provider.name === 'auth0' ? 
-        chalk.green('✓ Available') : 
-        chalk.yellow('🚧 Coming soon');
-      console.log(`  ${provider.displayName} (${provider.name}) - ${status}`);
-    });
-  });
 
 // Default to interactive mode if no command is provided
 if (process.argv.length === 2) {
