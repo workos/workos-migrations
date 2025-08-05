@@ -3,11 +3,19 @@
   "version": "1.0.0",
   "description": "CLI tool to migrate data from various identity providers to WorkOS",
   "main": "dist/index.js",
-  "bin": "dist/index.js",
+  "bin": {
+    "workos-migrations": "dist/index.js"
+  },
+  "files": [
+    "dist/**/*",
+    "README.md",
+    "package.json"
+  ],
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "dev": "ts-node src/index.ts"
+    "dev": "ts-node src/index.ts",
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "workos",
