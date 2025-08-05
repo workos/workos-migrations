@@ -1,0 +1,45 @@
+{
+  "name": "workos-migrations",
+  "version": "1.0.0",
+  "description": "CLI tool to migrate data from various identity providers to WorkOS",
+  "main": "dist/index.js",
+  "bin": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts"
+  },
+  "keywords": [
+    "workos",
+    "migration",
+    "cli",
+    "auth0",
+    "clerk",
+    "firebase",
+    "cognito"
+  ],
+  "author": "WorkOS",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.6.0",
+    "chalk": "^4.1.2",
+    "commander": "^11.1.0",
+    "csv-parse": "^6.1.0",
+    "form-data": "^4.0.4",
+    "inquirer": "^8.2.6"
+  },
+  "devDependencies": {
+    "@types/form-data": "^2.2.1",
+    "@types/inquirer": "^8.2.10",
+    "@types/node": "^20.10.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.3.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/workos/workos-migrations.git"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
