@@ -12,6 +12,7 @@ import { toWorkOSUserRow, summarizeAuth0Users } from './providers/auth0/user';
 import { CognitoClient } from './providers/cognito';
 import { CSVClient, getAllTemplates } from './providers/csv';
 import { USER_HEADERS, rowsToCsv } from './shared/csv';
+import { loadConfig, appendRunLog, type MigrationConfig } from './shared/migration-config';
 import { getProviderCredentials } from './utils/config';
 import { saveExportResult } from './utils/export';
 import { recordFeatureRequest } from './utils/feature-request';
@@ -22,13 +23,17 @@ import { recordFeatureRequest } from './utils/feature-request';
  * shape `{ connections, clients, users }` or a raw `/api/v2/connections`
  * array.
  */
-async function runAuth0Transform(options: {
-  input?: string;
-  entities?: string;
-  outDir?: string;
-  customDomain?: string;
-  entityIdPrefix?: string;
-}): Promise<void> {
+async function runAuth0Transform(
+  options: {
+    input?: string;
+    entities?: string;
+    outDir?: string;
+    customDomain?: string;
+    entityIdPrefix?: string;
+    config?: string;
+  },
+  _loadedConfig?: MigrationConfig,
+): Promise<void> {
   if (!options.input) {
     console.error(chalk.red('❌ Auth0 transform requires --input <file>'));
     process.exit(1);
@@ -126,6 +131,24 @@ async function runAuth0Transform(options: {
   }
   console.log(chalk.green(`\n✅ Wrote ${outputs.length} file(s):`));
   for (const p of outputs) console.log(chalk.gray(`  ${p}`));
+
+  if (options.config) {
+    try {
+      appendRunLog(options.config, {
+        timestamp: new Date().toISOString(),
+        provider: 'auth0',
+        action: 'transform',
+        entities: entitiesRequested,
+        counts: {
+          connections: connections.length,
+          users: users.length,
+        },
+        outputFiles: outputs,
+      });
+    } catch (e) {
+      console.warn(chalk.yellow(`[warn] could not append run log: ${e instanceof Error ? e.message : e}`));
+    }
+  }
 }
 
 const program = new Command();
@@ -157,14 +180,33 @@ program
   .option('--out-dir <dir>', 'Directory to write CSV output (default: current directory)')
   .option('--custom-domain <domain>', 'Auth0 custom domain — used to synthesize customAcsUrl / customRedirectUri on migrated connections')
   .option('--entity-id-prefix <prefix>', 'Prefix for synthesized SAML customEntityId. Example: urn:acme:sso:')
+  .option('--config <file>', 'Per-customer migration config file (./configs/<customer>.json). Settings merge with flags + env vars; run log is appended on success.')
   .action(async (action, options) => {
+    // Merge per-customer config file defaults first — CLI flags and env vars override.
+    let loadedConfig: MigrationConfig | undefined;
+    if (options.config) {
+      try {
+        loadedConfig = loadConfig(options.config);
+      } catch (e) {
+        console.error(
+          chalk.red(`❌ Could not load config ${options.config}:`),
+          e instanceof Error ? e.message : e,
+        );
+        process.exit(1);
+      }
+      const auth0Config = loadedConfig.providers.auth0 ?? {};
+      options.domain = options.domain ?? auth0Config.domain;
+      options.customDomain = options.customDomain ?? auth0Config.customDomain;
+      options.entityIdPrefix = options.entityIdPrefix ?? auth0Config.entityIdPrefix;
+    }
+
     if (action === 'import') {
       await recordFeatureRequest('auth0', 'import');
       return;
     }
 
     if (action === 'transform') {
-      await runAuth0Transform(options);
+      await runAuth0Transform(options, loadedConfig);
       return;
     }
 
@@ -232,6 +274,23 @@ program
       const result = await client.exportEntities(selectedEntities);
 
       saveExportResult(result);
+
+      if (options.config) {
+        try {
+          appendRunLog(options.config, {
+            timestamp: new Date().toISOString(),
+            provider: 'auth0',
+            action: 'export',
+            entities: selectedEntities,
+            counts: result.summary,
+            outputFiles: Array.isArray(result.entities.output_files)
+              ? (result.entities.output_files as string[])
+              : [],
+          });
+        } catch (e) {
+          console.warn(chalk.yellow(`[warn] could not append run log: ${e instanceof Error ? e.message : e}`));
+        }
+      }
     } catch (error) {
       console.error(
         chalk.red('❌ Error:'),
@@ -399,7 +458,31 @@ program
   .option('--saml-custom-acs-url-template <tpl>', 'Template for SAML customAcsUrl column, e.g. https://sso.example.com/{provider_name}/acs')
   .option('--saml-custom-entity-id-template <tpl>', 'Template for SAML customEntityId column (default: urn:amazon:cognito:sp:{user_pool_id})')
   .option('--oidc-custom-redirect-uri-template <tpl>', 'Template for OIDC customRedirectUri column')
+  .option('--config <file>', 'Per-customer migration config file (./configs/<customer>.json). Settings merge with flags + env vars; run log is appended on success.')
   .action(async (action, options) => {
+    // Merge per-customer config first; CLI flags and env vars override.
+    let loadedConfig: MigrationConfig | undefined;
+    if (options.config) {
+      try {
+        loadedConfig = loadConfig(options.config);
+      } catch (e) {
+        console.error(
+          chalk.red(`❌ Could not load config ${options.config}:`),
+          e instanceof Error ? e.message : e,
+        );
+        process.exit(1);
+      }
+      const cognitoConfig = loadedConfig.providers.cognito ?? {};
+      options.region = options.region ?? cognitoConfig.region;
+      options.userPoolIds = options.userPoolIds ?? cognitoConfig.userPoolIds;
+      options.samlCustomAcsUrlTemplate =
+        options.samlCustomAcsUrlTemplate ?? cognitoConfig.samlCustomAcsUrlTemplate;
+      options.samlCustomEntityIdTemplate =
+        options.samlCustomEntityIdTemplate ?? cognitoConfig.samlCustomEntityIdTemplate;
+      options.oidcCustomRedirectUriTemplate =
+        options.oidcCustomRedirectUriTemplate ?? cognitoConfig.oidcCustomRedirectUriTemplate;
+    }
+
     if (action === 'import') {
       await recordFeatureRequest('cognito', 'import');
       return;
@@ -470,6 +553,23 @@ program
       console.log(chalk.blue(`📥 Exporting entities: ${selectedEntities.join(', ')}`));
       const result = await client.exportEntities(selectedEntities);
       saveExportResult(result);
+
+      if (options.config) {
+        try {
+          appendRunLog(options.config, {
+            timestamp: new Date().toISOString(),
+            provider: 'cognito',
+            action: 'export',
+            entities: selectedEntities,
+            counts: result.summary,
+            outputFiles: Array.isArray(result.entities.output_files)
+              ? (result.entities.output_files as string[])
+              : [],
+          });
+        } catch (e) {
+          console.warn(chalk.yellow(`[warn] could not append run log: ${e instanceof Error ? e.message : e}`));
+        }
+      }
     } catch (error) {
       console.error(
         chalk.red('❌ Error:'),
