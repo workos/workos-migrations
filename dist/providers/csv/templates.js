@@ -59,91 +59,168 @@ exports.CSV_TEMPLATES = {
             'org_456,user_456',
         ],
     },
-    connections: {
-        name: 'Connections',
-        description: 'Authentication connections (SSO configurations)',
-        filename: 'connections.csv',
+    connections_saml: {
+        name: 'SAML Connections',
+        description: 'SAML SSO connections (WorkOS standalone SSO import)',
+        filename: 'workos_saml_connections.csv',
         headers: [
             'organizationName',
             'organizationId',
+            'organizationExternalId',
             'domains',
             'idpEntityId',
             'idpUrl',
             'x509Cert',
-            'idpIdAttribute',
             'idpMetadataUrl',
             'customEntityId',
             'customAcsUrl',
-            'requestSigningCert'
+            'idpIdAttribute',
+            'emailAttribute',
+            'firstNameAttribute',
+            'lastNameAttribute',
+            'name',
+            'customAttributes',
+            'idpInitiatedEnabled',
+            'requestSigningKey',
+            'assertionEncryptionKey',
+            'nameIdEncryptionKey',
+            'importedId',
         ],
-        required: ['organizationName', 'organizationId'],
+        // At least one of idpMetadataUrl OR (idpUrl + x509Cert) is required per the
+        // WorkOS SAML import contract; organization identity is satisfied by any of
+        // the four combos in README (organizationName alone is enough). See
+        // shared/csv.ts for the canonical schema.
+        required: ['organizationName'],
         optional: [
+            'organizationId',
+            'organizationExternalId',
             'domains',
             'idpEntityId',
             'idpUrl',
             'x509Cert',
-            'idpIdAttribute',
             'idpMetadataUrl',
             'customEntityId',
             'customAcsUrl',
-            'requestSigningCert'
+            'idpIdAttribute',
+            'emailAttribute',
+            'firstNameAttribute',
+            'lastNameAttribute',
+            'name',
+            'customAttributes',
+            'idpInitiatedEnabled',
+            'requestSigningKey',
+            'assertionEncryptionKey',
+            'nameIdEncryptionKey',
+            'importedId',
         ],
         example: [
-            'Acme Corporation,org_123,acme.com;app.acme.com,https://acme.okta.com,https://acme.okta.com/app/saml,MIICXjCCAcegAwIBAgIBADANBgkqhkiG9w0BAQ0FADCBhzELMAkGA1UEBhMCVVMx...,email,https://acme.okta.com/app/metadata,,https://acme.com/saml/acs,',
-            'Example Industries,org_456,example.com,https://example.auth0.com/,https://example.auth0.com/saml,,uid,https://example.auth0.com/samlp/metadata,,,'
+            'Acme Corporation,,acme-saml,"acme.com;app.acme.com",https://acme.okta.com/entity,https://acme.okta.com/sso,MIICXjCC...,,,,,email,firstName,lastName,,,,,,,acme-saml',
         ],
         validation: {
-            organizationName: (value) => {
-                return value.length > 0 || 'Organization name cannot be empty';
-            },
-            organizationId: (value) => {
-                return value.length > 0 || 'Organization ID cannot be empty';
-            },
+            organizationName: (value) => value.length > 0 || 'Organization name cannot be empty',
             domains: (value) => {
                 if (!value)
-                    return true; // Optional field
-                // Check if domains are separated by semicolons and are valid domain format
+                    return true;
                 const domains = value.split(';');
                 const domainRegex = /^[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]*\.([a-zA-Z]{2,}|[a-zA-Z]{2,}\.[a-zA-Z]{2,})$/;
-                const invalidDomains = domains.filter(domain => domain.trim() && !domainRegex.test(domain.trim()));
-                return invalidDomains.length === 0 || `Invalid domain format: ${invalidDomains.join(', ')}`;
+                const invalid = domains.filter((d) => d.trim() && !domainRegex.test(d.trim()));
+                return invalid.length === 0 || `Invalid domain format: ${invalid.join(', ')}`;
             },
-            idpUrl: (value) => {
+            idpUrl: httpsUrlCheck,
+            idpMetadataUrl: httpsUrlCheck,
+            customAcsUrl: httpsUrlCheck,
+            idpInitiatedEnabled: (value) => {
                 if (!value)
-                    return true; // Optional field
-                try {
-                    new URL(value);
                     return true;
+                return ['true', 'false', 'TRUE', 'FALSE'].includes(value) ||
+                    'Must be true or false';
+            },
+            customAttributes: (value) => {
+                if (!value)
+                    return true;
+                try {
+                    const parsed = JSON.parse(value);
+                    return (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ||
+                        'customAttributes must be a JSON object';
+                }
+                catch {
+                    return 'customAttributes must be valid JSON';
+                }
+            },
+        },
+    },
+    connections_oidc: {
+        name: 'OIDC Connections',
+        description: 'OIDC SSO connections (WorkOS standalone SSO import)',
+        filename: 'workos_oidc_connections.csv',
+        headers: [
+            'organizationName',
+            'organizationId',
+            'organizationExternalId',
+            'domains',
+            'clientId',
+            'clientSecret',
+            'discoveryEndpoint',
+            'customRedirectUri',
+            'name',
+            'customAttributes',
+            'importedId',
+        ],
+        required: ['organizationName', 'clientId', 'clientSecret', 'discoveryEndpoint'],
+        optional: [
+            'organizationId',
+            'organizationExternalId',
+            'domains',
+            'customRedirectUri',
+            'name',
+            'customAttributes',
+            'importedId',
+        ],
+        example: [
+            'Acme Corporation,,acme-oidc,acme.com,oidc-client-id,oidc-client-secret,https://idp.acme.com/.well-known/openid-configuration,,,,acme-oidc',
+        ],
+        validation: {
+            organizationName: (value) => value.length > 0 || 'Organization name cannot be empty',
+            clientId: (value) => value.length > 0 || 'clientId is required',
+            clientSecret: (value) => value.length > 0 || 'clientSecret is required',
+            discoveryEndpoint: (value) => {
+                if (!value)
+                    return 'discoveryEndpoint is required';
+                try {
+                    const url = new URL(value);
+                    return url.protocol === 'https:' || 'discoveryEndpoint must use HTTPS';
                 }
                 catch {
                     return 'Invalid URL format';
                 }
             },
-            idpMetadataUrl: (value) => {
+            customRedirectUri: httpsUrlCheck,
+            customAttributes: (value) => {
                 if (!value)
-                    return true; // Optional field
-                try {
-                    new URL(value);
                     return true;
+                try {
+                    const parsed = JSON.parse(value);
+                    return (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ||
+                        'customAttributes must be a JSON object';
                 }
                 catch {
-                    return 'Invalid URL format';
-                }
-            },
-            customAcsUrl: (value) => {
-                if (!value)
-                    return true; // Optional field
-                try {
-                    new URL(value);
-                    return true;
-                }
-                catch {
-                    return 'Invalid URL format';
+                    return 'customAttributes must be valid JSON';
                 }
             },
         },
     },
 };
+function httpsUrlCheck(value) {
+    if (!value)
+        return true;
+    try {
+        new URL(value);
+        return true;
+    }
+    catch {
+        return 'Invalid URL format';
+    }
+}
 function getTemplate(templateName) {
     return exports.CSV_TEMPLATES[templateName];
 }

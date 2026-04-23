@@ -301,7 +301,7 @@ program
     .description('CSV import to WorkOS commands')
     .argument('<action>', 'Action to perform (generate-template|import|validate|list-jobs)')
     .option('--api-key <apiKey>', 'WorkOS API Key')
-    .option('--template <template>', 'Template type (users|organizations|organization_memberships|connections)')
+    .option('--template <template>', 'Template type (users|organizations|organization_memberships|connections_saml|connections_oidc)')
     .option('--file <file>', 'CSV file path')
     .option('--output <output>', 'Output file path for template generation')
     .action(async (action, options) => {
@@ -310,7 +310,7 @@ program
         if (action === 'generate-template') {
             if (!options.template) {
                 console.error(chalk_1.default.red('❌ Template type is required for generate-template action.'));
-                console.error(chalk_1.default.gray('Available templates: users, organizations, organization_memberships, connections'));
+                console.error(chalk_1.default.gray('Available templates: users, organizations, organization_memberships, connections_saml, connections_oidc'));
                 process.exit(1);
             }
             // Generate template without API key
@@ -318,7 +318,7 @@ program
             const template = getTemplate(options.template);
             if (!template) {
                 console.error(chalk_1.default.red(`❌ Unknown template: ${options.template}`));
-                console.error(chalk_1.default.gray('Available templates: users, organizations, organization_memberships, connections'));
+                console.error(chalk_1.default.gray('Available templates: users, organizations, organization_memberships, connections_saml, connections_oidc'));
                 process.exit(1);
             }
             const content = generateTemplateExample(options.template);
