@@ -63,6 +63,11 @@ npx workos-migrations cognito export \
   --user-pool-ids us-east-1_AAA,us-east-1_BBB \
   --out-dir ./out
 
+# Pick specific entities
+npx workos-migrations cognito export --entities connections
+npx workos-migrations cognito export --entities users
+npx workos-migrations cognito export --entities connections,users
+
 # Migration-proxy mode: populate customAcsUrl / customEntityId / customRedirectUri via templates.
 # Placeholders: {provider_name}, {user_pool_id}, {region}.
 npx workos-migrations cognito export \
@@ -77,7 +82,10 @@ Output files (written to `--out-dir`, or the current directory by default):
 - `workos_saml_connections.csv` — matches the WorkOS standalone SSO import template
 - `workos_oidc_connections.csv` — same, for OIDC
 - `custom_attribute_mappings.csv` — supplementary view of all non-standard mappings
+- `workos_users.csv` — matches the WorkOS users import template (when `users` is selected)
 - `cognito-export-<timestamp>.json` — full raw export dump
+
+**On passwords:** the `password_hash` column is written blank for every exported user. Cognito does not expose user password hashes via its API, so users authenticating with email/password in Cognito will need to reset their password after migration (or rely on SSO + JIT provisioning, which avoids the password flow entirely).
 
 See [`proxy-sample-cognito/`](./proxy-sample-cognito) for a reference Lambda-based SAML migration proxy (receives SAML POSTs at the legacy ACS URL, forwards to WorkOS or Cognito per-tenant based on DynamoDB migration state).
 
@@ -129,7 +137,7 @@ Credentials can be saved to `~/.workos-migrations/config.json`:
 ## Supported Providers
 
 - ✅ **Auth0** - Full export support
-- ✅ **AWS Cognito** - Connection export (SAML + OIDC) → WorkOS SSO import CSVs
+- ✅ **AWS Cognito** - User + connection (SAML + OIDC) export → WorkOS import CSVs
 - ✅ **CSV Import to WorkOS** - Full import support with templates
 - 🚧 **Clerk** - Coming soon
 - 🚧 **Firebase Auth** - Coming soon
@@ -147,7 +155,8 @@ The tool uses the standard AWS credential chain — env vars, `~/.aws/credential
       "Action": [
         "cognito-idp:ListUserPools",
         "cognito-idp:ListIdentityProviders",
-        "cognito-idp:DescribeIdentityProvider"
+        "cognito-idp:DescribeIdentityProvider",
+        "cognito-idp:ListUsers"
       ],
       "Resource": "*"
     }
