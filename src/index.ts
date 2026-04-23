@@ -35,6 +35,10 @@ program
   .option('--client-id <clientId>', 'Auth0 Client ID')
   .option('--client-secret <clientSecret>', 'Auth0 Client Secret')
   .option('--domain <domain>', 'Auth0 Domain')
+  .option('--out-dir <dir>', 'Directory to write CSV output (default: current directory)')
+  .option('--custom-domain <domain>', 'Auth0 custom domain — used to synthesize customAcsUrl / customRedirectUri on migrated connections')
+  .option('--entity-id-prefix <prefix>', 'Prefix for synthesized SAML customEntityId. Example: urn:acme:sso:')
+  .option('--bookmark-map-file <file>', 'JSON file mapping Auth0 client_id → WorkOS bookmark slug. Example: { "XXX": "my-app" }')
   .action(async (action, options) => {
     if (action === 'import') {
       await recordFeatureRequest('auth0', 'import');
@@ -70,7 +74,29 @@ program
         process.exit(1);
       }
 
-      const client = new Auth0Client(credentials);
+      let bookmarkSlugMap: Record<string, string> | undefined;
+      if (options.bookmarkMapFile) {
+        const fs = await import('fs');
+        try {
+          bookmarkSlugMap = JSON.parse(
+            fs.readFileSync(options.bookmarkMapFile, 'utf-8'),
+          );
+        } catch (e) {
+          console.error(
+            chalk.red(`❌ Could not read bookmark map file ${options.bookmarkMapFile}:`),
+            e instanceof Error ? e.message : e,
+          );
+          process.exit(1);
+        }
+      }
+
+      const transformConfig = {
+        customDomain: options.customDomain || process.env.AUTH0_CUSTOM_DOMAIN,
+        entityIdPrefix: options.entityIdPrefix || process.env.AUTH0_ENTITY_ID_PREFIX,
+        bookmarkSlugMap,
+      };
+
+      const client = new Auth0Client(credentials, transformConfig, options.outDir);
       
       console.log(chalk.blue('📡 Connecting to Auth0...'));
       await client.authenticate();

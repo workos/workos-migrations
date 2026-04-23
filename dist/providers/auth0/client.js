@@ -5,6 +5,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Auth0Client = void 0;
 const axios_1 = __importDefault(require("axios"));
+const fs_1 = __importDefault(require("fs"));
+const path_1 = __importDefault(require("path"));
+const chalk_1 = __importDefault(require("chalk"));
+const transform_1 = require("./transform");
 const SSO_STRATEGIES = [
     'ad',
     'adfs',
@@ -15,8 +19,10 @@ const SSO_STRATEGIES = [
     'samlp',
 ];
 class Auth0Client {
-    constructor(credentials) {
+    constructor(credentials, transformConfig = {}, outputDir) {
         this.credentials = credentials;
+        this.transformConfig = transformConfig;
+        this.outputDir = outputDir;
         this.accessToken = null;
         this.grantedScopes = [];
         this.httpClient = axios_1.default.create({
@@ -95,6 +101,7 @@ class Auth0Client {
         }
         const entities = {};
         const summary = {};
+        const outputFiles = [];
         for (const entityType of entityTypes) {
             try {
                 switch (entityType) {
@@ -122,12 +129,63 @@ class Auth0Client {
                 summary[entityType] = 0;
             }
         }
+        // Run the connection transform whenever connections were fetched — it's the
+        // single biggest feature-gap vs the existing codebase. Writes SAML + OIDC
+        // CSVs alongside the raw JSON dump.
+        if (Array.isArray(entities.connections) && entities.connections.length > 0) {
+            const transformResult = (0, transform_1.transformAuth0Connections)(entities.connections, entities.clients, this.transformConfig);
+            outputFiles.push(...this.writeTransformOutputs(transformResult));
+            this.printTransformSummary(transformResult);
+            entities.transform_summary = [
+                {
+                    samlCount: transformResult.samlCount,
+                    oidcCount: transformResult.oidcCount,
+                    skipped: transformResult.skipped,
+                    manualSetup: transformResult.manualSetup,
+                    samlIdpInitiatedDisabled: transformResult.samlIdpInitiatedDisabled,
+                },
+            ];
+        }
+        if (outputFiles.length > 0)
+            entities.output_files = outputFiles;
         return {
             timestamp: new Date().toISOString(),
             provider: 'auth0',
             entities,
             summary,
         };
+    }
+    writeTransformOutputs(result) {
+        const outDir = this.outputDir ?? process.cwd();
+        fs_1.default.mkdirSync(outDir, { recursive: true });
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const samlPath = path_1.default.join(outDir, `auth0_saml_${timestamp}.csv`);
+        const oidcPath = path_1.default.join(outDir, `auth0_oidc_${timestamp}.csv`);
+        fs_1.default.writeFileSync(samlPath, result.samlCsv);
+        fs_1.default.writeFileSync(oidcPath, result.oidcCsv);
+        return [samlPath, oidcPath];
+    }
+    printTransformSummary(result) {
+        console.log(chalk_1.default.blue('\n  Auth0 → WorkOS transform summary:'));
+        console.log(chalk_1.default.gray(`    SAML rows: ${result.samlCount}`));
+        console.log(chalk_1.default.gray(`    OIDC rows: ${result.oidcCount}`));
+        if (result.samlIdpInitiatedDisabled.length > 0) {
+            console.log(chalk_1.default.yellow(`    [warn] ${result.samlIdpInitiatedDisabled.length} SAML connection(s) have IdP-initiated SSO disabled`));
+        }
+        const skippedSaml = result.skipped.filter((s) => s.type === 'SAML');
+        const skippedOidc = result.skipped.filter((s) => s.type === 'OIDC');
+        if (skippedSaml.length > 0 || skippedOidc.length > 0) {
+            console.log(chalk_1.default.yellow(`    [warn] skipped: ${skippedSaml.length} SAML / ${skippedOidc.length} OIDC`));
+            for (const s of result.skipped) {
+                console.log(chalk_1.default.gray(`      • ${s.connectionName} [${s.type}] — ${s.reason}`));
+            }
+        }
+        if (result.manualSetup.length > 0) {
+            console.log(chalk_1.default.yellow(`    [warn] ${result.manualSetup.length} connection(s) need manual setup in WorkOS:`));
+            for (const m of result.manualSetup) {
+                console.log(chalk_1.default.gray(`      • ${m.connectionName} [${m.strategy}] — ${m.reason}`));
+            }
+        }
     }
     async getUsers() {
         const response = await this.httpClient.get('/users', {

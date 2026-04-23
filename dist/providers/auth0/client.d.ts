@@ -1,4 +1,5 @@
 import { ProviderClient, EntityType, ExportResult, ProviderCredentials } from '../../types';
+import { type Auth0TransformConfig } from './transform';
 export interface Auth0User {
     user_id: string;
     email: string;
@@ -38,17 +39,21 @@ export interface Auth0Organization {
 }
 export declare class Auth0Client implements ProviderClient {
     private credentials;
+    private transformConfig;
+    private outputDir?;
     private httpClient;
     private accessToken;
     private grantedScopes;
     private static readonly SCOPE_REQUIREMENTS;
-    constructor(credentials: ProviderCredentials);
+    constructor(credentials: ProviderCredentials, transformConfig?: Auth0TransformConfig, outputDir?: string | undefined);
     authenticate(): Promise<void>;
     validateCredentials(): Promise<void>;
     getScopes(): string[];
     getAvailableEntities(): Promise<EntityType[]>;
     private hasRequiredScopes;
     exportEntities(entityTypes: string[]): Promise<ExportResult>;
+    private writeTransformOutputs;
+    private printTransformSummary;
     private getUsers;
     private getConnections;
     private getClients;

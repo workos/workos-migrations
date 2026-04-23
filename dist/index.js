@@ -68,6 +68,10 @@ program
     .option('--client-id <clientId>', 'Auth0 Client ID')
     .option('--client-secret <clientSecret>', 'Auth0 Client Secret')
     .option('--domain <domain>', 'Auth0 Domain')
+    .option('--out-dir <dir>', 'Directory to write CSV output (default: current directory)')
+    .option('--custom-domain <domain>', 'Auth0 custom domain — used to synthesize customAcsUrl / customRedirectUri on migrated connections')
+    .option('--entity-id-prefix <prefix>', 'Prefix for synthesized SAML customEntityId. Example: urn:acme:sso:')
+    .option('--bookmark-map-file <file>', 'JSON file mapping Auth0 client_id → WorkOS bookmark slug. Example: { "XXX": "my-app" }')
     .action(async (action, options) => {
     if (action === 'import') {
         await (0, feature_request_1.recordFeatureRequest)('auth0', 'import');
@@ -98,7 +102,23 @@ program
             console.error(chalk_1.default.gray('  • --domain or AUTH0_DOMAIN'));
             process.exit(1);
         }
-        const client = new auth0_1.Auth0Client(credentials);
+        let bookmarkSlugMap;
+        if (options.bookmarkMapFile) {
+            const fs = await Promise.resolve().then(() => __importStar(require('fs')));
+            try {
+                bookmarkSlugMap = JSON.parse(fs.readFileSync(options.bookmarkMapFile, 'utf-8'));
+            }
+            catch (e) {
+                console.error(chalk_1.default.red(`❌ Could not read bookmark map file ${options.bookmarkMapFile}:`), e instanceof Error ? e.message : e);
+                process.exit(1);
+            }
+        }
+        const transformConfig = {
+            customDomain: options.customDomain || process.env.AUTH0_CUSTOM_DOMAIN,
+            entityIdPrefix: options.entityIdPrefix || process.env.AUTH0_ENTITY_ID_PREFIX,
+            bookmarkSlugMap,
+        };
+        const client = new auth0_1.Auth0Client(credentials, transformConfig, options.outDir);
         console.log(chalk_1.default.blue('📡 Connecting to Auth0...'));
         await client.authenticate();
         console.log(chalk_1.default.green('✓ Successfully authenticated with Auth0'));
