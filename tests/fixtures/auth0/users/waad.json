@@ -1,0 +1,26 @@
+{
+  "user_id": "waad|a74900dd-e48b-47b6-b212-306653d7f33d",
+  "email": "dave@acme.com",
+  "email_verified": true,
+  "name": "Dave Wilson",
+  "given_name": "Dave",
+  "family_name": "Wilson",
+  "nickname": "dave.wilson",
+  "identities": [
+    {
+      "connection": "acme-waad",
+      "user_id": "a74900dd-e48b-47b6-b212-306653d7f33d",
+      "provider": "waad",
+      "isSocial": false,
+      "profileData": {
+        "email": "dave@acme.com",
+        "email_verified": true,
+        "name": "Dave Wilson",
+        "given_name": "Dave",
+        "family_name": "Wilson",
+        "upn": "dave@acme.com",
+        "tenantid": "ACME-TENANT-ID"
+      }
+    }
+  ]
+}

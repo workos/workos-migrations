@@ -1,0 +1,16 @@
+{
+  "user_id": "okta|00ue1234abcd5678",
+  "email": "frank@acme.com",
+  "email_verified": true,
+  "name": "Frank Miller",
+  "given_name": "Frank",
+  "family_name": "Miller",
+  "identities": [
+    {
+      "connection": "acme-okta",
+      "user_id": "00ue1234abcd5678",
+      "provider": "okta",
+      "isSocial": false
+    }
+  ]
+}

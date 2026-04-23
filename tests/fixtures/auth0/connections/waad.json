@@ -1,0 +1,14 @@
+{
+  "id": "con_waad_acme",
+  "name": "acme-waad",
+  "strategy": "waad",
+  "enabled_clients": ["client_app_a"],
+  "options": {
+    "client_id": "azure-client-id-abc",
+    "client_secret": "azure-client-secret-placeholder",
+    "tenant_domain": "acme.onmicrosoft.com",
+    "domain": "acme.onmicrosoft.com",
+    "useCommonEndpoint": false,
+    "identity_api": "azure-active-directory-v2"
+  }
+}

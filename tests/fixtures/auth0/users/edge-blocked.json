@@ -1,0 +1,17 @@
+{
+  "user_id": "auth0|blocked_user",
+  "email": "blocked@example.com",
+  "email_verified": true,
+  "name": "Blocked User",
+  "given_name": "Blocked",
+  "family_name": "User",
+  "blocked": true,
+  "identities": [
+    {
+      "connection": "Username-Password-Authentication",
+      "user_id": "blocked_user",
+      "provider": "auth0",
+      "isSocial": false
+    }
+  ]
+}

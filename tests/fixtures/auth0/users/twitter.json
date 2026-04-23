@@ -1,0 +1,16 @@
+{
+  "user_id": "twitter|1234567890",
+  "name": "Leo Rivera",
+  "nickname": "leo_on_x",
+  "picture": "https://pbs.twimg.com/profile_images/placeholder_400x400.jpg",
+  "identities": [
+    {
+      "connection": "twitter",
+      "user_id": "1234567890",
+      "provider": "twitter",
+      "isSocial": true,
+      "access_token": "[redacted]",
+      "access_token_secret": "[redacted]"
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "user_id": "google-oauth2|109876543210123456789",
+  "email": "bob@gmail.com",
+  "email_verified": true,
+  "name": "Bob Jones",
+  "given_name": "Bob",
+  "family_name": "Jones",
+  "nickname": "bob",
+  "picture": "https://lh3.googleusercontent.com/a/ACg8ocJ_placeholder=s96-c",
+  "locale": "en",
+  "identities": [
+    {
+      "connection": "google-oauth2",
+      "user_id": "109876543210123456789",
+      "provider": "google-oauth2",
+      "isSocial": true,
+      "profileData": {
+        "email": "bob@gmail.com",
+        "email_verified": true,
+        "name": "Bob Jones",
+        "given_name": "Bob",
+        "family_name": "Jones",
+        "locale": "en",
+        "picture": "https://lh3.googleusercontent.com/a/ACg8ocJ_placeholder=s96-c"
+      }
+    }
+  ],
+  "created_at": "2023-03-20T15:22:00.000Z",
+  "updated_at": "2024-06-15T10:05:00.000Z",
+  "last_login": "2024-06-15T10:05:00.000Z",
+  "logins_count": 18
+}

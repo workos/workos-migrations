@@ -1,0 +1,23 @@
+{
+  "user_id": "facebook|10163424000000",
+  "email": "iris@example.com",
+  "email_verified": true,
+  "name": "Iris Johnson",
+  "given_name": "Iris",
+  "family_name": "Johnson",
+  "picture": "https://platform-lookaside.fbsbx.com/platform/profilepic/?asid=10163424000000&height=100&width=100",
+  "identities": [
+    {
+      "connection": "facebook",
+      "user_id": "10163424000000",
+      "provider": "facebook",
+      "isSocial": true,
+      "profileData": {
+        "email": "iris@example.com",
+        "name": "Iris Johnson",
+        "given_name": "Iris",
+        "family_name": "Johnson"
+      }
+    }
+  ]
+}

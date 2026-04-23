@@ -1,0 +1,11 @@
+{
+  "id": "con_okta_acme",
+  "name": "acme-okta",
+  "strategy": "okta",
+  "enabled_clients": ["client_app_a"],
+  "options": {
+    "client_id": "okta-client-id",
+    "client_secret": "okta-client-secret",
+    "domain": "acme.okta.com"
+  }
+}

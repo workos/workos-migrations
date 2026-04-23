@@ -1,0 +1,16 @@
+{
+  "user_id": "auth0|unicode_user",
+  "email": "unicode@example.com",
+  "email_verified": true,
+  "name": "María García López",
+  "given_name": "María",
+  "family_name": "García López",
+  "identities": [
+    {
+      "connection": "Username-Password-Authentication",
+      "user_id": "unicode_user",
+      "provider": "auth0",
+      "isSocial": false
+    }
+  ]
+}

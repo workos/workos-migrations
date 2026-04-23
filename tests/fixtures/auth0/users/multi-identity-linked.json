@@ -1,0 +1,30 @@
+{
+  "user_id": "auth0|primary_karen_id",
+  "email": "karen@example.com",
+  "email_verified": true,
+  "name": "Karen Kim",
+  "given_name": "Karen",
+  "family_name": "Kim",
+  "picture": "https://s.gravatar.com/avatar/placeholder",
+  "identities": [
+    {
+      "connection": "Username-Password-Authentication",
+      "user_id": "primary_karen_id",
+      "provider": "auth0",
+      "isSocial": false
+    },
+    {
+      "connection": "google-oauth2",
+      "user_id": "google_linked_id_789",
+      "provider": "google-oauth2",
+      "isSocial": true,
+      "profileData": {
+        "email": "karen@example.com",
+        "email_verified": true,
+        "name": "Karen Kim",
+        "given_name": "Karen",
+        "family_name": "Kim"
+      }
+    }
+  ]
+}

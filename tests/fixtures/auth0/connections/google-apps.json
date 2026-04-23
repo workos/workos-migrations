@@ -1,0 +1,12 @@
+{
+  "id": "con_google_apps_acme",
+  "name": "acme-google-apps",
+  "strategy": "google-apps",
+  "enabled_clients": ["client_app_a"],
+  "options": {
+    "client_id": "google-workspace-client-id",
+    "tenant_domain": "acme.com",
+    "domain": "acme.com",
+    "api_enable_users": true
+  }
+}

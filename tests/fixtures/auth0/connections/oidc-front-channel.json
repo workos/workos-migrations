@@ -1,0 +1,12 @@
+{
+  "id": "con_oidc_fc",
+  "name": "acme-oidc-frontchannel",
+  "strategy": "oidc",
+  "enabled_clients": ["client_app_a"],
+  "options": {
+    "type": "front_channel",
+    "client_id": "front-channel-client",
+    "client_secret": "front-channel-secret",
+    "discovery_url": "https://fc.acme.com/.well-known/openid-configuration"
+  }
+}

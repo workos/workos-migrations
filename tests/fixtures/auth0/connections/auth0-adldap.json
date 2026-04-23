@@ -1,0 +1,7 @@
+{
+  "id": "con_adldap_acme",
+  "name": "acme-adldap",
+  "strategy": "auth0-adldap",
+  "enabled_clients": ["client_app_a"],
+  "options": {}
+}

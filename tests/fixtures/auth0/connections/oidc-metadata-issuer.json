@@ -1,0 +1,15 @@
+{
+  "id": "con_oidc_mi",
+  "name": "acme-oidc-metadata",
+  "strategy": "oidc",
+  "enabled_clients": ["client_app_a"],
+  "options": {
+    "type": "back_channel",
+    "client_id": "md-client",
+    "client_secret": "md-secret",
+    "oidc_metadata": {
+      "issuer": "idp.metadata.example.com",
+      "token_endpoint": "https://idp.metadata.example.com/token"
+    }
+  }
+}

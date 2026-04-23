@@ -1,0 +1,22 @@
+{
+  "user_id": "google-apps|grace@acme.com",
+  "email": "grace@acme.com",
+  "email_verified": true,
+  "name": "Grace Zhao",
+  "given_name": "Grace",
+  "family_name": "Zhao",
+  "picture": "https://lh3.googleusercontent.com/a/ACg8ocJ_placeholder=s96-c",
+  "identities": [
+    {
+      "connection": "acme-google-apps",
+      "user_id": "grace@acme.com",
+      "provider": "google-apps",
+      "isSocial": false,
+      "profileData": {
+        "email": "grace@acme.com",
+        "email_verified": true,
+        "hd": "acme.com"
+      }
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "id": "con_oidc_acme",
+  "name": "acme-oidc",
+  "strategy": "oidc",
+  "enabled_clients": ["client_app_a"],
+  "options": {
+    "type": "back_channel",
+    "client_id": "oidc-client-id-123",
+    "client_secret": "oidc-client-secret-placeholder",
+    "discovery_url": "https://idp.acme.com/.well-known/openid-configuration",
+    "issuer": "https://idp.acme.com",
+    "scope": "openid profile email"
+  }
+}

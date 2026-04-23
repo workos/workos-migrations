@@ -1,0 +1,18 @@
+{
+  "id": "con_samlp_beta",
+  "name": "beta-saml",
+  "strategy": "samlp",
+  "enabled_clients": ["client_app_b"],
+  "options": {
+    "signInEndpoint": "https://idp.beta.example.com/sso",
+    "cert": "MIICBetaCertSample",
+    "fieldsMap": {
+      "email": "email",
+      "given_name": "firstName",
+      "family_name": "lastName"
+    },
+    "idpinitiated": {
+      "enabled": false
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "id": "con_orphan_saml",
+  "name": "orphan-saml",
+  "strategy": "samlp",
+  "enabled_clients": [],
+  "options": {
+    "signInEndpoint": "https://idp.orphan.com/sso",
+    "cert": "MIICOrphan"
+  }
+}

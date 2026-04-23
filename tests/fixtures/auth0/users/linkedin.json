@@ -1,0 +1,17 @@
+{
+  "user_id": "linkedin|ABCdef123XYZ",
+  "email": "jack@example.com",
+  "email_verified": true,
+  "name": "Jack Brown",
+  "given_name": "Jack",
+  "family_name": "Brown",
+  "picture": "https://media.licdn.com/dms/image/placeholder.jpg",
+  "identities": [
+    {
+      "connection": "linkedin",
+      "user_id": "ABCdef123XYZ",
+      "provider": "linkedin",
+      "isSocial": true
+    }
+  ]
+}

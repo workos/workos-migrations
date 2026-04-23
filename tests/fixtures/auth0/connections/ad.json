@@ -1,0 +1,7 @@
+{
+  "id": "con_ad_acme",
+  "name": "acme-ad",
+  "strategy": "ad",
+  "enabled_clients": ["client_app_a"],
+  "options": {}
+}

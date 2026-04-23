@@ -1,0 +1,14 @@
+{
+  "user_id": "auth0|noname_user",
+  "email": "noname@example.com",
+  "email_verified": false,
+  "nickname": "noname",
+  "identities": [
+    {
+      "connection": "Username-Password-Authentication",
+      "user_id": "noname_user",
+      "provider": "auth0",
+      "isSocial": false
+    }
+  ]
+}

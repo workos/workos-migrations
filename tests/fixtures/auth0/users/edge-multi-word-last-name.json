@@ -1,0 +1,14 @@
+{
+  "user_id": "auth0|multi_word_user",
+  "email": "multi@example.com",
+  "email_verified": true,
+  "name": "Mary Ann Jones Smith",
+  "identities": [
+    {
+      "connection": "Username-Password-Authentication",
+      "user_id": "multi_word_user",
+      "provider": "auth0",
+      "isSocial": false
+    }
+  ]
+}

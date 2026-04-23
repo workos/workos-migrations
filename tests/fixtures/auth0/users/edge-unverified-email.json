@@ -1,0 +1,16 @@
+{
+  "user_id": "auth0|unverified_user",
+  "email": "unverified@example.com",
+  "email_verified": false,
+  "name": "Unverified User",
+  "given_name": "Unverified",
+  "family_name": "User",
+  "identities": [
+    {
+      "connection": "Username-Password-Authentication",
+      "user_id": "unverified_user",
+      "provider": "auth0",
+      "isSocial": false
+    }
+  ]
+}

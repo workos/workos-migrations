@@ -1,0 +1,14 @@
+{
+  "user_id": "auth0|only_name_user",
+  "email": "onlyname@example.com",
+  "email_verified": true,
+  "name": "Maya Patel",
+  "identities": [
+    {
+      "connection": "Username-Password-Authentication",
+      "user_id": "only_name_user",
+      "provider": "auth0",
+      "isSocial": false
+    }
+  ]
+}

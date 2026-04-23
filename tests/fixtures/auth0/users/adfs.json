@@ -1,0 +1,16 @@
+{
+  "user_id": "adfs|acme-adfs|hector@acme.com",
+  "email": "hector@acme.com",
+  "email_verified": true,
+  "name": "Hector Kim",
+  "given_name": "Hector",
+  "family_name": "Kim",
+  "identities": [
+    {
+      "connection": "acme-adfs",
+      "user_id": "hector@acme.com",
+      "provider": "adfs",
+      "isSocial": false
+    }
+  ]
+}

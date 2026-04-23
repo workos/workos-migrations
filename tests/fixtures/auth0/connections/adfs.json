@@ -1,0 +1,9 @@
+{
+  "id": "con_adfs_acme",
+  "name": "acme-adfs",
+  "strategy": "adfs",
+  "enabled_clients": ["client_app_a"],
+  "options": {
+    "adfs_server": "https://adfs.acme.com/FederationMetadata/2007-06/FederationMetadata.xml"
+  }
+}

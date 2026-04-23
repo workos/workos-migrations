@@ -1,0 +1,17 @@
+{
+  "user_id": "samlp|acme-saml|eve@acme.com",
+  "email": "eve@acme.com",
+  "email_verified": true,
+  "name": "Eve Parker",
+  "given_name": "Eve",
+  "family_name": "Parker",
+  "identities": [
+    {
+      "connection": "acme-saml",
+      "user_id": "eve@acme.com",
+      "provider": "samlp",
+      "isSocial": false
+    }
+  ],
+  "updated_at": "2024-03-10T08:15:00.000Z"
+}

@@ -1,0 +1,10 @@
+{
+  "id": "con_waad_missing",
+  "name": "bad-waad",
+  "strategy": "waad",
+  "enabled_clients": ["client_app_a"],
+  "options": {
+    "client_id": "azure-client-id-abc",
+    "client_secret": "azure-client-secret-placeholder"
+  }
+}

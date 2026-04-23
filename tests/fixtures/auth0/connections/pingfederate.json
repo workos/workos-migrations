@@ -1,0 +1,13 @@
+{
+  "id": "con_ping_acme",
+  "name": "acme-ping",
+  "strategy": "pingfederate",
+  "enabled_clients": ["client_app_a"],
+  "options": {
+    "pingfederate_base_url": "https://ping.acme.com/sp/ACS.saml2",
+    "signing_cert": "MIICPingCertSample",
+    "idpinitiated": {
+      "enabled": false
+    }
+  }
+}

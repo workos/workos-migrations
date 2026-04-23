@@ -1,0 +1,11 @@
+{
+  "id": "con_oidc_nd",
+  "name": "acme-oidc-no-discovery",
+  "strategy": "oidc",
+  "enabled_clients": ["client_app_a"],
+  "options": {
+    "type": "back_channel",
+    "client_id": "no-discovery-client",
+    "client_secret": "no-discovery-secret"
+  }
+}
