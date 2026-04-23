@@ -24,7 +24,7 @@ export class WorkOSAPIClient {
       baseURL,
       timeout: 30000,
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
+        Authorization: `Bearer ${apiKey}`,
         'User-Agent': 'workos-migrations-cli/1.0.0',
       },
     });
@@ -43,7 +43,7 @@ export class WorkOSAPIClient {
       throw new Error(
         `Failed to validate WorkOS API key: ${
           error instanceof Error ? error.message : 'Unknown error'
-        }`
+        }`,
       );
     }
   }
@@ -70,19 +70,17 @@ export class WorkOSAPIClient {
       if (axios.isAxiosError(error)) {
         if (error.response?.status === 404) {
           throw new Error(
-            'CSV import endpoint not yet available. This feature is coming soon to the WorkOS API.'
+            'CSV import endpoint not yet available. This feature is coming soon to the WorkOS API.',
           );
         }
-        
+
         if (error.response?.data?.message) {
           throw new Error(`WorkOS API error: ${error.response.data.message}`);
         }
       }
-      
+
       throw new Error(
-        `Failed to start CSV import: ${
-          error instanceof Error ? error.message : 'Unknown error'
-        }`
+        `Failed to start CSV import: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
     }
   }
@@ -94,14 +92,12 @@ export class WorkOSAPIClient {
     } catch (error) {
       if (axios.isAxiosError(error) && error.response?.status === 404) {
         throw new Error(
-          'Import status endpoint not yet available. This feature is coming soon to the WorkOS API.'
+          'Import status endpoint not yet available. This feature is coming soon to the WorkOS API.',
         );
       }
-      
+
       throw new Error(
-        `Failed to get import status: ${
-          error instanceof Error ? error.message : 'Unknown error'
-        }`
+        `Failed to get import status: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
     }
   }
@@ -113,14 +109,12 @@ export class WorkOSAPIClient {
     } catch (error) {
       if (axios.isAxiosError(error) && error.response?.status === 404) {
         throw new Error(
-          'Import jobs listing endpoint not yet available. This feature is coming soon to the WorkOS API.'
+          'Import jobs listing endpoint not yet available. This feature is coming soon to the WorkOS API.',
         );
       }
-      
+
       throw new Error(
-        `Failed to list import jobs: ${
-          error instanceof Error ? error.message : 'Unknown error'
-        }`
+        `Failed to list import jobs: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
     }
   }

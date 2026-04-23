@@ -1,5 +1,5 @@
 import { SAML_HEADERS, OIDC_HEADERS, USER_HEADERS, CUSTOM_ATTR_HEADERS, SamlRow, OidcRow, UserRow, CustomAttrRow, rowsToCsv } from '../../shared/csv';
-export { SAML_HEADERS, OIDC_HEADERS, USER_HEADERS, CUSTOM_ATTR_HEADERS, rowsToCsv, };
+export { SAML_HEADERS, OIDC_HEADERS, USER_HEADERS, CUSTOM_ATTR_HEADERS, rowsToCsv };
 export type { SamlRow, OidcRow, UserRow, CustomAttrRow };
 export interface CognitoProvider {
     userPoolId: string;
@@ -36,4 +36,3 @@ export declare function toUserRow(u: CognitoUser): UserRow;
 export declare function toSamlRow(p: CognitoProvider, proxy?: ProxyTemplates): SamlRow;
 export declare function toOidcRow(p: CognitoProvider, proxy?: ProxyTemplates): OidcRow;
 export declare function toCustomAttrRows(p: CognitoProvider): CustomAttrRow[];
-//# sourceMappingURL=workos-csv.d.ts.map

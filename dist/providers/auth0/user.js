@@ -78,4 +78,3 @@ function providerPrefix(userId) {
     const idx = userId.indexOf('|');
     return idx > 0 ? userId.slice(0, idx) : 'unknown';
 }
-//# sourceMappingURL=user.js.map

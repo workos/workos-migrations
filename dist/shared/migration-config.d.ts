@@ -48,4 +48,3 @@ export declare function appendRunLog(filePath: string, entry: MigrationRunLog): 
  * folder doesn't break the flow.
  */
 export declare function listConfigs(dir?: string): string[];
-//# sourceMappingURL=migration-config.d.ts.map

@@ -16,13 +16,7 @@ import {
   rowsToCsv,
 } from '../../shared/csv';
 
-export {
-  SAML_HEADERS,
-  OIDC_HEADERS,
-  USER_HEADERS,
-  CUSTOM_ATTR_HEADERS,
-  rowsToCsv,
-};
+export { SAML_HEADERS, OIDC_HEADERS, USER_HEADERS, CUSTOM_ATTR_HEADERS, rowsToCsv };
 export type { SamlRow, OidcRow, UserRow, CustomAttrRow };
 
 // ---------------------------------------------------------------------------
@@ -89,10 +83,7 @@ export function importedId(p: CognitoProvider): string {
   return `${p.userPoolId}:${p.providerName}`;
 }
 
-export function renderTemplate(
-  template: string | null | undefined,
-  p: CognitoProvider,
-): string {
+export function renderTemplate(template: string | null | undefined, p: CognitoProvider): string {
   if (!template) return '';
   return template
     .replace(/\{provider_name\}/g, p.providerName)

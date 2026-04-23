@@ -36,10 +36,7 @@ exports.CSV_TEMPLATES = {
         headers: ['organization_id', 'name'],
         required: ['organization_id', 'name'],
         optional: [],
-        example: [
-            'org_123,Acme Corporation',
-            'org_456,Example Industries',
-        ],
+        example: ['org_123,Acme Corporation', 'org_456,Example Industries'],
         validation: {
             name: (value) => {
                 return value.length > 0 || 'Organization name cannot be empty';
@@ -53,11 +50,7 @@ exports.CSV_TEMPLATES = {
         headers: ['organization_id', 'user_id'],
         required: ['organization_id', 'user_id'],
         optional: [],
-        example: [
-            'org_123,user_123',
-            'org_123,user_456',
-            'org_456,user_456',
-        ],
+        example: ['org_123,user_123', 'org_123,user_456', 'org_456,user_456'],
     },
     connections_saml: {
         name: 'SAML Connections',
@@ -132,16 +125,15 @@ exports.CSV_TEMPLATES = {
             idpInitiatedEnabled: (value) => {
                 if (!value)
                     return true;
-                return ['true', 'false', 'TRUE', 'FALSE'].includes(value) ||
-                    'Must be true or false';
+                return ['true', 'false', 'TRUE', 'FALSE'].includes(value) || 'Must be true or false';
             },
             customAttributes: (value) => {
                 if (!value)
                     return true;
                 try {
                     const parsed = JSON.parse(value);
-                    return (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ||
-                        'customAttributes must be a JSON object';
+                    return ((parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ||
+                        'customAttributes must be a JSON object');
                 }
                 catch {
                     return 'customAttributes must be valid JSON';
@@ -200,8 +192,8 @@ exports.CSV_TEMPLATES = {
                     return true;
                 try {
                     const parsed = JSON.parse(value);
-                    return (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ||
-                        'customAttributes must be a JSON object';
+                    return ((parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ||
+                        'customAttributes must be a JSON object');
                 }
                 catch {
                     return 'customAttributes must be valid JSON';
@@ -243,16 +235,15 @@ function validateCSVHeaders(templateName, headers) {
     }
     const errors = [];
     // Check if all required headers are present
-    const missingRequired = template.required.filter(required => !headers.includes(required));
+    const missingRequired = template.required.filter((required) => !headers.includes(required));
     if (missingRequired.length > 0) {
         errors.push(`Missing required columns: ${missingRequired.join(', ')}`);
     }
     // Check if there are any unexpected headers
     const expectedHeaders = [...template.required, ...template.optional];
-    const unexpectedHeaders = headers.filter(header => !expectedHeaders.includes(header));
+    const unexpectedHeaders = headers.filter((header) => !expectedHeaders.includes(header));
     if (unexpectedHeaders.length > 0) {
         errors.push(`Unexpected columns: ${unexpectedHeaders.join(', ')}`);
     }
     return { valid: errors.length === 0, errors };
 }
-//# sourceMappingURL=templates.js.map

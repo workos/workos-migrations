@@ -11,15 +11,7 @@ const chalk_1 = __importDefault(require("chalk"));
 const transform_1 = require("./transform");
 const user_1 = require("./user");
 const csv_1 = require("../../shared/csv");
-const SSO_STRATEGIES = [
-    'ad',
-    'adfs',
-    'auth0-adldap',
-    'oidc',
-    'okta',
-    'pingfederate',
-    'samlp',
-];
+const SSO_STRATEGIES = ['ad', 'adfs', 'auth0-adldap', 'oidc', 'okta', 'pingfederate', 'samlp'];
 class Auth0Client {
     constructor(credentials, transformConfig = {}, outputDir) {
         this.credentials = credentials;
@@ -300,4 +292,3 @@ Auth0Client.SCOPE_REQUIREMENTS = {
     organizations: ['read:organizations'],
     permissions: ['read:resource_servers'],
 };
-//# sourceMappingURL=client.js.map

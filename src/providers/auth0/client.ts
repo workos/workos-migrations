@@ -60,15 +60,7 @@ export interface Auth0Organization {
   [key: string]: any;
 }
 
-const SSO_STRATEGIES = [
-  'ad',
-  'adfs', 
-  'auth0-adldap',
-  'oidc',
-  'okta',
-  'pingfederate',
-  'samlp',
-];
+const SSO_STRATEGIES = ['ad', 'adfs', 'auth0-adldap', 'oidc', 'okta', 'pingfederate', 'samlp'];
 
 export class Auth0Client implements ProviderClient {
   private httpClient: AxiosInstance;
@@ -109,18 +101,18 @@ export class Auth0Client implements ProviderClient {
           headers: {
             'Content-Type': 'application/json',
           },
-        }
+        },
       );
 
       this.accessToken = response.data.access_token;
       this.grantedScopes = response.data.scope ? response.data.scope.split(' ') : [];
-      
+
       this.httpClient.defaults.headers.common['Authorization'] = `Bearer ${this.accessToken}`;
     } catch (error) {
       throw new Error(
         `Failed to authenticate with Auth0: ${
           error instanceof Error ? error.message : 'Unknown error'
-        }`
+        }`,
       );
     }
   }
@@ -206,7 +198,9 @@ export class Auth0Client implements ProviderClient {
 
         summary[entityType] = entities[entityType]?.length || 0;
       } catch (error) {
-        console.warn(`Failed to export ${entityType}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        console.warn(
+          `Failed to export ${entityType}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        );
         entities[entityType] = [];
         summary[entityType] = 0;
       }
@@ -215,10 +209,7 @@ export class Auth0Client implements ProviderClient {
     // Run the connection transform whenever connections were fetched.
     // Writes SAML + OIDC CSVs alongside the raw JSON dump.
     if (Array.isArray(entities.connections) && entities.connections.length > 0) {
-      const transformResult = transformAuth0Connections(
-        entities.connections,
-        this.transformConfig,
-      );
+      const transformResult = transformAuth0Connections(entities.connections, this.transformConfig);
       outputFiles.push(...this.writeTransformOutputs(transformResult));
       this.printTransformSummary(transformResult);
       entities.transform_summary = [
@@ -275,9 +266,7 @@ export class Auth0Client implements ProviderClient {
     }
     if (summary.missingName > 0) {
       console.log(
-        chalk.yellow(
-          `    [warn] ${summary.missingName} user(s) have no first/last name`,
-        ),
+        chalk.yellow(`    [warn] ${summary.missingName} user(s) have no first/last name`),
       );
     }
     if (summary.total > 0) {
@@ -319,9 +308,7 @@ export class Auth0Client implements ProviderClient {
     const skippedOidc = result.skipped.filter((s) => s.type === 'OIDC');
     if (skippedSaml.length > 0 || skippedOidc.length > 0) {
       console.log(
-        chalk.yellow(
-          `    [warn] skipped: ${skippedSaml.length} SAML / ${skippedOidc.length} OIDC`,
-        ),
+        chalk.yellow(`    [warn] skipped: ${skippedSaml.length} SAML / ${skippedOidc.length} OIDC`),
       );
       for (const s of result.skipped) {
         console.log(chalk.gray(`      • ${s.connectionName} [${s.type}] — ${s.reason}`));
@@ -378,10 +365,10 @@ export class Auth0Client implements ProviderClient {
 
     const data = response.data;
     const allConnections = Array.isArray(data) ? data : data.connections || [];
-    
+
     // Filter for SSO strategies
     return allConnections.filter((conn: Auth0Connection) =>
-      SSO_STRATEGIES.includes(conn.strategy.toLowerCase())
+      SSO_STRATEGIES.includes(conn.strategy.toLowerCase()),
     );
   }
 

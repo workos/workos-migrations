@@ -48,4 +48,3 @@ export declare function summarizeAuth0Users(users: Auth0User[], rows: UserRow[])
  *   "samlp|acme-saml|user@..."     → "samlp"
  */
 export declare function providerPrefix(userId: unknown): string;
-//# sourceMappingURL=user.d.ts.map

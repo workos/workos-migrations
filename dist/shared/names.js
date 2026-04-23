@@ -49,4 +49,3 @@ function looksLikePhone(value) {
     // Require at least some digits — rejects pure punctuation strings
     return /\d/.test(trimmed);
 }
-//# sourceMappingURL=names.js.map

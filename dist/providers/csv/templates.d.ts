@@ -18,4 +18,3 @@ export declare function validateCSVHeaders(templateName: string, headers: string
     valid: boolean;
     errors: string[];
 };
-//# sourceMappingURL=templates.d.ts.map

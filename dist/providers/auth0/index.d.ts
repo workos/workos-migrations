@@ -6,4 +6,3 @@ export type { Auth0TransformConfig, TransformResult } from './transform';
 export { transformAuth0Connections } from './transform';
 export { toWorkOSUserRow, summarizeAuth0Users, providerPrefix } from './user';
 export type { UserTransformSummary } from './user';
-//# sourceMappingURL=index.d.ts.map

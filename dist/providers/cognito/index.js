@@ -58,4 +58,3 @@ exports.cognitoProvider = {
 };
 var client_1 = require("./client");
 Object.defineProperty(exports, "CognitoClient", { enumerable: true, get: function () { return client_1.CognitoClient; } });
-//# sourceMappingURL=index.js.map

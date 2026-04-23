@@ -189,22 +189,27 @@ The `customEntityId` column defaults to the Cognito SP pattern (`urn:amazon:cogn
 The tool supports importing data to WorkOS using predefined CSV templates:
 
 ### Users Template (`users.csv`)
+
 - **Required**: `user_id`, `email`
 - **Optional**: `email_verified`, `first_name`, `last_name`, `password_hash`
 
 ### Organizations Template (`organizations.csv`)
+
 - **Required**: `organization_id`, `name`
 
 ### Organization Memberships Template (`organization_memberships.csv`)
+
 - **Required**: `organization_id`, `user_id`
 
 ### Connections Template (`connections.csv`)
+
 - **Required**: `organizationName`, `organizationId`
 - **Optional**: `domains`, `idpEntityId`, `idpUrl`, `x509Cert`, `idpIdAttribute`, `idpMetadataUrl`, `customEntityId`, `customAcsUrl`, `requestSigningCert`
 
 **Field Descriptions:**
+
 - `organizationName`: Name of the organization
-- `organizationId`: Unique identifier for the organization  
+- `organizationId`: Unique identifier for the organization
 - `domains`: Semicolon-separated list of domains (e.g., "acme.com;app.acme.com")
 - `idpEntityId`: Identity Provider Entity ID
 - `idpUrl`: Identity Provider SSO URL
@@ -216,6 +221,7 @@ The tool supports importing data to WorkOS using predefined CSV templates:
 - `requestSigningCert`: Certificate for signing SAML requests
 
 Generate templates with examples:
+
 ```bash
 npx workos-migrations csv generate-template --template users --output my-users.csv
 ```
@@ -234,8 +240,22 @@ npm run dev
 
 # Run built version
 npm start
+
+# Lint, format check, typecheck, and tests
+npm run lint
+npm run format:check
+npm run typecheck
+npm test
 ```
+
+## Contributing
+
+Contributions are welcome! See [CONTRIBUTING.md](./CONTRIBUTING.md) for
+development setup, coding guidelines, and instructions for adding new
+providers. Security-related issues should be reported privately as described
+in [SECURITY.md](./SECURITY.md).
 
 ## License
 
-MIT
+This project is licensed under the MIT License — see the [LICENSE](./LICENSE)
+file for details.

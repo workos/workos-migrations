@@ -12,12 +12,7 @@ const DEFAULT_ORG_NAME_PREFIX = '[MIGRATED] sso-';
 /** Enterprise SSO strategies that produce SAML rows. */
 const ENTERPRISE_SAML_STRATEGIES = new Set(['samlp', 'adfs', 'pingfederate']);
 /** Enterprise SSO strategies that produce OIDC rows. */
-const ENTERPRISE_OIDC_STRATEGIES = new Set([
-    'oidc',
-    'waad',
-    'google-apps',
-    'okta',
-]);
+const ENTERPRISE_OIDC_STRATEGIES = new Set(['oidc', 'waad', 'google-apps', 'okta']);
 /** Enterprise strategies with no auto-migration path (require manual setup). */
 const ENTERPRISE_MANUAL_SETUP_STRATEGIES = new Set(['ad', 'auth0-adldap']);
 /** Social OAuth providers — WorkOS handles these natively via dashboard config, not via CSV import. */
@@ -157,9 +152,7 @@ function transformAuth0Connections(connections, config) {
     };
 }
 function buildSamlRow(connection, common, overrides, config) {
-    const customEntityId = config.entityIdPrefix
-        ? `${config.entityIdPrefix}${connection.name}`
-        : '';
+    const customEntityId = config.entityIdPrefix ? `${config.entityIdPrefix}${connection.name}` : '';
     const customAcsUrl = config.customDomain
         ? `https://${config.customDomain}/login/callback?connection=${connection.name}`
         : '';
@@ -351,4 +344,3 @@ function ensureHttps(url) {
         return 'https://' + url.slice('http://'.length);
     return 'https://' + url;
 }
-//# sourceMappingURL=transform.js.map

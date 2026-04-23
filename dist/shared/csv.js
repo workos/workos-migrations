@@ -91,4 +91,3 @@ function rowsToCsv(headers, rows) {
     }
     return lines.join('\n') + '\n';
 }
-//# sourceMappingURL=csv.js.map

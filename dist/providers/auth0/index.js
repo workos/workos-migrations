@@ -68,4 +68,3 @@ var user_1 = require("./user");
 Object.defineProperty(exports, "toWorkOSUserRow", { enumerable: true, get: function () { return user_1.toWorkOSUserRow; } });
 Object.defineProperty(exports, "summarizeAuth0Users", { enumerable: true, get: function () { return user_1.summarizeAuth0Users; } });
 Object.defineProperty(exports, "providerPrefix", { enumerable: true, get: function () { return user_1.providerPrefix; } });
-//# sourceMappingURL=index.js.map

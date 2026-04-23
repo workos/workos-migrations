@@ -58,4 +58,3 @@ export declare function classifyStrategy(strategy: string): {
 export declare function transformAuth0Connections(connections: Auth0Connection[], config: Auth0TransformConfig): TransformResult;
 export declare function ensureWellKnown(url: string): string;
 export declare function ensureHttps(url: string): string;
-//# sourceMappingURL=transform.d.ts.map

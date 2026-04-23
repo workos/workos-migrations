@@ -34,7 +34,7 @@ export const CSV_TEMPLATES: Record<string, CSVTemplate> = {
       },
     },
   },
-  
+
   organizations: {
     name: 'Organizations',
     description: 'Organization entities',
@@ -42,17 +42,14 @@ export const CSV_TEMPLATES: Record<string, CSVTemplate> = {
     headers: ['organization_id', 'name'],
     required: ['organization_id', 'name'],
     optional: [],
-    example: [
-      'org_123,Acme Corporation',
-      'org_456,Example Industries',
-    ],
+    example: ['org_123,Acme Corporation', 'org_456,Example Industries'],
     validation: {
       name: (value: string) => {
         return value.length > 0 || 'Organization name cannot be empty';
       },
     },
   },
-  
+
   organization_memberships: {
     name: 'Organization Memberships',
     description: 'User memberships in organizations',
@@ -60,13 +57,9 @@ export const CSV_TEMPLATES: Record<string, CSVTemplate> = {
     headers: ['organization_id', 'user_id'],
     required: ['organization_id', 'user_id'],
     optional: [],
-    example: [
-      'org_123,user_123',
-      'org_123,user_456',
-      'org_456,user_456',
-    ],
+    example: ['org_123,user_123', 'org_123,user_456', 'org_456,user_456'],
   },
-  
+
   connections_saml: {
     name: 'SAML Connections',
     description: 'SAML SSO connections (WorkOS standalone SSO import)',
@@ -125,8 +118,7 @@ export const CSV_TEMPLATES: Record<string, CSVTemplate> = {
       'Acme Corporation,,acme-saml,"acme.com;app.acme.com",https://acme.okta.com/entity,https://acme.okta.com/sso,MIICXjCC...,,,,,email,firstName,lastName,,,,,,,acme-saml',
     ],
     validation: {
-      organizationName: (value: string) =>
-        value.length > 0 || 'Organization name cannot be empty',
+      organizationName: (value: string) => value.length > 0 || 'Organization name cannot be empty',
       domains: (value: string) => {
         if (!value) return true;
         const domains = value.split(';');
@@ -140,15 +132,16 @@ export const CSV_TEMPLATES: Record<string, CSVTemplate> = {
       customAcsUrl: httpsUrlCheck,
       idpInitiatedEnabled: (value: string) => {
         if (!value) return true;
-        return ['true', 'false', 'TRUE', 'FALSE'].includes(value) ||
-          'Must be true or false';
+        return ['true', 'false', 'TRUE', 'FALSE'].includes(value) || 'Must be true or false';
       },
       customAttributes: (value: string) => {
         if (!value) return true;
         try {
           const parsed = JSON.parse(value);
-          return (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ||
-            'customAttributes must be a JSON object';
+          return (
+            (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ||
+            'customAttributes must be a JSON object'
+          );
         } catch {
           return 'customAttributes must be valid JSON';
         }
@@ -187,12 +180,9 @@ export const CSV_TEMPLATES: Record<string, CSVTemplate> = {
       'Acme Corporation,,acme-oidc,acme.com,oidc-client-id,oidc-client-secret,https://idp.acme.com/.well-known/openid-configuration,,,,acme-oidc',
     ],
     validation: {
-      organizationName: (value: string) =>
-        value.length > 0 || 'Organization name cannot be empty',
-      clientId: (value: string) =>
-        value.length > 0 || 'clientId is required',
-      clientSecret: (value: string) =>
-        value.length > 0 || 'clientSecret is required',
+      organizationName: (value: string) => value.length > 0 || 'Organization name cannot be empty',
+      clientId: (value: string) => value.length > 0 || 'clientId is required',
+      clientSecret: (value: string) => value.length > 0 || 'clientSecret is required',
       discoveryEndpoint: (value: string) => {
         if (!value) return 'discoveryEndpoint is required';
         try {
@@ -207,8 +197,10 @@ export const CSV_TEMPLATES: Record<string, CSVTemplate> = {
         if (!value) return true;
         try {
           const parsed = JSON.parse(value);
-          return (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ||
-            'customAttributes must be a JSON object';
+          return (
+            (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ||
+            'customAttributes must be a JSON object'
+          );
         } catch {
           return 'customAttributes must be valid JSON';
         }
@@ -240,33 +232,36 @@ export function generateTemplateExample(templateName: string): string {
   if (!template) {
     throw new Error(`Template ${templateName} not found`);
   }
-  
+
   const header = template.headers.join(',');
   const examples = template.example.join('\n');
-  
+
   return `${header}\n${examples}`;
 }
 
-export function validateCSVHeaders(templateName: string, headers: string[]): { valid: boolean; errors: string[] } {
+export function validateCSVHeaders(
+  templateName: string,
+  headers: string[],
+): { valid: boolean; errors: string[] } {
   const template = getTemplate(templateName);
   if (!template) {
     return { valid: false, errors: [`Template ${templateName} not found`] };
   }
-  
+
   const errors: string[] = [];
-  
+
   // Check if all required headers are present
-  const missingRequired = template.required.filter(required => !headers.includes(required));
+  const missingRequired = template.required.filter((required) => !headers.includes(required));
   if (missingRequired.length > 0) {
     errors.push(`Missing required columns: ${missingRequired.join(', ')}`);
   }
-  
+
   // Check if there are any unexpected headers
   const expectedHeaders = [...template.required, ...template.optional];
-  const unexpectedHeaders = headers.filter(header => !expectedHeaders.includes(header));
+  const unexpectedHeaders = headers.filter((header) => !expectedHeaders.includes(header));
   if (unexpectedHeaders.length > 0) {
     errors.push(`Unexpected columns: ${unexpectedHeaders.join(', ')}`);
   }
-  
+
   return { valid: errors.length === 0, errors };
 }

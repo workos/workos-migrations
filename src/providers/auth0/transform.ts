@@ -8,12 +8,7 @@
  * Output matches the shared WorkOS import templates (see src/shared/csv.ts).
  */
 import type { Auth0Connection } from './client';
-import {
-  SAML_HEADERS,
-  OIDC_HEADERS,
-  createCSV,
-  createCSVRow,
-} from '../../shared/csv';
+import { SAML_HEADERS, OIDC_HEADERS, createCSV, createCSVRow } from '../../shared/csv';
 
 export interface Auth0TransformConfig {
   /** Auth0 tenant's custom domain used in the synthesized customAcsUrl / customRedirectUri. */
@@ -38,11 +33,7 @@ export interface ManualSetupConnection {
   reason: string;
 }
 
-export type OutOfScopeCategory =
-  | 'social'
-  | 'database'
-  | 'passwordless'
-  | 'other-non-sso';
+export type OutOfScopeCategory = 'social' | 'database' | 'passwordless' | 'other-non-sso';
 
 export interface OutOfScopeConnection {
   connectionName: string;
@@ -70,12 +61,7 @@ export interface TransformResult {
 const ENTERPRISE_SAML_STRATEGIES = new Set<string>(['samlp', 'adfs', 'pingfederate']);
 
 /** Enterprise SSO strategies that produce OIDC rows. */
-const ENTERPRISE_OIDC_STRATEGIES = new Set<string>([
-  'oidc',
-  'waad',
-  'google-apps',
-  'okta',
-]);
+const ENTERPRISE_OIDC_STRATEGIES = new Set<string>(['oidc', 'waad', 'google-apps', 'okta']);
 
 /** Enterprise strategies with no auto-migration path (require manual setup). */
 const ENTERPRISE_MANUAL_SETUP_STRATEGIES = new Set<string>(['ad', 'auth0-adldap']);
@@ -260,9 +246,7 @@ function buildSamlRow(
   },
   config: Auth0TransformConfig,
 ): string {
-  const customEntityId = config.entityIdPrefix
-    ? `${config.entityIdPrefix}${connection.name}`
-    : '';
+  const customEntityId = config.entityIdPrefix ? `${config.entityIdPrefix}${connection.name}` : '';
   const customAcsUrl = config.customDomain
     ? `https://${config.customDomain}/login/callback?connection=${connection.name}`
     : '';
@@ -382,8 +366,7 @@ function processOidc(
     return;
   }
 
-  const rawDiscovery =
-    options.discovery_url || options.oidc_metadata?.issuer || options.issuer;
+  const rawDiscovery = options.discovery_url || options.oidc_metadata?.issuer || options.issuer;
 
   if (!rawDiscovery) {
     skipped.push({

@@ -103,4 +103,3 @@ function listConfigs(dir = DEFAULT_CONFIG_DIR) {
         }
     });
 }
-//# sourceMappingURL=migration-config.js.map

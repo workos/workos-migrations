@@ -62,4 +62,3 @@ export declare class Auth0Client implements ProviderClient {
     private getRoles;
     private getOrganizations;
 }
-//# sourceMappingURL=client.d.ts.map

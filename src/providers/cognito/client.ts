@@ -10,12 +10,7 @@ import {
   ProviderDescription,
   UserType,
 } from '@aws-sdk/client-cognito-identity-provider';
-import {
-  ProviderClient,
-  EntityType,
-  ExportResult,
-  ProviderCredentials,
-} from '../../types';
+import { ProviderClient, EntityType, ExportResult, ProviderCredentials } from '../../types';
 import {
   CognitoProvider,
   CognitoUser,
@@ -93,10 +88,7 @@ export class CognitoClient implements ProviderClient {
   }
 
   getScopes(): string[] {
-    return [
-      'cognito-idp:ListIdentityProviders',
-      'cognito-idp:DescribeIdentityProvider',
-    ];
+    return ['cognito-idp:ListIdentityProviders', 'cognito-idp:DescribeIdentityProvider'];
   }
 
   async getAvailableEntities(): Promise<EntityType[]> {
@@ -192,9 +184,7 @@ export class CognitoClient implements ProviderClient {
         process.env.SAML_CUSTOM_ENTITY_ID_TEMPLATE ??
         DEFAULT_SAML_CUSTOM_ENTITY_ID_TEMPLATE,
       samlCustomAcsUrl:
-        this.options.proxy?.samlCustomAcsUrl ??
-        process.env.SAML_CUSTOM_ACS_URL_TEMPLATE ??
-        null,
+        this.options.proxy?.samlCustomAcsUrl ?? process.env.SAML_CUSTOM_ACS_URL_TEMPLATE ?? null,
       oidcCustomRedirectUri:
         this.options.proxy?.oidcCustomRedirectUri ??
         process.env.OIDC_CUSTOM_REDIRECT_URI_TEMPLATE ??
@@ -383,8 +373,8 @@ export class CognitoClient implements ProviderClient {
       (this.credentials.userPoolIds
         ? this.credentials.userPoolIds.split(',')
         : this.credentials.userPoolId
-        ? [this.credentials.userPoolId]
-        : []);
+          ? [this.credentials.userPoolId]
+          : []);
     return candidates.map((s) => s.trim()).filter(Boolean);
   }
 

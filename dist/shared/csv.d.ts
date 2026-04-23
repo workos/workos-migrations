@@ -25,4 +25,3 @@ export declare function createCSVRow(fields: (string | undefined | null)[]): str
 export declare function createCSV(header: readonly string[], rows: string[]): string;
 /** Render a list of records keyed by header name into a CSV string. */
 export declare function rowsToCsv(headers: readonly string[], rows: Record<string, string | undefined | null>[]): string;
-//# sourceMappingURL=csv.d.ts.map

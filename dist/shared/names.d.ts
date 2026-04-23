@@ -22,4 +22,3 @@ export declare function splitName(name: string | undefined | null): {
 export declare function looksLikeEmail(value: string | undefined | null): boolean;
 /** True if a string looks like a phone number (E.164 or common formats). */
 export declare function looksLikePhone(value: string | undefined | null): boolean;
-//# sourceMappingURL=names.d.ts.map

@@ -24,4 +24,3 @@ export declare class CSVClient implements ProviderClient {
     generateTemplate(templateType: string, outputPath?: string): string;
     getTemplateInfo(templateType: string): any;
 }
-//# sourceMappingURL=client.d.ts.map
