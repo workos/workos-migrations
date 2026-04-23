@@ -220,6 +220,17 @@ class Auth0Client {
                 console.log(chalk_1.default.gray(`      • ${m.connectionName} [${m.strategy}] — ${m.reason}`));
             }
         }
+        if (result.outOfScope.length > 0) {
+            const byCategory = result.outOfScope.reduce((acc, c) => {
+                acc[c.category] = (acc[c.category] ?? 0) + 1;
+                return acc;
+            }, {});
+            const breakdown = Object.entries(byCategory)
+                .map(([k, v]) => `${k}: ${v}`)
+                .join(', ');
+            console.log(chalk_1.default.gray(`    [info] ${result.outOfScope.length} connection(s) filtered out as non-SSO (${breakdown}) — ` +
+                `social connections reconfigure in the WorkOS dashboard; database connections migrate via users.csv.`));
+        }
     }
     async getUsers() {
         const response = await this.httpClient.get('/users', {

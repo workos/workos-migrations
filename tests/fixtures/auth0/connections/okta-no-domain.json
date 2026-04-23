@@ -1,0 +1,10 @@
+{
+  "id": "con_okta_bad",
+  "name": "okta-missing-domain",
+  "strategy": "okta",
+  "enabled_clients": ["client_a"],
+  "options": {
+    "client_id": "okta-client-id",
+    "client_secret": "okta-client-secret"
+  }
+}

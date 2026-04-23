@@ -38,6 +38,18 @@ export interface ManualSetupConnection {
   reason: string;
 }
 
+export type OutOfScopeCategory =
+  | 'social'
+  | 'database'
+  | 'passwordless'
+  | 'other-non-sso';
+
+export interface OutOfScopeConnection {
+  connectionName: string;
+  strategy: string;
+  category: OutOfScopeCategory;
+}
+
 export interface TransformResult {
   samlCsv: string;
   oidcCsv: string;
@@ -46,6 +58,65 @@ export interface TransformResult {
   skipped: SkippedConnection[];
   manualSetup: ManualSetupConnection[];
   samlIdpInitiatedDisabled: string[];
+  /** Non-SSO connections silently filtered out — not errors, just outside the migration scope. */
+  outOfScope: OutOfScopeConnection[];
+}
+
+// ---------------------------------------------------------------------------
+// Strategy classification
+// ---------------------------------------------------------------------------
+
+/** Enterprise SSO strategies that produce SAML rows. */
+const ENTERPRISE_SAML_STRATEGIES = new Set<string>(['samlp', 'adfs', 'pingfederate']);
+
+/** Enterprise SSO strategies that produce OIDC rows. */
+const ENTERPRISE_OIDC_STRATEGIES = new Set<string>([
+  'oidc',
+  'waad',
+  'google-apps',
+  'okta',
+]);
+
+/** Enterprise strategies with no auto-migration path (require manual setup). */
+const ENTERPRISE_MANUAL_SETUP_STRATEGIES = new Set<string>(['ad', 'auth0-adldap']);
+
+/** Social OAuth providers — WorkOS handles these natively via dashboard config, not via CSV import. */
+const SOCIAL_STRATEGIES = new Set<string>([
+  'facebook',
+  'google-oauth2',
+  'twitter',
+  'windowslive',
+  'linkedin',
+  'apple',
+  'github',
+  'instagram',
+  'amazon',
+  'yahoo',
+  'oauth2', // generic OAuth2 custom social connections
+]);
+
+/** Database (username/password) connections — users migrate via users.csv, not as connections. */
+const DATABASE_STRATEGIES = new Set<string>(['auth0']);
+
+/** Passwordless — no WorkOS equivalent as an SSO connection. */
+const PASSWORDLESS_STRATEGIES = new Set<string>(['email', 'sms']);
+
+export function classifyStrategy(
+  strategy: string,
+):
+  | { kind: 'enterprise-saml' }
+  | { kind: 'enterprise-oidc' }
+  | { kind: 'enterprise-manual-setup' }
+  | { kind: 'out-of-scope'; category: OutOfScopeCategory }
+  | { kind: 'unknown' } {
+  if (ENTERPRISE_SAML_STRATEGIES.has(strategy)) return { kind: 'enterprise-saml' };
+  if (ENTERPRISE_OIDC_STRATEGIES.has(strategy)) return { kind: 'enterprise-oidc' };
+  if (ENTERPRISE_MANUAL_SETUP_STRATEGIES.has(strategy)) return { kind: 'enterprise-manual-setup' };
+  if (SOCIAL_STRATEGIES.has(strategy)) return { kind: 'out-of-scope', category: 'social' };
+  if (DATABASE_STRATEGIES.has(strategy)) return { kind: 'out-of-scope', category: 'database' };
+  if (PASSWORDLESS_STRATEGIES.has(strategy))
+    return { kind: 'out-of-scope', category: 'passwordless' };
+  return { kind: 'unknown' };
 }
 
 export function transformAuth0Connections(
@@ -59,16 +130,54 @@ export function transformAuth0Connections(
   const samlIdpInitiatedDisabled: string[] = [];
   const skipped: SkippedConnection[] = [];
   const manualSetup: ManualSetupConnection[] = [];
+  const outOfScope: OutOfScopeConnection[] = [];
 
   for (const connection of connections) {
+    const classification = classifyStrategy(connection.strategy);
+
+    // Silently filter non-enterprise-SSO connections. They're not "skipped due
+    // to bad config" — they're entirely outside the scope of SSO connection
+    // migration. Social providers get reconfigured in the WorkOS dashboard,
+    // database connections migrate as users, passwordless has no equivalent.
+    if (classification.kind === 'out-of-scope') {
+      outOfScope.push({
+        connectionName: connection.name,
+        strategy: connection.strategy,
+        category: classification.category,
+      });
+      continue;
+    }
+
+    // Enterprise strategies we recognize but can't auto-migrate (on-prem AD/LDAP).
+    if (classification.kind === 'enterprise-manual-setup') {
+      manualSetup.push({
+        connectionName: connection.name,
+        strategy: connection.strategy,
+        reason: 'On-prem AD/LDAP connector — no automated migration path, requires manual setup',
+      });
+      continue;
+    }
+
+    // Truly unrecognized strategies — flag for human review.
+    if (classification.kind === 'unknown') {
+      manualSetup.push({
+        connectionName: connection.name,
+        strategy: connection.strategy,
+        reason: `Unrecognized strategy "${connection.strategy}" — requires manual review`,
+      });
+      continue;
+    }
+
     const row = {
       organizationName: `${orgNamePrefix}${connection.name}`,
       organizationExternalId: connection.name,
       importedId: connection.name,
     };
 
+    // Enterprise SSO connection with no applications enabled — the import
+    // contract requires at least one app, so we can't write a row.
     if (!connection.enabled_clients || connection.enabled_clients.length === 0) {
-      const connectionType = connection.strategy === 'samlp' ? 'SAML' : 'OIDC';
+      const connectionType = classification.kind === 'enterprise-saml' ? 'SAML' : 'OIDC';
       skipped.push({
         connectionName: connection.name,
         reason: 'No applications enabled',
@@ -101,20 +210,8 @@ export function transformAuth0Connections(
           reason: 'Imported without client_secret — must be added manually in WorkOS after import',
         });
         break;
-      case 'ad':
-      case 'auth0-adldap':
-        manualSetup.push({
-          connectionName: connection.name,
-          strategy: connection.strategy,
-          reason: 'On-prem AD/LDAP connector — no automated migration path, requires manual setup',
-        });
-        break;
-      default:
-        manualSetup.push({
-          connectionName: connection.name,
-          strategy: connection.strategy,
-          reason: `Unrecognized strategy "${connection.strategy}" — requires manual review`,
-        });
+      case 'okta':
+        processOkta(connection, row, config, oidcRows, skipped);
         break;
     }
   }
@@ -127,6 +224,7 @@ export function transformAuth0Connections(
     skipped,
     manualSetup,
     samlIdpInitiatedDisabled,
+    outOfScope,
   };
 }
 
@@ -335,6 +433,50 @@ function processWaad(
   }
 
   const discoveryEndpoint = `https://login.microsoftonline.com/${tenantDomain}/.well-known/openid-configuration`;
+  oidcRows.push(
+    buildOidcRow(
+      common,
+      {
+        clientId: options.client_id,
+        clientSecret: options.client_secret,
+        discoveryEndpoint,
+      },
+      config,
+    ),
+  );
+}
+
+function processOkta(
+  connection: Auth0Connection,
+  common: CommonRowFields,
+  config: Auth0TransformConfig,
+  oidcRows: string[],
+  skipped: SkippedConnection[],
+): void {
+  const options = connection.options || {};
+
+  // Auth0's Okta Workforce connection is always OIDC. Discovery endpoint
+  // order of preference: explicit discovery_url → issuer → synthesized from
+  // the Okta org domain (options.domain) using the default authorization
+  // server.
+  let rawDiscovery: string | undefined =
+    options.discovery_url || options.oidc_metadata?.issuer || options.issuer;
+
+  if (!rawDiscovery && options.domain) {
+    // Okta's default org-level authorization server.
+    rawDiscovery = `https://${options.domain}/oauth2/default`;
+  }
+
+  if (!rawDiscovery) {
+    skipped.push({
+      connectionName: connection.name,
+      reason: 'Okta connection missing domain/discovery URL',
+      type: 'OIDC',
+    });
+    return;
+  }
+
+  const discoveryEndpoint = ensureHttps(ensureWellKnown(rawDiscovery));
   oidcRows.push(
     buildOidcRow(
       common,

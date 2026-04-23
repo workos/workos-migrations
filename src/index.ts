@@ -101,6 +101,16 @@ async function runAuth0Transform(
           console.log(chalk.gray(`    • ${m.connectionName} [${m.strategy}] — ${m.reason}`));
         }
       }
+      if (result.outOfScope.length > 0) {
+        const byCategory = result.outOfScope.reduce<Record<string, number>>((acc, c) => {
+          acc[c.category] = (acc[c.category] ?? 0) + 1;
+          return acc;
+        }, {});
+        const breakdown = Object.entries(byCategory)
+          .map(([k, v]) => `${k}: ${v}`)
+          .join(', ');
+        console.log(chalk.gray(`  [info] ${result.outOfScope.length} non-SSO filtered (${breakdown})`));
+      }
     }
   }
 

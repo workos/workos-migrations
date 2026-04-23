@@ -338,6 +338,22 @@ export class Auth0Client implements ProviderClient {
         console.log(chalk.gray(`      • ${m.connectionName} [${m.strategy}] — ${m.reason}`));
       }
     }
+
+    if (result.outOfScope.length > 0) {
+      const byCategory = result.outOfScope.reduce<Record<string, number>>((acc, c) => {
+        acc[c.category] = (acc[c.category] ?? 0) + 1;
+        return acc;
+      }, {});
+      const breakdown = Object.entries(byCategory)
+        .map(([k, v]) => `${k}: ${v}`)
+        .join(', ');
+      console.log(
+        chalk.gray(
+          `    [info] ${result.outOfScope.length} connection(s) filtered out as non-SSO (${breakdown}) — ` +
+            `social connections reconfigure in the WorkOS dashboard; database connections migrate via users.csv.`,
+        ),
+      );
+    }
   }
 
   private async getUsers(): Promise<Auth0User[]> {

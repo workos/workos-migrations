@@ -1,0 +1,7 @@
+{
+  "id": "con_custom_unknown",
+  "name": "custom-thing",
+  "strategy": "custom-future-strategy",
+  "enabled_clients": ["client_a"],
+  "options": {}
+}

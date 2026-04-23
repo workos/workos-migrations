@@ -287,15 +287,86 @@ describe('transformAuth0Connections', () => {
     });
   });
 
-  describe('unknown strategy', () => {
-    it('flags unrecognized strategies for manual review', () => {
+  describe('okta (enterprise OIDC)', () => {
+    it('transforms okta connection as OIDC with synthesized discovery URL from domain', () => {
       const result = transformAuth0Connections(
-        [loadConnection('okta-unknown.json')],
+        [loadConnection('okta.json')],
+        DEFAULT_CONFIG,
+      );
+      expect(result.oidcCount).toBe(1);
+      const rows = parseCsv(result.oidcCsv, OIDC_HEADERS);
+      expect(rows[0]).toMatchObject({
+        clientId: 'okta-client-id',
+        clientSecret: 'okta-client-secret',
+        discoveryEndpoint:
+          'https://acme.okta.com/oauth2/default/.well-known/openid-configuration',
+      });
+    });
+
+    it('skips okta connection with no domain / discovery URL', () => {
+      const result = transformAuth0Connections(
+        [loadConnection('okta-no-domain.json')],
+        DEFAULT_CONFIG,
+      );
+      expect(result.oidcCount).toBe(0);
+      expect(result.skipped).toContainEqual({
+        connectionName: 'okta-missing-domain',
+        reason: 'Okta connection missing domain/discovery URL',
+        type: 'OIDC',
+      });
+    });
+  });
+
+  describe('out-of-scope strategies (silent skip)', () => {
+    it('classifies social providers as out-of-scope, not manual setup', () => {
+      const result = transformAuth0Connections(
+        [loadConnection('social-google.json')],
+        DEFAULT_CONFIG,
+      );
+      expect(result.manualSetup).toHaveLength(0);
+      expect(result.skipped).toHaveLength(0);
+      expect(result.outOfScope).toEqual([
+        {
+          connectionName: 'google-oauth2',
+          strategy: 'google-oauth2',
+          category: 'social',
+        },
+      ]);
+    });
+
+    it('classifies database connections as out-of-scope', () => {
+      const result = transformAuth0Connections(
+        [loadConnection('database-auth0.json')],
+        DEFAULT_CONFIG,
+      );
+      expect(result.outOfScope[0]).toMatchObject({
+        strategy: 'auth0',
+        category: 'database',
+      });
+      expect(result.manualSetup).toHaveLength(0);
+    });
+
+    it('classifies passwordless as out-of-scope', () => {
+      const result = transformAuth0Connections(
+        [loadConnection('passwordless-email.json')],
+        DEFAULT_CONFIG,
+      );
+      expect(result.outOfScope[0]).toMatchObject({
+        strategy: 'email',
+        category: 'passwordless',
+      });
+    });
+  });
+
+  describe('unknown strategy', () => {
+    it('flags truly unrecognized strategies for manual review', () => {
+      const result = transformAuth0Connections(
+        [loadConnection('unknown-custom.json')],
         DEFAULT_CONFIG,
       );
       expect(result.manualSetup).toContainEqual({
-        connectionName: 'acme-okta',
-        strategy: 'okta',
+        connectionName: 'custom-thing',
+        strategy: 'custom-future-strategy',
         reason: expect.stringContaining('Unrecognized strategy'),
       });
     });
@@ -353,21 +424,60 @@ describe('transformAuth0Connections', () => {
         'pingfederate.json',
         'ad.json',
         'auth0-adldap.json',
-        'okta-unknown.json',
+        'okta.json',
+        'okta-no-domain.json',
         'samlp-no-enabled-clients.json',
+        'social-google.json',
+        'database-auth0.json',
+        'passwordless-email.json',
+        'unknown-custom.json',
       ].map(loadConnection);
 
       const result = transformAuth0Connections(connections, DEFAULT_CONFIG);
 
       // SAML rows: samlp + samlp-no-idp-init + adfs + pingfederate = 4
       expect(result.samlCount).toBe(4);
-      // OIDC rows: oidc-back-channel + oidc-metadata-issuer + waad + google-apps = 4
-      expect(result.oidcCount).toBe(4);
-      // Skipped: oidc-front-channel + oidc-no-discovery + waad-no-tenant + samlp-no-enabled-clients = 4
-      expect(result.skipped).toHaveLength(4);
-      // Manual setup: google-apps + ad + auth0-adldap + okta = 4
+      // OIDC rows: oidc-back-channel + oidc-metadata-issuer + waad + google-apps + okta = 5
+      expect(result.oidcCount).toBe(5);
+      // Skipped: oidc-front-channel + oidc-no-discovery + waad-no-tenant + okta-no-domain + samlp-no-enabled-clients = 5
+      expect(result.skipped).toHaveLength(5);
+      // Manual setup: google-apps + ad + auth0-adldap + unknown-custom = 4
       expect(result.manualSetup).toHaveLength(4);
+      // Out of scope: social + database + passwordless = 3
+      expect(result.outOfScope).toHaveLength(3);
+      expect(result.outOfScope.map((c) => c.category).sort()).toEqual([
+        'database',
+        'passwordless',
+        'social',
+      ]);
     });
+  });
+});
+
+describe('classifyStrategy', () => {
+  const { classifyStrategy } = jest.requireActual('../../../src/providers/auth0/transform');
+  it.each([
+    ['samlp', 'enterprise-saml'],
+    ['adfs', 'enterprise-saml'],
+    ['pingfederate', 'enterprise-saml'],
+    ['oidc', 'enterprise-oidc'],
+    ['waad', 'enterprise-oidc'],
+    ['google-apps', 'enterprise-oidc'],
+    ['okta', 'enterprise-oidc'],
+    ['ad', 'enterprise-manual-setup'],
+    ['auth0-adldap', 'enterprise-manual-setup'],
+    ['facebook', 'out-of-scope'],
+    ['google-oauth2', 'out-of-scope'],
+    ['twitter', 'out-of-scope'],
+    ['auth0', 'out-of-scope'],
+    ['email', 'out-of-scope'],
+    ['sms', 'out-of-scope'],
+    ['oauth2', 'out-of-scope'],
+    ['apple', 'out-of-scope'],
+    ['github', 'out-of-scope'],
+    ['custom-strategy', 'unknown'],
+  ])('classifyStrategy(%p).kind = %p', (strategy, expectedKind) => {
+    expect(classifyStrategy(strategy).kind).toBe(expectedKind);
   });
 });
 

@@ -1,0 +1,9 @@
+{
+  "id": "con_db_up",
+  "name": "Username-Password-Authentication",
+  "strategy": "auth0",
+  "enabled_clients": ["client_a", "client_b"],
+  "options": {
+    "passwordPolicy": "good"
+  }
+}

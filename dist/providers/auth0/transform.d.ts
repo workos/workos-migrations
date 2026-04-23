@@ -26,6 +26,12 @@ export interface ManualSetupConnection {
     strategy: string;
     reason: string;
 }
+export type OutOfScopeCategory = 'social' | 'database' | 'passwordless' | 'other-non-sso';
+export interface OutOfScopeConnection {
+    connectionName: string;
+    strategy: string;
+    category: OutOfScopeCategory;
+}
 export interface TransformResult {
     samlCsv: string;
     oidcCsv: string;
@@ -34,7 +40,21 @@ export interface TransformResult {
     skipped: SkippedConnection[];
     manualSetup: ManualSetupConnection[];
     samlIdpInitiatedDisabled: string[];
+    /** Non-SSO connections silently filtered out — not errors, just outside the migration scope. */
+    outOfScope: OutOfScopeConnection[];
 }
+export declare function classifyStrategy(strategy: string): {
+    kind: 'enterprise-saml';
+} | {
+    kind: 'enterprise-oidc';
+} | {
+    kind: 'enterprise-manual-setup';
+} | {
+    kind: 'out-of-scope';
+    category: OutOfScopeCategory;
+} | {
+    kind: 'unknown';
+};
 export declare function transformAuth0Connections(connections: Auth0Connection[], config: Auth0TransformConfig): TransformResult;
 export declare function ensureWellKnown(url: string): string;
 export declare function ensureHttps(url: string): string;

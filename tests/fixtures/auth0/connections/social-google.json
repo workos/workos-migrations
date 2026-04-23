@@ -1,0 +1,10 @@
+{
+  "id": "con_social_google",
+  "name": "google-oauth2",
+  "strategy": "google-oauth2",
+  "enabled_clients": ["client_a"],
+  "options": {
+    "email": true,
+    "profile": true
+  }
+}

@@ -122,6 +122,16 @@ async function runAuth0Transform(options, _loadedConfig) {
                     console.log(chalk_1.default.gray(`    • ${m.connectionName} [${m.strategy}] — ${m.reason}`));
                 }
             }
+            if (result.outOfScope.length > 0) {
+                const byCategory = result.outOfScope.reduce((acc, c) => {
+                    acc[c.category] = (acc[c.category] ?? 0) + 1;
+                    return acc;
+                }, {});
+                const breakdown = Object.entries(byCategory)
+                    .map(([k, v]) => `${k}: ${v}`)
+                    .join(', ');
+                console.log(chalk_1.default.gray(`  [info] ${result.outOfScope.length} non-SSO filtered (${breakdown})`));
+            }
         }
     }
     if (entitiesRequested.includes('users')) {
