@@ -8,6 +8,8 @@ import {
   type Auth0TransformConfig,
   type TransformResult,
 } from './transform';
+import { toWorkOSUserRow, summarizeAuth0Users } from './user';
+import { USER_HEADERS, rowsToCsv } from '../../shared/csv';
 
 interface Auth0TokenResponse {
   access_token: string;
@@ -215,7 +217,6 @@ export class Auth0Client implements ProviderClient {
     if (Array.isArray(entities.connections) && entities.connections.length > 0) {
       const transformResult = transformAuth0Connections(
         entities.connections,
-        entities.clients,
         this.transformConfig,
       );
       outputFiles.push(...this.writeTransformOutputs(transformResult));
@@ -231,6 +232,15 @@ export class Auth0Client implements ProviderClient {
       ];
     }
 
+    // Users transform → workos_users.csv matching the shared users template.
+    if (Array.isArray(entities.users) && entities.users.length > 0) {
+      const userRows = (entities.users as Auth0User[]).map(toWorkOSUserRow);
+      const userSummary = summarizeAuth0Users(entities.users as Auth0User[], userRows);
+      outputFiles.push(this.writeUsersCsv(userRows));
+      this.printUserSummary(userSummary);
+      entities.user_transform_summary = [userSummary];
+    }
+
     if (outputFiles.length > 0) entities.output_files = outputFiles;
 
     return {
@@ -239,6 +249,45 @@ export class Auth0Client implements ProviderClient {
       entities,
       summary,
     };
+  }
+
+  private writeUsersCsv(rows: Record<string, string>[]): string {
+    const outDir = this.outputDir ?? process.cwd();
+    fs.mkdirSync(outDir, { recursive: true });
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const usersPath = path.join(outDir, `auth0_users_${timestamp}.csv`);
+    fs.writeFileSync(usersPath, rowsToCsv(USER_HEADERS, rows));
+    return usersPath;
+  }
+
+  private printUserSummary(summary: ReturnType<typeof summarizeAuth0Users>): void {
+    console.log(chalk.blue('\n  Auth0 → WorkOS users transform summary:'));
+    console.log(chalk.gray(`    Total rows: ${summary.total}`));
+    for (const [provider, count] of Object.entries(summary.byProvider).sort()) {
+      console.log(chalk.gray(`      • ${provider}: ${count}`));
+    }
+    if (summary.missingEmail > 0) {
+      console.log(
+        chalk.yellow(
+          `    [warn] ${summary.missingEmail} user(s) have no email — likely phone-only passwordless accounts`,
+        ),
+      );
+    }
+    if (summary.missingName > 0) {
+      console.log(
+        chalk.yellow(
+          `    [warn] ${summary.missingName} user(s) have no first/last name`,
+        ),
+      );
+    }
+    if (summary.total > 0) {
+      console.log(
+        chalk.yellow(
+          `    [note] password_hash is blank for all users — Auth0 Management API does not expose hashes. ` +
+            `Affected users will need to reset passwords, or use the Auth0 users-export extension for a bulk hash dump.`,
+        ),
+      );
+    }
   }
 
   private writeTransformOutputs(result: TransformResult): string[] {

@@ -1,77 +1,40 @@
 /**
- * WorkOS SSO connection import CSV schemas + row builders.
- * Ported from the Python cognito_migration package.
+ * Cognito-specific row builders that produce rows matching the shared WorkOS
+ * import templates (see src/shared/csv.ts).
  */
 import { parseSamlMetadata, normalizeDiscoveryEndpoint } from './saml-metadata';
+import { splitName } from '../../shared/names';
+import {
+  SAML_HEADERS,
+  OIDC_HEADERS,
+  USER_HEADERS,
+  CUSTOM_ATTR_HEADERS,
+  SamlRow,
+  OidcRow,
+  UserRow,
+  CustomAttrRow,
+  rowsToCsv,
+} from '../../shared/csv';
 
-export const SAML_HEADERS = [
-  'organizationName',
-  'organizationId',
-  'organizationExternalId',
-  'domains',
-  'idpEntityId',
-  'idpUrl',
-  'x509Cert',
-  'idpMetadataUrl',
-  'customEntityId',
-  'customAcsUrl',
-  'idpIdAttribute',
-  'emailAttribute',
-  'firstNameAttribute',
-  'lastNameAttribute',
-  'name',
-  'customAttributes',
-  'idpInitiatedEnabled',
-  'requestSigningKey',
-  'assertionEncryptionKey',
-  'nameIdEncryptionKey',
-  'importedId',
-] as const;
+export {
+  SAML_HEADERS,
+  OIDC_HEADERS,
+  USER_HEADERS,
+  CUSTOM_ATTR_HEADERS,
+  rowsToCsv,
+};
+export type { SamlRow, OidcRow, UserRow, CustomAttrRow };
 
-export const OIDC_HEADERS = [
-  'organizationName',
-  'organizationId',
-  'organizationExternalId',
-  'domains',
-  'clientId',
-  'clientSecret',
-  'discoveryEndpoint',
-  'customRedirectUri',
-  'name',
-  'customAttributes',
-  'importedId',
-] as const;
+// ---------------------------------------------------------------------------
+// Cognito attribute-mapping keys (shape of `AttributeMapping` dict)
+// ---------------------------------------------------------------------------
 
-export const CUSTOM_ATTR_HEADERS = [
-  'importedId',
-  'organizationExternalId',
-  'providerType',
-  'userPoolAttribute',
-  'idpClaim',
-] as const;
-
-/**
- * WorkOS users import template. `password_hash` is intentionally written
- * blank — Cognito does not expose password hashes. Users that relied on
- * email/password in Cognito will need to reset their password after
- * migration (or rely on SSO + JIT provisioning via the migration proxy).
- */
-export const USER_HEADERS = [
-  'user_id',
-  'email',
-  'email_verified',
-  'first_name',
-  'last_name',
-  'password_hash',
-] as const;
-
-/** User pool attribute keys used in Cognito's AttributeMapping dict. */
 const UP_EMAIL = 'email';
 const UP_GIVEN_NAME = 'given_name';
 const UP_FAMILY_NAME = 'family_name';
 const UP_NAME = 'name';
 
-/** Anything in this set lands in the supplementary custom-attributes CSV for debug. */
+/** Everything in this set lands in the supplementary debug CSV. */
 const SUPPLEMENTARY_ATTR_KEYS = new Set<string>([
   UP_NAME,
   'custom:department',
@@ -91,6 +54,29 @@ export interface CognitoProvider {
   idpIdentifiers: string[];
 }
 
+export interface CognitoUser {
+  userPoolId: string;
+  /** Cognito's login identifier — can be email, phone, or sub. */
+  username: string;
+  /** Flattened attribute map — { email: 'x@y.com', sub: '...', given_name: 'Jane' }. */
+  attributes: Record<string, string>;
+  userStatus?: string;
+  enabled?: boolean;
+}
+
+export interface ProxyTemplates {
+  samlCustomAcsUrl?: string | null;
+  samlCustomEntityId?: string | null;
+  oidcCustomRedirectUri?: string | null;
+}
+
+/** Default matches the Cognito SP entity ID that customer IdPs already have configured. */
+export const DEFAULT_SAML_CUSTOM_ENTITY_ID_TEMPLATE = 'urn:amazon:cognito:sp:{user_pool_id}';
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
 export function isSaml(p: CognitoProvider): boolean {
   return p.providerType.toUpperCase() === 'SAML';
 }
@@ -103,15 +89,6 @@ export function importedId(p: CognitoProvider): string {
   return `${p.userPoolId}:${p.providerName}`;
 }
 
-export interface ProxyTemplates {
-  samlCustomAcsUrl?: string | null;
-  samlCustomEntityId?: string | null;
-  oidcCustomRedirectUri?: string | null;
-}
-
-/** Default pattern matches what customers' IdPs already have configured as the Cognito SP. */
-export const DEFAULT_SAML_CUSTOM_ENTITY_ID_TEMPLATE = 'urn:amazon:cognito:sp:{user_pool_id}';
-
 export function renderTemplate(
   template: string | null | undefined,
   p: CognitoProvider,
@@ -123,7 +100,7 @@ export function renderTemplate(
     .replace(/\{region\}/g, p.region);
 }
 
-/** Cognito 'custom:<name>' mappings -> compact JSON blob with 'custom:' prefix stripped. */
+/** 'custom:<name>' attribute mappings → compact JSON with the 'custom:' prefix stripped. */
 export function buildCustomAttributesJson(attrs: Record<string, string>): string {
   const entries = Object.entries(attrs)
     .filter(([k, v]) => k.startsWith('custom:') && v)
@@ -133,31 +110,10 @@ export function buildCustomAttributesJson(attrs: Record<string, string>): string
   return JSON.stringify(Object.fromEntries(entries));
 }
 
-export type SamlRow = Record<(typeof SAML_HEADERS)[number], string>;
-export type OidcRow = Record<(typeof OIDC_HEADERS)[number], string>;
-export type CustomAttrRow = Record<(typeof CUSTOM_ATTR_HEADERS)[number], string>;
-export type UserRow = Record<(typeof USER_HEADERS)[number], string>;
+// ---------------------------------------------------------------------------
+// Row builders
+// ---------------------------------------------------------------------------
 
-export interface CognitoUser {
-  userPoolId: string;
-  /** Cognito's login identifier — can be email, phone, or sub. */
-  username: string;
-  /** Flattened attribute map — { email: 'x@y.com', sub: '...', given_name: 'Jane' }. */
-  attributes: Record<string, string>;
-  userStatus?: string;
-  enabled?: boolean;
-}
-
-/**
- * Map a Cognito user into the WorkOS users.csv template.
- *
- *   user_id        → Cognito `sub` attribute (stable unique ID), falls back to username
- *   email          → Cognito `email` attribute
- *   email_verified → Cognito `email_verified` attribute (Cognito returns 'true'/'false' strings)
- *   first_name     → `given_name`, falling back to the first whitespace-split token of `name`
- *   last_name      → `family_name`, falling back to the remaining tokens of `name`
- *   password_hash  → always blank (Cognito does not export password hashes)
- */
 export function toUserRow(u: CognitoUser): UserRow {
   const a = u.attributes;
   const { first, last } = splitName(a.name ?? '');
@@ -169,18 +125,6 @@ export function toUserRow(u: CognitoUser): UserRow {
     first_name: a.given_name ?? first,
     last_name: a.family_name ?? last,
     password_hash: '',
-  };
-}
-
-/** Whitespace-split a full name into first/last halves. Multi-word last names stay intact. */
-export function splitName(name: string): { first: string; last: string } {
-  const trimmed = name.trim();
-  if (!trimmed) return { first: '', last: '' };
-  const parts = trimmed.split(/\s+/);
-  if (parts.length === 1) return { first: parts[0], last: '' };
-  return {
-    first: parts[0],
-    last: parts.slice(1).join(' '),
   };
 }
 
@@ -249,20 +193,4 @@ export function toCustomAttrRows(p: CognitoProvider): CustomAttrRow[] {
     });
   }
   return rows;
-}
-
-/** Produce a CSV string from headers + rows. Handles commas, quotes, and newlines. */
-export function rowsToCsv(headers: readonly string[], rows: Record<string, string>[]): string {
-  const escape = (v: unknown): string => {
-    const s = v == null ? '' : String(v);
-    if (/[",\n\r]/.test(s)) {
-      return `"${s.replace(/"/g, '""')}"`;
-    }
-    return s;
-  };
-  const lines = [headers.join(',')];
-  for (const row of rows) {
-    lines.push(headers.map((h) => escape(row[h])).join(','));
-  }
-  return lines.join('\n') + '\n';
 }

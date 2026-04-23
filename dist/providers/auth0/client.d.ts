@@ -52,6 +52,8 @@ export declare class Auth0Client implements ProviderClient {
     getAvailableEntities(): Promise<EntityType[]>;
     private hasRequiredScopes;
     exportEntities(entityTypes: string[]): Promise<ExportResult>;
+    private writeUsersCsv;
+    private printUserSummary;
     private writeTransformOutputs;
     private printTransformSummary;
     private getUsers;

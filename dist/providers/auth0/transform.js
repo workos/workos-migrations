@@ -1,10 +1,11 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.transformAuth0Connections = transformAuth0Connections;
+exports.ensureWellKnown = ensureWellKnown;
+exports.ensureHttps = ensureHttps;
 const csv_1 = require("../../shared/csv");
 const DEFAULT_ORG_NAME_PREFIX = '[MIGRATED] sso-';
-function transformAuth0Connections(connections, clients, config) {
-    const bookmarkSlugMap = config.bookmarkSlugMap ?? {};
+function transformAuth0Connections(connections, config) {
     const orgNamePrefix = config.organizationNamePrefix ?? DEFAULT_ORG_NAME_PREFIX;
     const samlRows = [];
     const oidcRows = [];
@@ -12,19 +13,12 @@ function transformAuth0Connections(connections, clients, config) {
     const skipped = [];
     const manualSetup = [];
     for (const connection of connections) {
-        const bookmarks = (connection.enabled_clients ?? [])
-            .map((clientId) => bookmarkSlugMap[clientId])
-            .filter(Boolean);
-        const uniqueBookmarks = [...new Set(bookmarks)];
-        const commonRow = [
-            `${orgNamePrefix}${connection.name}`, // organizationName
-            '', // organizationId
-            connection.name, // organizationExternalId
-            '', // domains
-            connection.name, // importedId
-            JSON.stringify(uniqueBookmarks), // connectionBookmarks
-        ];
-        if (bookmarks.length === 0) {
+        const row = {
+            organizationName: `${orgNamePrefix}${connection.name}`,
+            organizationExternalId: connection.name,
+            importedId: connection.name,
+        };
+        if (!connection.enabled_clients || connection.enabled_clients.length === 0) {
             const connectionType = connection.strategy === 'samlp' ? 'SAML' : 'OIDC';
             skipped.push({
                 connectionName: connection.name,
@@ -35,22 +29,22 @@ function transformAuth0Connections(connections, clients, config) {
         }
         switch (connection.strategy) {
             case 'samlp':
-                processSaml(connection, commonRow, config, samlRows, samlIdpInitiatedDisabled);
+                processSaml(connection, row, config, samlRows, samlIdpInitiatedDisabled);
                 break;
             case 'oidc':
-                processOidc(connection, commonRow, config, oidcRows, skipped);
+                processOidc(connection, row, config, oidcRows, skipped);
                 break;
             case 'waad':
-                processWaad(connection, commonRow, config, oidcRows, skipped);
+                processWaad(connection, row, config, oidcRows, skipped);
                 break;
             case 'adfs':
-                processAdfs(connection, commonRow, config, samlRows);
+                processAdfs(connection, row, config, samlRows);
                 break;
             case 'pingfederate':
-                processPingFederate(connection, commonRow, config, samlRows);
+                processPingFederate(connection, row, config, samlRows);
                 break;
             case 'google-apps':
-                processGoogleApps(connection, commonRow, config, oidcRows);
+                processGoogleApps(connection, row, config, oidcRows);
                 manualSetup.push({
                     connectionName: connection.name,
                     strategy: connection.strategy,
@@ -84,53 +78,83 @@ function transformAuth0Connections(connections, clients, config) {
         samlIdpInitiatedDisabled,
     };
 }
-// ---------------------------------------------------------------------------
-// Strategy-specific processors
-// ---------------------------------------------------------------------------
-function processSaml(connection, commonRow, config, samlRows, samlIdpInitiatedDisabled) {
-    const options = connection.options || {};
-    const rawFieldsMap = options.fieldsMap || {};
-    const firstOf = (v) => {
-        if (Array.isArray(v))
-            return v[0] ?? '';
-        return v ?? '';
-    };
-    const attributeMapping = {
-        id: firstOf(rawFieldsMap.id),
-        email: firstOf(rawFieldsMap.email),
-        given_name: firstOf(rawFieldsMap.given_name),
-        family_name: firstOf(rawFieldsMap.family_name),
-    };
-    const defaultIdpInitClient = options.idpinitiated?.client_id;
-    const defaultBookmarkForIdpInit = (defaultIdpInitClient && config.bookmarkSlugMap?.[defaultIdpInitClient]) || '';
+function buildSamlRow(connection, common, overrides, config) {
     const customEntityId = config.entityIdPrefix
         ? `${config.entityIdPrefix}${connection.name}`
         : '';
     const customAcsUrl = config.customDomain
         ? `https://${config.customDomain}/login/callback?connection=${connection.name}`
         : '';
-    samlRows.push((0, csv_1.createCSVRow)([
-        ...commonRow,
+    return (0, csv_1.createCSVRow)([
+        common.organizationName, // organizationName
+        '', // organizationId
+        common.organizationExternalId, // organizationExternalId
+        '', // domains
         '', // idpEntityId
-        options.signInEndpoint || '', // idpUrl
-        options.cert || '', // x509Cert
-        attributeMapping.id || '', // idpIdAttribute
-        attributeMapping.email || '', // emailAttribute
-        attributeMapping.given_name || '', // firstNameAttribute
-        attributeMapping.family_name || '', // lastNameAttribute
+        overrides.idpUrl ?? '', // idpUrl
+        overrides.x509Cert ?? '', // x509Cert
+        overrides.idpMetadataUrl ?? '', // idpMetadataUrl
+        customEntityId, // customEntityId
+        customAcsUrl, // customAcsUrl
+        overrides.idpIdAttribute ?? '', // idpIdAttribute
+        overrides.emailAttribute ?? '', // emailAttribute
+        overrides.firstNameAttribute ?? '', // firstNameAttribute
+        overrides.lastNameAttribute ?? '', // lastNameAttribute
         '', // name
         '', // customAttributes
-        '', // idpMetadataUrl
-        customEntityId,
-        customAcsUrl,
-        options.idpinitiated?.enabled ? 'true' : 'false', // idpInitiatedSsoEnabled
-        defaultBookmarkForIdpInit, // defaultConnectionBookmarkForIdpInitiatedSso
-    ]));
+        overrides.idpInitiatedEnabled ?? 'false', // idpInitiatedEnabled
+        '', // requestSigningKey
+        '', // assertionEncryptionKey
+        '', // nameIdEncryptionKey
+        common.importedId, // importedId
+    ]);
+}
+function buildOidcRow(common, fields, config) {
+    const customRedirectUri = config.customDomain
+        ? `https://${config.customDomain}/login/callback`
+        : '';
+    return (0, csv_1.createCSVRow)([
+        common.organizationName, // organizationName
+        '', // organizationId
+        common.organizationExternalId, // organizationExternalId
+        '', // domains
+        fields.clientId ?? '', // clientId
+        fields.clientSecret ?? '', // clientSecret
+        fields.discoveryEndpoint, // discoveryEndpoint
+        customRedirectUri, // customRedirectUri
+        '', // name
+        '', // customAttributes
+        common.importedId, // importedId
+    ]);
+}
+function firstOf(value) {
+    if (Array.isArray(value))
+        return value[0] ?? '';
+    return value ?? '';
+}
+function processSaml(connection, common, config, samlRows, samlIdpInitiatedDisabled) {
+    const options = connection.options || {};
+    const rawFieldsMap = options.fieldsMap || {};
+    const attributeMapping = {
+        id: firstOf(rawFieldsMap.id),
+        email: firstOf(rawFieldsMap.email),
+        given_name: firstOf(rawFieldsMap.given_name),
+        family_name: firstOf(rawFieldsMap.family_name),
+    };
+    samlRows.push(buildSamlRow(connection, common, {
+        idpUrl: options.signInEndpoint,
+        x509Cert: options.cert,
+        idpIdAttribute: attributeMapping.id,
+        emailAttribute: attributeMapping.email,
+        firstNameAttribute: attributeMapping.given_name,
+        lastNameAttribute: attributeMapping.family_name,
+        idpInitiatedEnabled: options.idpinitiated?.enabled ? 'true' : 'false',
+    }, config));
     if (!options.idpinitiated?.enabled) {
         samlIdpInitiatedDisabled.push(connection.name);
     }
 }
-function processOidc(connection, commonRow, config, oidcRows, skipped) {
+function processOidc(connection, common, config, oidcRows, skipped) {
     const options = connection.options || {};
     if (options.type !== 'back_channel') {
         skipped.push({
@@ -161,20 +185,13 @@ function processOidc(connection, commonRow, config, oidcRows, skipped) {
         });
         return;
     }
-    const customRedirectUri = config.customDomain
-        ? `https://${config.customDomain}/login/callback`
-        : '';
-    oidcRows.push((0, csv_1.createCSVRow)([
-        ...commonRow,
-        options.client_id || '', // clientId
-        options.client_secret || '', // clientSecret
-        discoveryEndpoint, // discoveryEndpoint
-        customRedirectUri, // customRedirectUri
-        '', // name
-        '', // customAttributes
-    ]));
+    oidcRows.push(buildOidcRow(common, {
+        clientId: options.client_id,
+        clientSecret: options.client_secret,
+        discoveryEndpoint,
+    }, config));
 }
-function processWaad(connection, commonRow, config, oidcRows, skipped) {
+function processWaad(connection, common, config, oidcRows, skipped) {
     const options = connection.options || {};
     const tenantDomain = options.tenant_domain || options.domain;
     if (!tenantDomain) {
@@ -186,89 +203,37 @@ function processWaad(connection, commonRow, config, oidcRows, skipped) {
         return;
     }
     const discoveryEndpoint = `https://login.microsoftonline.com/${tenantDomain}/.well-known/openid-configuration`;
-    const customRedirectUri = config.customDomain
-        ? `https://${config.customDomain}/login/callback`
-        : '';
-    oidcRows.push((0, csv_1.createCSVRow)([
-        ...commonRow,
-        options.client_id || '',
-        options.client_secret || '',
+    oidcRows.push(buildOidcRow(common, {
+        clientId: options.client_id,
+        clientSecret: options.client_secret,
         discoveryEndpoint,
-        customRedirectUri,
-        '', // name
-        '', // customAttributes
-    ]));
+    }, config));
 }
-function processGoogleApps(connection, commonRow, config, oidcRows) {
+function processGoogleApps(connection, common, config, oidcRows) {
     const options = connection.options || {};
-    const discoveryEndpoint = 'https://accounts.google.com/.well-known/openid-configuration';
-    const customRedirectUri = config.customDomain
-        ? `https://${config.customDomain}/login/callback`
-        : '';
-    oidcRows.push((0, csv_1.createCSVRow)([
-        ...commonRow,
-        options.client_id || '',
-        '', // clientSecret — not available from Auth0 API for google-apps
-        discoveryEndpoint,
-        customRedirectUri,
-        '', // name
-        '', // customAttributes
-    ]));
+    oidcRows.push(buildOidcRow(common, {
+        clientId: options.client_id,
+        clientSecret: '', // not available from Auth0 API for google-apps
+        discoveryEndpoint: 'https://accounts.google.com/.well-known/openid-configuration',
+    }, config));
 }
-function processAdfs(connection, commonRow, config, samlRows) {
+function processAdfs(connection, common, config, samlRows) {
     const options = connection.options || {};
-    const customEntityId = config.entityIdPrefix
-        ? `${config.entityIdPrefix}${connection.name}`
-        : '';
-    const customAcsUrl = config.customDomain
-        ? `https://${config.customDomain}/login/callback?connection=${connection.name}`
-        : '';
-    samlRows.push((0, csv_1.createCSVRow)([
-        ...commonRow,
-        '', // idpEntityId
-        '', // idpUrl
-        '', // x509Cert
-        '', // idpIdAttribute
-        '', // emailAttribute
-        '', // firstNameAttribute
-        '', // lastNameAttribute
-        '', // name
-        '', // customAttributes
-        options.adfs_server || '', // idpMetadataUrl
-        customEntityId,
-        customAcsUrl,
-        'false', // idpInitiatedSsoEnabled
-        '', // defaultConnectionBookmarkForIdpInitiatedSso
-    ]));
+    samlRows.push(buildSamlRow(connection, common, {
+        idpMetadataUrl: options.adfs_server,
+        idpInitiatedEnabled: 'false',
+    }, config));
 }
-function processPingFederate(connection, commonRow, config, samlRows) {
+function processPingFederate(connection, common, config, samlRows) {
     const options = connection.options || {};
-    const customEntityId = config.entityIdPrefix
-        ? `${config.entityIdPrefix}${connection.name}`
-        : '';
-    const customAcsUrl = config.customDomain
-        ? `https://${config.customDomain}/login/callback?connection=${connection.name}`
-        : '';
-    samlRows.push((0, csv_1.createCSVRow)([
-        ...commonRow,
-        '', // idpEntityId
-        options.pingfederate_base_url || '', // idpUrl
-        options.signing_cert || options.signingCert || '', // x509Cert
-        '', // idpIdAttribute
-        '', // emailAttribute
-        '', // firstNameAttribute
-        '', // lastNameAttribute
-        '', // name
-        '', // customAttributes
-        '', // idpMetadataUrl
-        customEntityId,
-        customAcsUrl,
-        options.idpinitiated?.enabled ? 'true' : 'false',
-        '',
-    ]));
+    samlRows.push(buildSamlRow(connection, common, {
+        idpUrl: options.pingfederate_base_url,
+        x509Cert: options.signing_cert || options.signingCert,
+        idpInitiatedEnabled: options.idpinitiated?.enabled ? 'true' : 'false',
+    }, config));
 }
 // ---------------------------------------------------------------------------
-// Helpers
+// URL normalization helpers
 // ---------------------------------------------------------------------------
 function ensureWellKnown(url) {
     const suffix = '/.well-known/openid-configuration';

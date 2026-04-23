@@ -1,49 +1,89 @@
 /**
  * Shared CSV helpers + column schemas for WorkOS import CSVs.
  *
- * Canonical SAML / OIDC / common header sets used by all provider transforms.
+ * Schemas match the official WorkOS import templates, with the new `name` and
+ * `customAttributes` columns that WorkOS is adding as standard fields.
  */
 
-export const COMMON_HEADERS = [
+/** SAML connections import template. */
+export const SAML_HEADERS = [
   'organizationName',
   'organizationId',
   'organizationExternalId',
   'domains',
-  'importedId',
-  'connectionBookmarks',
-] as const;
-
-export const SAML_HEADERS = [
-  ...COMMON_HEADERS,
   'idpEntityId',
   'idpUrl',
   'x509Cert',
+  'idpMetadataUrl',
+  'customEntityId',
+  'customAcsUrl',
   'idpIdAttribute',
   'emailAttribute',
   'firstNameAttribute',
   'lastNameAttribute',
   'name',
   'customAttributes',
-  'idpMetadataUrl',
-  'customEntityId',
-  'customAcsUrl',
-  'idpInitiatedSsoEnabled',
-  'defaultConnectionBookmarkForIdpInitiatedSso',
+  'idpInitiatedEnabled',
+  'requestSigningKey',
+  'assertionEncryptionKey',
+  'nameIdEncryptionKey',
+  'importedId',
 ] as const;
 
+/** OIDC connections import template. */
 export const OIDC_HEADERS = [
-  ...COMMON_HEADERS,
+  'organizationName',
+  'organizationId',
+  'organizationExternalId',
+  'domains',
   'clientId',
   'clientSecret',
   'discoveryEndpoint',
   'customRedirectUri',
   'name',
   'customAttributes',
+  'importedId',
 ] as const;
+
+/** Users import template. */
+export const USER_HEADERS = [
+  'user_id',
+  'email',
+  'email_verified',
+  'first_name',
+  'last_name',
+  'password_hash',
+] as const;
+
+/** Supplementary debug view: per-attribute mappings not covered by the main columns. */
+export const CUSTOM_ATTR_HEADERS = [
+  'importedId',
+  'organizationExternalId',
+  'providerType',
+  'userPoolAttribute',
+  'idpClaim',
+] as const;
+
+export type SamlHeader = (typeof SAML_HEADERS)[number];
+export type OidcHeader = (typeof OIDC_HEADERS)[number];
+export type UserHeader = (typeof USER_HEADERS)[number];
+export type CustomAttrHeader = (typeof CUSTOM_ATTR_HEADERS)[number];
+
+export type SamlRow = Record<SamlHeader, string>;
+export type OidcRow = Record<OidcHeader, string>;
+export type UserRow = Record<UserHeader, string>;
+export type CustomAttrRow = Record<CustomAttrHeader, string>;
+
+// ---------------------------------------------------------------------------
+// CSV primitives
+// ---------------------------------------------------------------------------
 
 export function escapeCSVField(field: string | undefined | null): string {
   const value = String(field ?? '');
-  return `"${value.replace(/"/g, '""')}"`;
+  if (/[",\n\r]/.test(value)) {
+    return `"${value.replace(/"/g, '""')}"`;
+  }
+  return value;
 }
 
 export function createCSVRow(fields: (string | undefined | null)[]): string {
@@ -51,16 +91,18 @@ export function createCSVRow(fields: (string | undefined | null)[]): string {
 }
 
 export function createCSV(header: readonly string[], rows: string[]): string {
-  return [header.join(','), ...rows].join('\n');
+  return [header.join(','), ...rows].join('\n') + '\n';
 }
 
-/** Build a CSV from rows keyed by header name; fields missing from a row become empty strings. */
-export function createCSVFromRecords(
-  header: readonly string[],
-  records: Record<string, string>[],
+/** Render a list of records keyed by header name into a CSV string. */
+export function rowsToCsv(
+  headers: readonly string[],
+  rows: Record<string, string | undefined | null>[],
 ): string {
-  const rowStrings = records.map((record) =>
-    createCSVRow(header.map((h) => record[h] ?? '')),
-  );
-  return createCSV(header, rowStrings);
+  const escape = (value: string | undefined | null): string => escapeCSVField(value);
+  const lines = [headers.join(',')];
+  for (const row of rows) {
+    lines.push(headers.map((h) => escape(row[h])).join(','));
+  }
+  return lines.join('\n') + '\n';
 }

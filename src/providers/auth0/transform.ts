@@ -4,8 +4,10 @@
  * Handles each Auth0 connection strategy — samlp, oidc, waad, adfs,
  * pingfederate, google-apps, ad, auth0-adldap — with per-strategy field
  * mapping, skip rules, and manual-setup flagging.
+ *
+ * Output matches the shared WorkOS import templates (see src/shared/csv.ts).
  */
-import type { Auth0Connection, Auth0Client as Auth0AppClient } from './client';
+import type { Auth0Connection } from './client';
 import {
   SAML_HEADERS,
   OIDC_HEADERS,
@@ -18,9 +20,7 @@ export interface Auth0TransformConfig {
   customDomain?: string;
   /** Prefix for synthesized SAML customEntityId. Example: "urn:acme:sso:" */
   entityIdPrefix?: string;
-  /** Map of Auth0 client_id → WorkOS bookmark slug. Used for connectionBookmarks column. */
-  bookmarkSlugMap?: Record<string, string>;
-  /** Prefix applied to organizationName for migrated connections. Default: "[MIGRATED] sso-" */
+  /** Prefix applied to organizationName for migrated connections. Default: "[MIGRATED] sso-". */
   organizationNamePrefix?: string;
 }
 
@@ -50,10 +50,8 @@ export interface TransformResult {
 
 export function transformAuth0Connections(
   connections: Auth0Connection[],
-  clients: Auth0AppClient[] | undefined,
   config: Auth0TransformConfig,
 ): TransformResult {
-  const bookmarkSlugMap = config.bookmarkSlugMap ?? {};
   const orgNamePrefix = config.organizationNamePrefix ?? DEFAULT_ORG_NAME_PREFIX;
 
   const samlRows: string[] = [];
@@ -63,21 +61,13 @@ export function transformAuth0Connections(
   const manualSetup: ManualSetupConnection[] = [];
 
   for (const connection of connections) {
-    const bookmarks = (connection.enabled_clients ?? [])
-      .map((clientId) => bookmarkSlugMap[clientId])
-      .filter(Boolean);
-    const uniqueBookmarks = [...new Set(bookmarks)];
+    const row = {
+      organizationName: `${orgNamePrefix}${connection.name}`,
+      organizationExternalId: connection.name,
+      importedId: connection.name,
+    };
 
-    const commonRow = [
-      `${orgNamePrefix}${connection.name}`, // organizationName
-      '', // organizationId
-      connection.name, // organizationExternalId
-      '', // domains
-      connection.name, // importedId
-      JSON.stringify(uniqueBookmarks), // connectionBookmarks
-    ];
-
-    if (bookmarks.length === 0) {
+    if (!connection.enabled_clients || connection.enabled_clients.length === 0) {
       const connectionType = connection.strategy === 'samlp' ? 'SAML' : 'OIDC';
       skipped.push({
         connectionName: connection.name,
@@ -89,22 +79,22 @@ export function transformAuth0Connections(
 
     switch (connection.strategy) {
       case 'samlp':
-        processSaml(connection, commonRow, config, samlRows, samlIdpInitiatedDisabled);
+        processSaml(connection, row, config, samlRows, samlIdpInitiatedDisabled);
         break;
       case 'oidc':
-        processOidc(connection, commonRow, config, oidcRows, skipped);
+        processOidc(connection, row, config, oidcRows, skipped);
         break;
       case 'waad':
-        processWaad(connection, commonRow, config, oidcRows, skipped);
+        processWaad(connection, row, config, oidcRows, skipped);
         break;
       case 'adfs':
-        processAdfs(connection, commonRow, config, samlRows);
+        processAdfs(connection, row, config, samlRows);
         break;
       case 'pingfederate':
-        processPingFederate(connection, commonRow, config, samlRows);
+        processPingFederate(connection, row, config, samlRows);
         break;
       case 'google-apps':
-        processGoogleApps(connection, commonRow, config, oidcRows);
+        processGoogleApps(connection, row, config, oidcRows);
         manualSetup.push({
           connectionName: connection.name,
           strategy: connection.strategy,
@@ -144,20 +134,101 @@ export function transformAuth0Connections(
 // Strategy-specific processors
 // ---------------------------------------------------------------------------
 
+interface CommonRowFields {
+  organizationName: string;
+  organizationExternalId: string;
+  importedId: string;
+}
+
+function buildSamlRow(
+  connection: Auth0Connection,
+  common: CommonRowFields,
+  overrides: {
+    idpUrl?: string;
+    x509Cert?: string;
+    idpMetadataUrl?: string;
+    idpIdAttribute?: string;
+    emailAttribute?: string;
+    firstNameAttribute?: string;
+    lastNameAttribute?: string;
+    idpInitiatedEnabled?: string;
+  },
+  config: Auth0TransformConfig,
+): string {
+  const customEntityId = config.entityIdPrefix
+    ? `${config.entityIdPrefix}${connection.name}`
+    : '';
+  const customAcsUrl = config.customDomain
+    ? `https://${config.customDomain}/login/callback?connection=${connection.name}`
+    : '';
+
+  return createCSVRow([
+    common.organizationName, // organizationName
+    '', // organizationId
+    common.organizationExternalId, // organizationExternalId
+    '', // domains
+    '', // idpEntityId
+    overrides.idpUrl ?? '', // idpUrl
+    overrides.x509Cert ?? '', // x509Cert
+    overrides.idpMetadataUrl ?? '', // idpMetadataUrl
+    customEntityId, // customEntityId
+    customAcsUrl, // customAcsUrl
+    overrides.idpIdAttribute ?? '', // idpIdAttribute
+    overrides.emailAttribute ?? '', // emailAttribute
+    overrides.firstNameAttribute ?? '', // firstNameAttribute
+    overrides.lastNameAttribute ?? '', // lastNameAttribute
+    '', // name
+    '', // customAttributes
+    overrides.idpInitiatedEnabled ?? 'false', // idpInitiatedEnabled
+    '', // requestSigningKey
+    '', // assertionEncryptionKey
+    '', // nameIdEncryptionKey
+    common.importedId, // importedId
+  ]);
+}
+
+function buildOidcRow(
+  common: CommonRowFields,
+  fields: {
+    clientId?: string;
+    clientSecret?: string;
+    discoveryEndpoint: string;
+  },
+  config: Auth0TransformConfig,
+): string {
+  const customRedirectUri = config.customDomain
+    ? `https://${config.customDomain}/login/callback`
+    : '';
+
+  return createCSVRow([
+    common.organizationName, // organizationName
+    '', // organizationId
+    common.organizationExternalId, // organizationExternalId
+    '', // domains
+    fields.clientId ?? '', // clientId
+    fields.clientSecret ?? '', // clientSecret
+    fields.discoveryEndpoint, // discoveryEndpoint
+    customRedirectUri, // customRedirectUri
+    '', // name
+    '', // customAttributes
+    common.importedId, // importedId
+  ]);
+}
+
+function firstOf(value: unknown): string {
+  if (Array.isArray(value)) return (value[0] as string) ?? '';
+  return (value as string) ?? '';
+}
+
 function processSaml(
   connection: Auth0Connection,
-  commonRow: string[],
+  common: CommonRowFields,
   config: Auth0TransformConfig,
   samlRows: string[],
   samlIdpInitiatedDisabled: string[],
 ): void {
   const options = connection.options || {};
   const rawFieldsMap = options.fieldsMap || {};
-
-  const firstOf = (v: unknown): string => {
-    if (Array.isArray(v)) return (v[0] as string) ?? '';
-    return (v as string) ?? '';
-  };
 
   const attributeMapping = {
     id: firstOf(rawFieldsMap.id),
@@ -166,35 +237,21 @@ function processSaml(
     family_name: firstOf(rawFieldsMap.family_name),
   };
 
-  const defaultIdpInitClient = options.idpinitiated?.client_id;
-  const defaultBookmarkForIdpInit =
-    (defaultIdpInitClient && config.bookmarkSlugMap?.[defaultIdpInitClient]) || '';
-
-  const customEntityId = config.entityIdPrefix
-    ? `${config.entityIdPrefix}${connection.name}`
-    : '';
-  const customAcsUrl = config.customDomain
-    ? `https://${config.customDomain}/login/callback?connection=${connection.name}`
-    : '';
-
   samlRows.push(
-    createCSVRow([
-      ...commonRow,
-      '', // idpEntityId
-      options.signInEndpoint || '', // idpUrl
-      options.cert || '', // x509Cert
-      attributeMapping.id || '', // idpIdAttribute
-      attributeMapping.email || '', // emailAttribute
-      attributeMapping.given_name || '', // firstNameAttribute
-      attributeMapping.family_name || '', // lastNameAttribute
-      '', // name
-      '', // customAttributes
-      '', // idpMetadataUrl
-      customEntityId,
-      customAcsUrl,
-      options.idpinitiated?.enabled ? 'true' : 'false', // idpInitiatedSsoEnabled
-      defaultBookmarkForIdpInit, // defaultConnectionBookmarkForIdpInitiatedSso
-    ]),
+    buildSamlRow(
+      connection,
+      common,
+      {
+        idpUrl: options.signInEndpoint,
+        x509Cert: options.cert,
+        idpIdAttribute: attributeMapping.id,
+        emailAttribute: attributeMapping.email,
+        firstNameAttribute: attributeMapping.given_name,
+        lastNameAttribute: attributeMapping.family_name,
+        idpInitiatedEnabled: options.idpinitiated?.enabled ? 'true' : 'false',
+      },
+      config,
+    ),
   );
 
   if (!options.idpinitiated?.enabled) {
@@ -204,7 +261,7 @@ function processSaml(
 
 function processOidc(
   connection: Auth0Connection,
-  commonRow: string[],
+  common: CommonRowFields,
   config: Auth0TransformConfig,
   oidcRows: string[],
   skipped: SkippedConnection[],
@@ -245,26 +302,22 @@ function processOidc(
     return;
   }
 
-  const customRedirectUri = config.customDomain
-    ? `https://${config.customDomain}/login/callback`
-    : '';
-
   oidcRows.push(
-    createCSVRow([
-      ...commonRow,
-      options.client_id || '', // clientId
-      options.client_secret || '', // clientSecret
-      discoveryEndpoint, // discoveryEndpoint
-      customRedirectUri, // customRedirectUri
-      '', // name
-      '', // customAttributes
-    ]),
+    buildOidcRow(
+      common,
+      {
+        clientId: options.client_id,
+        clientSecret: options.client_secret,
+        discoveryEndpoint,
+      },
+      config,
+    ),
   );
 }
 
 function processWaad(
   connection: Auth0Connection,
-  commonRow: string[],
+  common: CommonRowFields,
   config: Auth0TransformConfig,
   oidcRows: string[],
   skipped: SkippedConnection[],
@@ -282,130 +335,91 @@ function processWaad(
   }
 
   const discoveryEndpoint = `https://login.microsoftonline.com/${tenantDomain}/.well-known/openid-configuration`;
-  const customRedirectUri = config.customDomain
-    ? `https://${config.customDomain}/login/callback`
-    : '';
-
   oidcRows.push(
-    createCSVRow([
-      ...commonRow,
-      options.client_id || '',
-      options.client_secret || '',
-      discoveryEndpoint,
-      customRedirectUri,
-      '', // name
-      '', // customAttributes
-    ]),
+    buildOidcRow(
+      common,
+      {
+        clientId: options.client_id,
+        clientSecret: options.client_secret,
+        discoveryEndpoint,
+      },
+      config,
+    ),
   );
 }
 
 function processGoogleApps(
   connection: Auth0Connection,
-  commonRow: string[],
+  common: CommonRowFields,
   config: Auth0TransformConfig,
   oidcRows: string[],
 ): void {
   const options = connection.options || {};
-  const discoveryEndpoint =
-    'https://accounts.google.com/.well-known/openid-configuration';
-  const customRedirectUri = config.customDomain
-    ? `https://${config.customDomain}/login/callback`
-    : '';
-
   oidcRows.push(
-    createCSVRow([
-      ...commonRow,
-      options.client_id || '',
-      '', // clientSecret — not available from Auth0 API for google-apps
-      discoveryEndpoint,
-      customRedirectUri,
-      '', // name
-      '', // customAttributes
-    ]),
+    buildOidcRow(
+      common,
+      {
+        clientId: options.client_id,
+        clientSecret: '', // not available from Auth0 API for google-apps
+        discoveryEndpoint: 'https://accounts.google.com/.well-known/openid-configuration',
+      },
+      config,
+    ),
   );
 }
 
 function processAdfs(
   connection: Auth0Connection,
-  commonRow: string[],
+  common: CommonRowFields,
   config: Auth0TransformConfig,
   samlRows: string[],
 ): void {
   const options = connection.options || {};
-  const customEntityId = config.entityIdPrefix
-    ? `${config.entityIdPrefix}${connection.name}`
-    : '';
-  const customAcsUrl = config.customDomain
-    ? `https://${config.customDomain}/login/callback?connection=${connection.name}`
-    : '';
-
   samlRows.push(
-    createCSVRow([
-      ...commonRow,
-      '', // idpEntityId
-      '', // idpUrl
-      '', // x509Cert
-      '', // idpIdAttribute
-      '', // emailAttribute
-      '', // firstNameAttribute
-      '', // lastNameAttribute
-      '', // name
-      '', // customAttributes
-      options.adfs_server || '', // idpMetadataUrl
-      customEntityId,
-      customAcsUrl,
-      'false', // idpInitiatedSsoEnabled
-      '', // defaultConnectionBookmarkForIdpInitiatedSso
-    ]),
+    buildSamlRow(
+      connection,
+      common,
+      {
+        idpMetadataUrl: options.adfs_server,
+        idpInitiatedEnabled: 'false',
+      },
+      config,
+    ),
   );
 }
 
 function processPingFederate(
   connection: Auth0Connection,
-  commonRow: string[],
+  common: CommonRowFields,
   config: Auth0TransformConfig,
   samlRows: string[],
 ): void {
   const options = connection.options || {};
-  const customEntityId = config.entityIdPrefix
-    ? `${config.entityIdPrefix}${connection.name}`
-    : '';
-  const customAcsUrl = config.customDomain
-    ? `https://${config.customDomain}/login/callback?connection=${connection.name}`
-    : '';
-
   samlRows.push(
-    createCSVRow([
-      ...commonRow,
-      '', // idpEntityId
-      options.pingfederate_base_url || '', // idpUrl
-      options.signing_cert || options.signingCert || '', // x509Cert
-      '', // idpIdAttribute
-      '', // emailAttribute
-      '', // firstNameAttribute
-      '', // lastNameAttribute
-      '', // name
-      '', // customAttributes
-      '', // idpMetadataUrl
-      customEntityId,
-      customAcsUrl,
-      options.idpinitiated?.enabled ? 'true' : 'false',
-      '',
-    ]),
+    buildSamlRow(
+      connection,
+      common,
+      {
+        idpUrl: options.pingfederate_base_url,
+        x509Cert: options.signing_cert || options.signingCert,
+        idpInitiatedEnabled: options.idpinitiated?.enabled ? 'true' : 'false',
+      },
+      config,
+    ),
   );
 }
 
 // ---------------------------------------------------------------------------
-// Helpers
+// URL normalization helpers
 // ---------------------------------------------------------------------------
 
-function ensureWellKnown(url: string): string {
+export function ensureWellKnown(url: string): string {
   const suffix = '/.well-known/openid-configuration';
   const trimmed = url.replace(/\/+$/, '');
   return trimmed.endsWith(suffix) ? trimmed : trimmed + suffix;
 }
 
-function ensureHttps(url: string): string {
+export function ensureHttps(url: string): string {
   if (url.startsWith('https://')) return url;
   if (url.startsWith('http://')) return 'https://' + url.slice('http://'.length);
   return 'https://' + url;

@@ -9,6 +9,8 @@ const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const chalk_1 = __importDefault(require("chalk"));
 const transform_1 = require("./transform");
+const user_1 = require("./user");
+const csv_1 = require("../../shared/csv");
 const SSO_STRATEGIES = [
     'ad',
     'adfs',
@@ -132,7 +134,7 @@ class Auth0Client {
         // Run the connection transform whenever connections were fetched.
         // Writes SAML + OIDC CSVs alongside the raw JSON dump.
         if (Array.isArray(entities.connections) && entities.connections.length > 0) {
-            const transformResult = (0, transform_1.transformAuth0Connections)(entities.connections, entities.clients, this.transformConfig);
+            const transformResult = (0, transform_1.transformAuth0Connections)(entities.connections, this.transformConfig);
             outputFiles.push(...this.writeTransformOutputs(transformResult));
             this.printTransformSummary(transformResult);
             entities.transform_summary = [
@@ -145,6 +147,14 @@ class Auth0Client {
                 },
             ];
         }
+        // Users transform → workos_users.csv matching the shared users template.
+        if (Array.isArray(entities.users) && entities.users.length > 0) {
+            const userRows = entities.users.map(user_1.toWorkOSUserRow);
+            const userSummary = (0, user_1.summarizeAuth0Users)(entities.users, userRows);
+            outputFiles.push(this.writeUsersCsv(userRows));
+            this.printUserSummary(userSummary);
+            entities.user_transform_summary = [userSummary];
+        }
         if (outputFiles.length > 0)
             entities.output_files = outputFiles;
         return {
@@ -153,6 +163,31 @@ class Auth0Client {
             entities,
             summary,
         };
+    }
+    writeUsersCsv(rows) {
+        const outDir = this.outputDir ?? process.cwd();
+        fs_1.default.mkdirSync(outDir, { recursive: true });
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const usersPath = path_1.default.join(outDir, `auth0_users_${timestamp}.csv`);
+        fs_1.default.writeFileSync(usersPath, (0, csv_1.rowsToCsv)(csv_1.USER_HEADERS, rows));
+        return usersPath;
+    }
+    printUserSummary(summary) {
+        console.log(chalk_1.default.blue('\n  Auth0 → WorkOS users transform summary:'));
+        console.log(chalk_1.default.gray(`    Total rows: ${summary.total}`));
+        for (const [provider, count] of Object.entries(summary.byProvider).sort()) {
+            console.log(chalk_1.default.gray(`      • ${provider}: ${count}`));
+        }
+        if (summary.missingEmail > 0) {
+            console.log(chalk_1.default.yellow(`    [warn] ${summary.missingEmail} user(s) have no email — likely phone-only passwordless accounts`));
+        }
+        if (summary.missingName > 0) {
+            console.log(chalk_1.default.yellow(`    [warn] ${summary.missingName} user(s) have no first/last name`));
+        }
+        if (summary.total > 0) {
+            console.log(chalk_1.default.yellow(`    [note] password_hash is blank for all users — Auth0 Management API does not expose hashes. ` +
+                `Affected users will need to reset passwords, or use the Auth0 users-export extension for a bulk hash dump.`));
+        }
     }
     writeTransformOutputs(result) {
         const outDir = this.outputDir ?? process.cwd();
