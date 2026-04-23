@@ -84,4 +84,3 @@ function asArray(value) {
         return [];
     return Array.isArray(value) ? value : [value];
 }
-//# sourceMappingURL=saml-metadata.js.map

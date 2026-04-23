@@ -105,8 +105,8 @@ program
         console.log(chalk_1.default.green('✓ Successfully authenticated with Auth0'));
         const availableEntities = await client.getAvailableEntities();
         const enabledEntityKeys = availableEntities
-            .filter(entity => entity.enabled)
-            .map(entity => entity.key);
+            .filter((entity) => entity.enabled)
+            .map((entity) => entity.key);
         let selectedEntities = enabledEntityKeys;
         if (options.entities) {
             const requestedEntities = options.entities.split(',').map((e) => e.trim());
@@ -237,9 +237,8 @@ program
                 return;
             }
             console.log(chalk_1.default.blue('\n📋 Import Jobs:'));
-            jobs.forEach(job => {
-                const statusColor = job.status === 'completed' ? 'green' :
-                    job.status === 'failed' ? 'red' : 'yellow';
+            jobs.forEach((job) => {
+                const statusColor = job.status === 'completed' ? 'green' : job.status === 'failed' ? 'red' : 'yellow';
                 console.log(chalk_1.default.gray(`   • ${job.jobId} - ${chalk_1.default[statusColor](job.status)} - ${job.message}`));
             });
         }
@@ -333,8 +332,9 @@ program
         process.exit(1);
     }
 });
-// Add commands for other providers (which will show feature requests)
-['clerk', 'firebase'].forEach(providerName => {
+// Add commands for other providers (which will show feature requests).
+// `cognito` is registered as a real subcommand above, so it's excluded here.
+['clerk', 'firebase'].forEach((providerName) => {
     const provider = (0, providers_1.getProvider)(providerName);
     if (provider) {
         program
@@ -354,4 +354,3 @@ if (process.argv.length === 2) {
 else {
     program.parse();
 }
-//# sourceMappingURL=index.js.map

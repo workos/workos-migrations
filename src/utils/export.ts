@@ -13,7 +13,7 @@ export function saveExportResult(result: ExportResult): string {
   console.log(chalk.green(`\n✅ Export completed successfully!`));
   console.log(chalk.blue(`📁 Report saved to: ${filepath}`));
   console.log(chalk.gray(`\n📊 Summary:`));
-  
+
   Object.entries(result.summary).forEach(([entityType, count]) => {
     console.log(chalk.gray(`   • ${entityType}: ${count}`));
   });
@@ -24,7 +24,7 @@ export function saveExportResult(result: ExportResult): string {
 export function displayExportSummary(result: ExportResult): void {
   console.log(chalk.green(`\n✅ Export completed successfully!`));
   console.log(chalk.gray(`\n📊 Summary:`));
-  
+
   Object.entries(result.summary).forEach(([entityType, count]) => {
     console.log(chalk.gray(`   • ${entityType}: ${count}`));
   });

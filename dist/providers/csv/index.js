@@ -48,4 +48,3 @@ Object.defineProperty(exports, "getTemplate", { enumerable: true, get: function 
 Object.defineProperty(exports, "generateTemplateExample", { enumerable: true, get: function () { return templates_1.generateTemplateExample; } });
 var validator_1 = require("./validator");
 Object.defineProperty(exports, "CSVValidator", { enumerable: true, get: function () { return validator_1.CSVValidator; } });
-//# sourceMappingURL=index.js.map

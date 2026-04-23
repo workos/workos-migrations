@@ -64,7 +64,9 @@ program
 
       if (!credentials.clientId || !credentials.clientSecret || !credentials.domain) {
         console.error(chalk.red('❌ Missing required credentials.'));
-        console.error(chalk.gray('Provide via CLI options, environment variables, or config file:'));
+        console.error(
+          chalk.gray('Provide via CLI options, environment variables, or config file:'),
+        );
         console.error(chalk.gray('  • --client-id or AUTH0_CLIENT_ID'));
         console.error(chalk.gray('  • --client-secret or AUTH0_CLIENT_SECRET'));
         console.error(chalk.gray('  • --domain or AUTH0_DOMAIN'));
@@ -72,28 +74,30 @@ program
       }
 
       const client = new Auth0Client(credentials);
-      
+
       console.log(chalk.blue('📡 Connecting to Auth0...'));
       await client.authenticate();
       console.log(chalk.green('✓ Successfully authenticated with Auth0'));
 
       const availableEntities = await client.getAvailableEntities();
       const enabledEntityKeys = availableEntities
-        .filter(entity => entity.enabled)
-        .map(entity => entity.key);
+        .filter((entity) => entity.enabled)
+        .map((entity) => entity.key);
 
       let selectedEntities = enabledEntityKeys;
 
       if (options.entities) {
         const requestedEntities = options.entities.split(',').map((e: string) => e.trim());
-        const invalidEntities = requestedEntities.filter((e: string) => !enabledEntityKeys.includes(e));
-        
+        const invalidEntities = requestedEntities.filter(
+          (e: string) => !enabledEntityKeys.includes(e),
+        );
+
         if (invalidEntities.length > 0) {
           console.error(chalk.red(`❌ Invalid entities: ${invalidEntities.join(', ')}`));
           console.error(chalk.gray(`Available entities: ${enabledEntityKeys.join(', ')}`));
           process.exit(1);
         }
-        
+
         selectedEntities = requestedEntities;
       }
 
@@ -104,7 +108,7 @@ program
     } catch (error) {
       console.error(
         chalk.red('❌ Error:'),
-        error instanceof Error ? error.message : 'Unknown error'
+        error instanceof Error ? error.message : 'Unknown error',
       );
       process.exit(1);
     }
@@ -116,7 +120,10 @@ program
   .description('CSV import to WorkOS commands')
   .argument('<action>', 'Action to perform (generate-template|import|validate|list-jobs)')
   .option('--api-key <apiKey>', 'WorkOS API Key')
-  .option('--template <template>', 'Template type (users|organizations|organization_memberships|connections)')
+  .option(
+    '--template <template>',
+    'Template type (users|organizations|organization_memberships|connections)',
+  )
   .option('--file <file>', 'CSV file path')
   .option('--output <output>', 'Output file path for template generation')
   .action(async (action, options) => {
@@ -125,26 +132,34 @@ program
       if (action === 'generate-template') {
         if (!options.template) {
           console.error(chalk.red('❌ Template type is required for generate-template action.'));
-          console.error(chalk.gray('Available templates: users, organizations, organization_memberships, connections'));
+          console.error(
+            chalk.gray(
+              'Available templates: users, organizations, organization_memberships, connections',
+            ),
+          );
           process.exit(1);
         }
 
         // Generate template without API key
         const { generateTemplateExample, getTemplate } = await import('./providers/csv/templates');
         const template = getTemplate(options.template);
-        
+
         if (!template) {
           console.error(chalk.red(`❌ Unknown template: ${options.template}`));
-          console.error(chalk.gray('Available templates: users, organizations, organization_memberships, connections'));
+          console.error(
+            chalk.gray(
+              'Available templates: users, organizations, organization_memberships, connections',
+            ),
+          );
           process.exit(1);
         }
 
         const content = generateTemplateExample(options.template);
         const filename = options.output || template.filename;
-        
+
         const fs = await import('fs');
         fs.writeFileSync(filename, content);
-        
+
         console.log(chalk.green(`✅ Template generated: ${filename}`));
         console.log(chalk.blue('\n📋 Template Schema:'));
         console.log(chalk.gray(`   Required columns: ${template.required.join(', ')}`));
@@ -166,7 +181,9 @@ program
 
       if (!credentials.workosApiKey) {
         console.error(chalk.red('❌ Missing required WorkOS API key.'));
-        console.error(chalk.gray('Provide via --api-key, WORKOS_API_KEY environment variable, or config file'));
+        console.error(
+          chalk.gray('Provide via --api-key, WORKOS_API_KEY environment variable, or config file'),
+        );
         process.exit(1);
       }
 
@@ -174,7 +191,9 @@ program
 
       if (action === 'validate') {
         if (!options.file || !options.template) {
-          console.error(chalk.red('❌ Both --file and --template are required for validate action.'));
+          console.error(
+            chalk.red('❌ Both --file and --template are required for validate action.'),
+          );
           process.exit(1);
         }
 
@@ -187,7 +206,11 @@ program
         if (result.success) {
           console.log(chalk.green('✅ CSV validation passed'));
           if (result.validationResult) {
-            console.log(chalk.blue(`📊 ${result.validationResult.validRows}/${result.validationResult.totalRows} rows are valid`));
+            console.log(
+              chalk.blue(
+                `📊 ${result.validationResult.validRows}/${result.validationResult.totalRows} rows are valid`,
+              ),
+            );
           }
         } else {
           console.error(chalk.red('❌ CSV validation failed'));
@@ -225,29 +248,33 @@ program
       } else if (action === 'list-jobs') {
         console.log(chalk.blue('🔑 Validating WorkOS API key...'));
         await client.authenticate();
-        
+
         const jobs = await client.listImportJobs();
-        
+
         if (jobs.length === 0) {
           console.log(chalk.gray('No import jobs found.'));
           return;
         }
 
         console.log(chalk.blue('\n📋 Import Jobs:'));
-        jobs.forEach(job => {
-          const statusColor = job.status === 'completed' ? 'green' : 
-                             job.status === 'failed' ? 'red' : 'yellow';
-          console.log(chalk.gray(`   • ${job.jobId} - ${chalk[statusColor](job.status)} - ${job.message}`));
+        jobs.forEach((job) => {
+          const statusColor =
+            job.status === 'completed' ? 'green' : job.status === 'failed' ? 'red' : 'yellow';
+          console.log(
+            chalk.gray(`   • ${job.jobId} - ${chalk[statusColor](job.status)} - ${job.message}`),
+          );
         });
       } else {
         console.error(chalk.red(`❌ Invalid action: ${action}`));
-        console.error(chalk.gray('Available actions: generate-template, import, validate, list-jobs'));
+        console.error(
+          chalk.gray('Available actions: generate-template, import, validate, list-jobs'),
+        );
         process.exit(1);
       }
     } catch (error) {
       console.error(
         chalk.red('❌ Error:'),
-        error instanceof Error ? error.message : 'Unknown error'
+        error instanceof Error ? error.message : 'Unknown error',
       );
       process.exit(1);
     }
@@ -348,8 +375,9 @@ program
     }
   });
 
-// Add commands for other providers (which will show feature requests)
-['clerk', 'firebase'].forEach(providerName => {
+// Add commands for other providers (which will show feature requests).
+// `cognito` is registered as a real subcommand above, so it's excluded here.
+['clerk', 'firebase'].forEach((providerName) => {
   const provider = getProvider(providerName);
   if (provider) {
     program

@@ -9,12 +9,20 @@
   "files": [
     "dist/**/*",
     "README.md",
+    "LICENSE",
     "package.json"
   ],
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
+    "lint": "eslint \"src/**/*.ts\"",
+    "lint:fix": "eslint \"src/**/*.ts\" --fix",
+    "format": "prettier --write \"src/**/*.ts\" \"*.md\" \"*.json\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"*.md\" \"*.json\"",
+    "typecheck": "tsc --noEmit",
+    "test": "jest",
+    "test:watch": "jest --watch",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
@@ -36,15 +44,19 @@
     "csv-parse": "^6.1.0",
     "fast-xml-parser": "^5.7.1",
     "form-data": "^4.0.4",
-    "inquirer": "^8.2.6"
+    "inquirer": "^13.4.2"
   },
   "devDependencies": {
     "@types/form-data": "^2.2.1",
     "@types/inquirer": "^8.2.10",
-    "@types/jest": "^30.0.0",
+    "@types/jest": "^29.5.12",
     "@types/node": "^20.10.0",
-    "jest": "^30.3.0",
-    "ts-jest": "^29.4.9",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
+    "eslint": "^8.57.0",
+    "jest": "^29.7.0",
+    "prettier": "^3.3.3",
+    "ts-jest": "^29.2.5",
     "ts-node": "^10.9.0",
     "typescript": "^5.3.0"
   },

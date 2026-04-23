@@ -229,4 +229,3 @@ function rowsToCsv(headers, rows) {
     }
     return lines.join('\n') + '\n';
 }
-//# sourceMappingURL=workos-csv.js.map

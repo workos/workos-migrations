@@ -21,4 +21,3 @@ function getProvider(name) {
 function getAllProviders() {
     return Object.values(exports.PROVIDERS);
 }
-//# sourceMappingURL=index.js.map

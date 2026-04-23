@@ -14,7 +14,7 @@ class WorkOSAPIClient {
             baseURL,
             timeout: 30000,
             headers: {
-                'Authorization': `Bearer ${apiKey}`,
+                Authorization: `Bearer ${apiKey}`,
                 'User-Agent': 'workos-migrations-cli/1.0.0',
             },
         });
@@ -87,4 +87,3 @@ class WorkOSAPIClient {
     }
 }
 exports.WorkOSAPIClient = WorkOSAPIClient;
-//# sourceMappingURL=workos-api.js.map

@@ -35,4 +35,3 @@ exports.firebaseProvider = {
         },
     ],
 };
-//# sourceMappingURL=index.js.map

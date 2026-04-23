@@ -35,7 +35,9 @@ class CSVValidator {
         catch (error) {
             return {
                 valid: false,
-                errors: [`Failed to read file: ${error instanceof Error ? error.message : 'Unknown error'}`],
+                errors: [
+                    `Failed to read file: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                ],
                 warnings: [],
                 totalRows: 0,
                 validRows: 0,
@@ -96,13 +98,13 @@ class CSVValidator {
     static validateHeaders(headers, template) {
         const errors = [];
         // Check for required headers
-        const missingRequired = template.required.filter(required => !headers.includes(required));
+        const missingRequired = template.required.filter((required) => !headers.includes(required));
         if (missingRequired.length > 0) {
             errors.push(`Missing required columns: ${missingRequired.join(', ')}`);
         }
         // Check for unexpected headers
         const expectedHeaders = [...template.required, ...template.optional];
-        const unexpectedHeaders = headers.filter(header => !expectedHeaders.includes(header));
+        const unexpectedHeaders = headers.filter((header) => !expectedHeaders.includes(header));
         if (unexpectedHeaders.length > 0) {
             errors.push(`Unexpected columns: ${unexpectedHeaders.join(', ')}`);
         }
@@ -134,4 +136,3 @@ class CSVValidator {
     }
 }
 exports.CSVValidator = CSVValidator;
-//# sourceMappingURL=validator.js.map

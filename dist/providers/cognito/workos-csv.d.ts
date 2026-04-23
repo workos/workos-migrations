@@ -64,4 +64,3 @@ export declare function toOidcRow(p: CognitoProvider, proxy?: ProxyTemplates): O
 export declare function toCustomAttrRows(p: CognitoProvider): CustomAttrRow[];
 /** Produce a CSV string from headers + rows. Handles commas, quotes, and newlines. */
 export declare function rowsToCsv(headers: readonly string[], rows: Record<string, string>[]): string;
-//# sourceMappingURL=workos-csv.d.ts.map

@@ -28,4 +28,3 @@ export declare class CognitoClient implements ProviderClient {
     private resolvePoolIds;
     private logWarnings;
 }
-//# sourceMappingURL=client.d.ts.map

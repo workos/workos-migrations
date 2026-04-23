@@ -297,4 +297,3 @@ class CognitoClient {
     }
 }
 exports.CognitoClient = CognitoClient;
-//# sourceMappingURL=client.js.map
