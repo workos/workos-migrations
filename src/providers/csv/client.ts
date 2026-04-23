@@ -26,7 +26,7 @@ export class CSVClient implements ProviderClient {
     if (!credentials.workosApiKey) {
       throw new Error('WorkOS API key is required for CSV imports');
     }
-    
+
     this.workosClient = new WorkOSAPIClient(credentials.workosApiKey);
   }
 
@@ -40,8 +40,8 @@ export class CSVClient implements ProviderClient {
 
   async getAvailableEntities(): Promise<EntityType[]> {
     const templates = getAllTemplates();
-    
-    return templates.map(template => ({
+
+    return templates.map((template) => ({
       key: template.name.toLowerCase().replace(/\s+/g, '_'),
       name: template.name,
       description: template.description,
@@ -67,7 +67,7 @@ export class CSVClient implements ProviderClient {
     console.log(chalk.blue('📋 Validating CSV file...'));
     const validationResult = await CSVValidator.validateFile(
       request.csvFilePath,
-      request.templateType
+      request.templateType,
     );
 
     if (!validationResult.valid) {
@@ -78,11 +78,15 @@ export class CSVClient implements ProviderClient {
       };
     }
 
-    console.log(chalk.green(`✓ CSV validation passed: ${validationResult.validRows}/${validationResult.totalRows} rows valid`));
+    console.log(
+      chalk.green(
+        `✓ CSV validation passed: ${validationResult.validRows}/${validationResult.totalRows} rows valid`,
+      ),
+    );
 
     if (validationResult.warnings.length > 0) {
       console.log(chalk.yellow('⚠️  Warnings:'));
-      validationResult.warnings.forEach(warning => {
+      validationResult.warnings.forEach((warning) => {
         console.log(chalk.yellow(`   • ${warning}`));
       });
     }
@@ -97,7 +101,7 @@ export class CSVClient implements ProviderClient {
 
     // Start the import process
     console.log(chalk.blue('🚀 Starting import to WorkOS...'));
-    
+
     try {
       const importResponse = await this.workosClient.startCSVImport({
         templateType: request.templateType,
@@ -135,7 +139,7 @@ export class CSVClient implements ProviderClient {
 
     const content = generateTemplateExample(templateType);
     const filename = outputPath || template.filename;
-    
+
     fs.writeFileSync(filename, content);
     return filename;
   }

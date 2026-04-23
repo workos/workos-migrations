@@ -40,4 +40,3 @@ export interface Config {
         [providerName: string]: ProviderCredentials;
     };
 }
-//# sourceMappingURL=index.d.ts.map

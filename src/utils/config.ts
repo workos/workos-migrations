@@ -11,7 +11,7 @@ export function loadConfig(): Config {
     if (!fs.existsSync(CONFIG_FILE)) {
       return { providers: {} };
     }
-    
+
     const configContent = fs.readFileSync(CONFIG_FILE, 'utf8');
     return JSON.parse(configContent);
   } catch (error) {
@@ -25,7 +25,7 @@ export function saveConfig(config: Config): void {
     if (!fs.existsSync(CONFIG_DIR)) {
       fs.mkdirSync(CONFIG_DIR, { recursive: true });
     }
-    
+
     fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
   } catch (error) {
     console.warn('Failed to save config file');
@@ -37,7 +37,10 @@ export function getProviderCredentials(providerName: string): ProviderCredential
   return config.providers[providerName] || {};
 }
 
-export function saveProviderCredentials(providerName: string, credentials: ProviderCredentials): void {
+export function saveProviderCredentials(
+  providerName: string,
+  credentials: ProviderCredentials,
+): void {
   const config = loadConfig();
   config.providers[providerName] = credentials;
   saveConfig(config);

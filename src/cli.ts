@@ -12,11 +12,11 @@ import { recordFeatureRequest } from './utils/feature-request';
 export class CLI {
   async run(): Promise<void> {
     console.log(chalk.blue.bold('\n🔄 WorkOS Migration Tool\n'));
-    
+
     try {
       const provider = await this.selectProvider();
       const action = await this.selectAction();
-      
+
       if (action === 'export') {
         await this.handleExport(provider.name);
       } else if (action === 'import') {
@@ -25,7 +25,7 @@ export class CLI {
     } catch (error) {
       console.error(
         chalk.red('❌ Error:'),
-        error instanceof Error ? error.message : 'Unknown error'
+        error instanceof Error ? error.message : 'Unknown error',
       );
       process.exit(1);
     }
@@ -33,13 +33,13 @@ export class CLI {
 
   private async selectProvider() {
     const providers = getAllProviders();
-    
+
     const { providerName } = await inquirer.prompt([
       {
         type: 'list',
         name: 'providerName',
         message: 'Select the identity provider:',
-        choices: providers.map(provider => ({
+        choices: providers.map((provider) => ({
           name: provider.displayName,
           value: provider.name,
         })),
@@ -73,7 +73,7 @@ export class CLI {
 
   private async handleExport(providerName: string): Promise<void> {
     const provider = getProvider(providerName)!;
-    
+
     if (providerName !== 'auth0') {
       await recordFeatureRequest(providerName, 'export');
       return;
@@ -90,7 +90,7 @@ export class CLI {
     const scopes = client.getScopes();
     if (scopes.length > 0) {
       console.log(chalk.blue('\n🔐 Available scopes:'));
-      scopes.forEach(scope => {
+      scopes.forEach((scope) => {
         console.log(chalk.gray(`   • ${scope}`));
       });
     }
@@ -124,7 +124,7 @@ export class CLI {
     console.log(chalk.green('✓ Successfully authenticated with WorkOS'));
 
     const action = await this.selectCSVAction();
-    
+
     if (action === 'generate-template') {
       await this.handleGenerateTemplate(client);
     } else if (action === 'import-csv') {
@@ -156,15 +156,15 @@ export class CLI {
 
   private async handleGenerateTemplate(client: CSVClient): Promise<void> {
     const templates = getAllTemplates();
-    
+
     const { templateType } = await inquirer.prompt([
       {
         type: 'list',
         name: 'templateType',
         message: 'Select template type:',
-        choices: templates.map(template => ({
+        choices: templates.map((template) => ({
           name: `${template.name} - ${template.description}`,
-          value: Object.keys(CSV_TEMPLATES).find(key => CSV_TEMPLATES[key] === template),
+          value: Object.keys(CSV_TEMPLATES).find((key) => CSV_TEMPLATES[key] === template),
         })),
       },
     ]);
@@ -180,7 +180,7 @@ export class CLI {
     try {
       const filename = client.generateTemplate(templateType, outputPath || undefined);
       console.log(chalk.green(`✅ Template generated: ${filename}`));
-      
+
       const templateInfo = client.getTemplateInfo(templateType);
       console.log(chalk.blue('\n📋 Template Schema:'));
       console.log(chalk.gray(`   Required columns: ${templateInfo.required_columns.join(', ')}`));
@@ -188,7 +188,10 @@ export class CLI {
         console.log(chalk.gray(`   Optional columns: ${templateInfo.optional_columns.join(', ')}`));
       }
     } catch (error) {
-      console.error(chalk.red('❌ Failed to generate template:'), error instanceof Error ? error.message : 'Unknown error');
+      console.error(
+        chalk.red('❌ Failed to generate template:'),
+        error instanceof Error ? error.message : 'Unknown error',
+      );
     }
   }
 
@@ -208,9 +211,9 @@ export class CLI {
         type: 'list',
         name: 'templateType',
         message: 'Select template type:',
-        choices: templates.map(template => ({
+        choices: templates.map((template) => ({
           name: `${template.name} - ${template.description}`,
-          value: Object.keys(CSV_TEMPLATES).find(key => CSV_TEMPLATES[key] === template),
+          value: Object.keys(CSV_TEMPLATES).find((key) => CSV_TEMPLATES[key] === template),
         })),
       },
     ]);
@@ -237,7 +240,10 @@ export class CLI {
         }
       }
     } catch (error) {
-      console.error(chalk.red('❌ Import failed:'), error instanceof Error ? error.message : 'Unknown error');
+      console.error(
+        chalk.red('❌ Import failed:'),
+        error instanceof Error ? error.message : 'Unknown error',
+      );
     }
   }
 
@@ -257,9 +263,9 @@ export class CLI {
         type: 'list',
         name: 'templateType',
         message: 'Select template type:',
-        choices: templates.map(template => ({
+        choices: templates.map((template) => ({
           name: `${template.name} - ${template.description}`,
-          value: Object.keys(CSV_TEMPLATES).find(key => CSV_TEMPLATES[key] === template),
+          value: Object.keys(CSV_TEMPLATES).find((key) => CSV_TEMPLATES[key] === template),
         })),
       },
     ]);
@@ -274,8 +280,12 @@ export class CLI {
       if (result.success) {
         console.log(chalk.green('✅ CSV validation passed'));
         if (result.validationResult) {
-          console.log(chalk.blue(`📊 ${result.validationResult.validRows}/${result.validationResult.totalRows} rows are valid`));
-          
+          console.log(
+            chalk.blue(
+              `📊 ${result.validationResult.validRows}/${result.validationResult.totalRows} rows are valid`,
+            ),
+          );
+
           if (result.validationResult.warnings.length > 0) {
             console.log(chalk.yellow('\n⚠️  Warnings:'));
             result.validationResult.warnings.forEach((warning: string) => {
@@ -293,27 +303,35 @@ export class CLI {
         }
       }
     } catch (error) {
-      console.error(chalk.red('❌ Validation failed:'), error instanceof Error ? error.message : 'Unknown error');
+      console.error(
+        chalk.red('❌ Validation failed:'),
+        error instanceof Error ? error.message : 'Unknown error',
+      );
     }
   }
 
   private async handleListJobs(client: CSVClient): Promise<void> {
     try {
       const jobs = await client.listImportJobs();
-      
+
       if (jobs.length === 0) {
         console.log(chalk.gray('No import jobs found.'));
         return;
       }
 
       console.log(chalk.blue('\n📋 Import Jobs:'));
-      jobs.forEach(job => {
-        const statusColor = job.status === 'completed' ? 'green' : 
-                           job.status === 'failed' ? 'red' : 'yellow';
-        console.log(chalk.gray(`   • ${job.jobId} - ${chalk[statusColor](job.status)} - ${job.message}`));
+      jobs.forEach((job) => {
+        const statusColor =
+          job.status === 'completed' ? 'green' : job.status === 'failed' ? 'red' : 'yellow';
+        console.log(
+          chalk.gray(`   • ${job.jobId} - ${chalk[statusColor](job.status)} - ${job.message}`),
+        );
       });
     } catch (error) {
-      console.error(chalk.red('❌ Failed to list jobs:'), error instanceof Error ? error.message : 'Unknown error');
+      console.error(
+        chalk.red('❌ Failed to list jobs:'),
+        error instanceof Error ? error.message : 'Unknown error',
+      );
     }
   }
 
@@ -326,7 +344,7 @@ export class CLI {
     for (const field of provider.credentials) {
       const envValue = field.envVar ? process.env[field.envVar] : undefined;
       const savedValue = savedCredentials[field.key];
-      
+
       if (envValue) {
         credentials[field.key] = envValue;
       } else if (savedValue) {
@@ -338,14 +356,12 @@ export class CLI {
 
     if (hasAllCredentials) {
       console.log(
-        chalk.green(`✓ Using ${provider.displayName} credentials from environment/config`)
+        chalk.green(`✓ Using ${provider.displayName} credentials from environment/config`),
       );
       return credentials;
     }
 
-    console.log(
-      chalk.yellow(`${provider.displayName} credentials not found or incomplete.`)
-    );
+    console.log(chalk.yellow(`${provider.displayName} credentials not found or incomplete.`));
     console.log(chalk.gray('Please provide them below:\n'));
 
     const questions = provider.credentials
@@ -354,15 +370,13 @@ export class CLI {
         type: field.type,
         name: field.key,
         message: `Enter ${field.name}:`,
-        validate: (input: string) => 
-          field.required && input.length === 0 
-            ? `${field.name} is required` 
-            : true,
+        validate: (input: string) =>
+          field.required && input.length === 0 ? `${field.name} is required` : true,
         mask: field.type === 'password' ? '*' : undefined,
       }));
 
     const answers = await inquirer.prompt(questions);
-    
+
     const finalCredentials = { ...credentials, ...answers };
 
     // Ask if they want to save credentials
@@ -384,8 +398,8 @@ export class CLI {
   }
 
   private async selectEntities(availableEntities: EntityType[]): Promise<string[]> {
-    const enabledEntities = availableEntities.filter(entity => entity.enabled);
-    const disabledEntities = availableEntities.filter(entity => !entity.enabled);
+    const enabledEntities = availableEntities.filter((entity) => entity.enabled);
+    const disabledEntities = availableEntities.filter((entity) => !entity.enabled);
 
     if (enabledEntities.length === 0) {
       console.log(chalk.red('\n❌ No entities available for export.'));
@@ -394,8 +408,10 @@ export class CLI {
     }
 
     if (disabledEntities.length > 0) {
-      console.log(chalk.yellow('\n⚠️  Some entities are not available (insufficient permissions):'));
-      disabledEntities.forEach(entity => {
+      console.log(
+        chalk.yellow('\n⚠️  Some entities are not available (insufficient permissions):'),
+      );
+      disabledEntities.forEach((entity) => {
         console.log(chalk.gray(`   • ${entity.name}: ${entity.description}`));
       });
       console.log();
@@ -406,13 +422,12 @@ export class CLI {
         type: 'checkbox',
         name: 'selectedEntities',
         message: 'Select entities to export:',
-        choices: enabledEntities.map(entity => ({
+        choices: enabledEntities.map((entity) => ({
           name: `${entity.name} - ${entity.description}`,
           value: entity.key,
           checked: true,
         })),
-        validate: (input: string[]) => 
-          input.length > 0 || 'Please select at least one entity',
+        validate: (input: string[]) => input.length > 0 || 'Please select at least one entity',
       },
     ]);
 

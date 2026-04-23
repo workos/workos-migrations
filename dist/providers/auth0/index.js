@@ -62,4 +62,3 @@ exports.auth0Provider = {
 };
 var client_1 = require("./client");
 Object.defineProperty(exports, "Auth0Client", { enumerable: true, get: function () { return client_1.Auth0Client; } });
-//# sourceMappingURL=index.js.map

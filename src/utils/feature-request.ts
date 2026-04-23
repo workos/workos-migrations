@@ -1,10 +1,13 @@
 import chalk from 'chalk';
 import inquirer from 'inquirer';
 
-export async function recordFeatureRequest(providerName: string, action: 'export' | 'import'): Promise<void> {
+export async function recordFeatureRequest(
+  providerName: string,
+  action: 'export' | 'import',
+): Promise<void> {
   console.log(chalk.yellow(`\n🚧 ${providerName} ${action} functionality is not yet implemented.`));
-  console.log(chalk.gray('We\'d love to add support for this provider!'));
-  
+  console.log(chalk.gray("We'd love to add support for this provider!"));
+
   const { recordRequest } = await inquirer.prompt([
     {
       type: 'confirm',
@@ -30,8 +33,8 @@ export async function recordFeatureRequest(providerName: string, action: 'export
 
     // In a real implementation, this would send the request to a backend
     console.log(chalk.green('\n✅ Feature request recorded!'));
-    console.log(chalk.gray('We\'ll prioritize based on demand and notify you when it\'s available.'));
-    
+    console.log(chalk.gray("We'll prioritize based on demand and notify you when it's available."));
+
     // Store the request locally for now
     const request = {
       provider: providerName,
@@ -39,7 +42,7 @@ export async function recordFeatureRequest(providerName: string, action: 'export
       email: email || 'anonymous',
       timestamp: new Date().toISOString(),
     };
-    
+
     console.log(chalk.gray('\nRequest details:'));
     console.log(chalk.gray(JSON.stringify(request, null, 2)));
   } else {

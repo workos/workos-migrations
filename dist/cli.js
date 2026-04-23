@@ -38,7 +38,7 @@ class CLI {
                 type: 'list',
                 name: 'providerName',
                 message: 'Select the identity provider:',
-                choices: providers.map(provider => ({
+                choices: providers.map((provider) => ({
                     name: provider.displayName,
                     value: provider.name,
                 })),
@@ -80,7 +80,7 @@ class CLI {
         const scopes = client.getScopes();
         if (scopes.length > 0) {
             console.log(chalk_1.default.blue('\n🔐 Available scopes:'));
-            scopes.forEach(scope => {
+            scopes.forEach((scope) => {
                 console.log(chalk_1.default.gray(`   • ${scope}`));
             });
         }
@@ -142,9 +142,9 @@ class CLI {
                 type: 'list',
                 name: 'templateType',
                 message: 'Select template type:',
-                choices: templates.map(template => ({
+                choices: templates.map((template) => ({
                     name: `${template.name} - ${template.description}`,
-                    value: Object.keys(templates_1.CSV_TEMPLATES).find(key => templates_1.CSV_TEMPLATES[key] === template),
+                    value: Object.keys(templates_1.CSV_TEMPLATES).find((key) => templates_1.CSV_TEMPLATES[key] === template),
                 })),
             },
         ]);
@@ -184,9 +184,9 @@ class CLI {
                 type: 'list',
                 name: 'templateType',
                 message: 'Select template type:',
-                choices: templates.map(template => ({
+                choices: templates.map((template) => ({
                     name: `${template.name} - ${template.description}`,
-                    value: Object.keys(templates_1.CSV_TEMPLATES).find(key => templates_1.CSV_TEMPLATES[key] === template),
+                    value: Object.keys(templates_1.CSV_TEMPLATES).find((key) => templates_1.CSV_TEMPLATES[key] === template),
                 })),
             },
         ]);
@@ -231,9 +231,9 @@ class CLI {
                 type: 'list',
                 name: 'templateType',
                 message: 'Select template type:',
-                choices: templates.map(template => ({
+                choices: templates.map((template) => ({
                     name: `${template.name} - ${template.description}`,
-                    value: Object.keys(templates_1.CSV_TEMPLATES).find(key => templates_1.CSV_TEMPLATES[key] === template),
+                    value: Object.keys(templates_1.CSV_TEMPLATES).find((key) => templates_1.CSV_TEMPLATES[key] === template),
                 })),
             },
         ]);
@@ -277,9 +277,8 @@ class CLI {
                 return;
             }
             console.log(chalk_1.default.blue('\n📋 Import Jobs:'));
-            jobs.forEach(job => {
-                const statusColor = job.status === 'completed' ? 'green' :
-                    job.status === 'failed' ? 'red' : 'yellow';
+            jobs.forEach((job) => {
+                const statusColor = job.status === 'completed' ? 'green' : job.status === 'failed' ? 'red' : 'yellow';
                 console.log(chalk_1.default.gray(`   • ${job.jobId} - ${chalk_1.default[statusColor](job.status)} - ${job.message}`));
             });
         }
@@ -317,9 +316,7 @@ class CLI {
             type: field.type,
             name: field.key,
             message: `Enter ${field.name}:`,
-            validate: (input) => field.required && input.length === 0
-                ? `${field.name} is required`
-                : true,
+            validate: (input) => field.required && input.length === 0 ? `${field.name} is required` : true,
             mask: field.type === 'password' ? '*' : undefined,
         }));
         const answers = await inquirer_1.default.prompt(questions);
@@ -340,8 +337,8 @@ class CLI {
         return finalCredentials;
     }
     async selectEntities(availableEntities) {
-        const enabledEntities = availableEntities.filter(entity => entity.enabled);
-        const disabledEntities = availableEntities.filter(entity => !entity.enabled);
+        const enabledEntities = availableEntities.filter((entity) => entity.enabled);
+        const disabledEntities = availableEntities.filter((entity) => !entity.enabled);
         if (enabledEntities.length === 0) {
             console.log(chalk_1.default.red('\n❌ No entities available for export.'));
             console.log(chalk_1.default.gray('This might be due to insufficient permissions/scopes.'));
@@ -349,7 +346,7 @@ class CLI {
         }
         if (disabledEntities.length > 0) {
             console.log(chalk_1.default.yellow('\n⚠️  Some entities are not available (insufficient permissions):'));
-            disabledEntities.forEach(entity => {
+            disabledEntities.forEach((entity) => {
                 console.log(chalk_1.default.gray(`   • ${entity.name}: ${entity.description}`));
             });
             console.log();
@@ -359,7 +356,7 @@ class CLI {
                 type: 'checkbox',
                 name: 'selectedEntities',
                 message: 'Select entities to export:',
-                choices: enabledEntities.map(entity => ({
+                choices: enabledEntities.map((entity) => ({
                     name: `${entity.name} - ${entity.description}`,
                     value: entity.key,
                     checked: true,
@@ -371,4 +368,3 @@ class CLI {
     }
 }
 exports.CLI = CLI;
-//# sourceMappingURL=cli.js.map

@@ -12,4 +12,3 @@ export declare class CLI {
     private getCredentials;
     private selectEntities;
 }
-//# sourceMappingURL=cli.d.ts.map

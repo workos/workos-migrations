@@ -34,7 +34,7 @@ export const CSV_TEMPLATES: Record<string, CSVTemplate> = {
       },
     },
   },
-  
+
   organizations: {
     name: 'Organizations',
     description: 'Organization entities',
@@ -42,17 +42,14 @@ export const CSV_TEMPLATES: Record<string, CSVTemplate> = {
     headers: ['organization_id', 'name'],
     required: ['organization_id', 'name'],
     optional: [],
-    example: [
-      'org_123,Acme Corporation',
-      'org_456,Example Industries',
-    ],
+    example: ['org_123,Acme Corporation', 'org_456,Example Industries'],
     validation: {
       name: (value: string) => {
         return value.length > 0 || 'Organization name cannot be empty';
       },
     },
   },
-  
+
   organization_memberships: {
     name: 'Organization Memberships',
     description: 'User memberships in organizations',
@@ -60,20 +57,16 @@ export const CSV_TEMPLATES: Record<string, CSVTemplate> = {
     headers: ['organization_id', 'user_id'],
     required: ['organization_id', 'user_id'],
     optional: [],
-    example: [
-      'org_123,user_123',
-      'org_123,user_456',
-      'org_456,user_456',
-    ],
+    example: ['org_123,user_123', 'org_123,user_456', 'org_456,user_456'],
   },
-  
+
   connections: {
     name: 'Connections',
     description: 'Authentication connections (SSO configurations)',
     filename: 'connections.csv',
     headers: [
       'organizationName',
-      'organizationId', 
+      'organizationId',
       'domains',
       'idpEntityId',
       'idpUrl',
@@ -82,7 +75,7 @@ export const CSV_TEMPLATES: Record<string, CSVTemplate> = {
       'idpMetadataUrl',
       'customEntityId',
       'customAcsUrl',
-      'requestSigningCert'
+      'requestSigningCert',
     ],
     required: ['organizationName', 'organizationId'],
     optional: [
@@ -94,11 +87,11 @@ export const CSV_TEMPLATES: Record<string, CSVTemplate> = {
       'idpMetadataUrl',
       'customEntityId',
       'customAcsUrl',
-      'requestSigningCert'
+      'requestSigningCert',
     ],
     example: [
       'Acme Corporation,org_123,acme.com;app.acme.com,https://acme.okta.com,https://acme.okta.com/app/saml,MIICXjCCAcegAwIBAgIBADANBgkqhkiG9w0BAQ0FADCBhzELMAkGA1UEBhMCVVMx...,email,https://acme.okta.com/app/metadata,,https://acme.com/saml/acs,',
-      'Example Industries,org_456,example.com,https://example.auth0.com/,https://example.auth0.com/saml,,uid,https://example.auth0.com/samlp/metadata,,,'
+      'Example Industries,org_456,example.com,https://example.auth0.com/,https://example.auth0.com/saml,,uid,https://example.auth0.com/samlp/metadata,,,',
     ],
     validation: {
       organizationName: (value: string) => {
@@ -111,8 +104,11 @@ export const CSV_TEMPLATES: Record<string, CSVTemplate> = {
         if (!value) return true; // Optional field
         // Check if domains are separated by semicolons and are valid domain format
         const domains = value.split(';');
-        const domainRegex = /^[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]*\.([a-zA-Z]{2,}|[a-zA-Z]{2,}\.[a-zA-Z]{2,})$/;
-        const invalidDomains = domains.filter(domain => domain.trim() && !domainRegex.test(domain.trim()));
+        const domainRegex =
+          /^[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]*\.([a-zA-Z]{2,}|[a-zA-Z]{2,}\.[a-zA-Z]{2,})$/;
+        const invalidDomains = domains.filter(
+          (domain) => domain.trim() && !domainRegex.test(domain.trim()),
+        );
         return invalidDomains.length === 0 || `Invalid domain format: ${invalidDomains.join(', ')}`;
       },
       idpUrl: (value: string) => {
@@ -159,33 +155,36 @@ export function generateTemplateExample(templateName: string): string {
   if (!template) {
     throw new Error(`Template ${templateName} not found`);
   }
-  
+
   const header = template.headers.join(',');
   const examples = template.example.join('\n');
-  
+
   return `${header}\n${examples}`;
 }
 
-export function validateCSVHeaders(templateName: string, headers: string[]): { valid: boolean; errors: string[] } {
+export function validateCSVHeaders(
+  templateName: string,
+  headers: string[],
+): { valid: boolean; errors: string[] } {
   const template = getTemplate(templateName);
   if (!template) {
     return { valid: false, errors: [`Template ${templateName} not found`] };
   }
-  
+
   const errors: string[] = [];
-  
+
   // Check if all required headers are present
-  const missingRequired = template.required.filter(required => !headers.includes(required));
+  const missingRequired = template.required.filter((required) => !headers.includes(required));
   if (missingRequired.length > 0) {
     errors.push(`Missing required columns: ${missingRequired.join(', ')}`);
   }
-  
+
   // Check if there are any unexpected headers
   const expectedHeaders = [...template.required, ...template.optional];
-  const unexpectedHeaders = headers.filter(header => !expectedHeaders.includes(header));
+  const unexpectedHeaders = headers.filter((header) => !expectedHeaders.includes(header));
   if (unexpectedHeaders.length > 0) {
     errors.push(`Unexpected columns: ${unexpectedHeaders.join(', ')}`);
   }
-  
+
   return { valid: errors.length === 0, errors };
 }

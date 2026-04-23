@@ -25,7 +25,7 @@ class CSVClient {
     }
     async getAvailableEntities() {
         const templates = (0, templates_1.getAllTemplates)();
-        return templates.map(template => ({
+        return templates.map((template) => ({
             key: template.name.toLowerCase().replace(/\s+/g, '_'),
             name: template.name,
             description: template.description,
@@ -57,7 +57,7 @@ class CSVClient {
         console.log(chalk_1.default.green(`✓ CSV validation passed: ${validationResult.validRows}/${validationResult.totalRows} rows valid`));
         if (validationResult.warnings.length > 0) {
             console.log(chalk_1.default.yellow('⚠️  Warnings:'));
-            validationResult.warnings.forEach(warning => {
+            validationResult.warnings.forEach((warning) => {
                 console.log(chalk_1.default.yellow(`   • ${warning}`));
             });
         }
@@ -127,4 +127,3 @@ class CSVClient {
     }
 }
 exports.CSVClient = CSVClient;
-//# sourceMappingURL=client.js.map
