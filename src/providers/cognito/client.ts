@@ -184,9 +184,7 @@ export class CognitoClient implements ProviderClient {
         process.env.SAML_CUSTOM_ENTITY_ID_TEMPLATE ??
         DEFAULT_SAML_CUSTOM_ENTITY_ID_TEMPLATE,
       samlCustomAcsUrl:
-        this.options.proxy?.samlCustomAcsUrl ??
-        process.env.SAML_CUSTOM_ACS_URL_TEMPLATE ??
-        null,
+        this.options.proxy?.samlCustomAcsUrl ?? process.env.SAML_CUSTOM_ACS_URL_TEMPLATE ?? null,
       oidcCustomRedirectUri:
         this.options.proxy?.oidcCustomRedirectUri ??
         process.env.OIDC_CUSTOM_REDIRECT_URI_TEMPLATE ??

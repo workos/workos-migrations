@@ -57,7 +57,7 @@ function parseSamlMetadata(xml) {
     for (const kd of keyDescriptors) {
         const cert = kd?.KeyInfo?.X509Data?.X509Certificate;
         if (cert) {
-            const raw = typeof cert === 'string' ? cert : cert['#text'] ?? '';
+            const raw = typeof cert === 'string' ? cert : (cert['#text'] ?? '');
             x509Cert = raw.replace(/\s+/g, '');
             if (x509Cert)
                 break;

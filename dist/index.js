@@ -281,12 +281,12 @@ program
         const saved = (0, config_1.getProviderCredentials)('cognito');
         const credentials = {
             region: options.region || process.env.AWS_REGION || saved.region,
-            userPoolIds: options.userPoolIds ||
-                process.env.COGNITO_USER_POOL_IDS ||
-                saved.userPoolIds ||
-                '',
+            userPoolIds: options.userPoolIds || process.env.COGNITO_USER_POOL_IDS || saved.userPoolIds || '',
             accessKeyId: options.accessKeyId || process.env.AWS_ACCESS_KEY_ID || saved.accessKeyId || '',
-            secretAccessKey: options.secretAccessKey || process.env.AWS_SECRET_ACCESS_KEY || saved.secretAccessKey || '',
+            secretAccessKey: options.secretAccessKey ||
+                process.env.AWS_SECRET_ACCESS_KEY ||
+                saved.secretAccessKey ||
+                '',
             sessionToken: options.sessionToken || process.env.AWS_SESSION_TOKEN || saved.sessionToken || '',
         };
         if (!credentials.region) {

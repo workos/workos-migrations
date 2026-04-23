@@ -50,10 +50,7 @@ class CognitoClient {
         await this.client.send(new client_cognito_identity_provider_1.ListUserPoolsCommand({ MaxResults: 1 }));
     }
     getScopes() {
-        return [
-            'cognito-idp:ListIdentityProviders',
-            'cognito-idp:DescribeIdentityProvider',
-        ];
+        return ['cognito-idp:ListIdentityProviders', 'cognito-idp:DescribeIdentityProvider'];
     }
     async getAvailableEntities() {
         return [
@@ -130,9 +127,7 @@ class CognitoClient {
             samlCustomEntityId: this.options.proxy?.samlCustomEntityId ??
                 process.env.SAML_CUSTOM_ENTITY_ID_TEMPLATE ??
                 workos_csv_1.DEFAULT_SAML_CUSTOM_ENTITY_ID_TEMPLATE,
-            samlCustomAcsUrl: this.options.proxy?.samlCustomAcsUrl ??
-                process.env.SAML_CUSTOM_ACS_URL_TEMPLATE ??
-                null,
+            samlCustomAcsUrl: this.options.proxy?.samlCustomAcsUrl ?? process.env.SAML_CUSTOM_ACS_URL_TEMPLATE ?? null,
             oidcCustomRedirectUri: this.options.proxy?.oidcCustomRedirectUri ??
                 process.env.OIDC_CUSTOM_REDIRECT_URI_TEMPLATE ??
                 null,

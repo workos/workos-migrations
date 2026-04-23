@@ -306,10 +306,7 @@ program
     '--saml-custom-entity-id-template <tpl>',
     'Template for SAML customEntityId column (default: urn:amazon:cognito:sp:{user_pool_id})',
   )
-  .option(
-    '--oidc-custom-redirect-uri-template <tpl>',
-    'Template for OIDC customRedirectUri column',
-  )
+  .option('--oidc-custom-redirect-uri-template <tpl>', 'Template for OIDC customRedirectUri column')
   .action(async (action, options) => {
     if (action === 'import') {
       await recordFeatureRequest('cognito', 'import');
@@ -326,7 +323,8 @@ program
         region: options.region || process.env.AWS_REGION || saved.region,
         userPoolIds:
           options.userPoolIds || process.env.COGNITO_USER_POOL_IDS || saved.userPoolIds || '',
-        accessKeyId: options.accessKeyId || process.env.AWS_ACCESS_KEY_ID || saved.accessKeyId || '',
+        accessKeyId:
+          options.accessKeyId || process.env.AWS_ACCESS_KEY_ID || saved.accessKeyId || '',
         secretAccessKey:
           options.secretAccessKey ||
           process.env.AWS_SECRET_ACCESS_KEY ||
