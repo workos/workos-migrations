@@ -50,6 +50,21 @@ export const CUSTOM_ATTR_HEADERS = [
   'idpClaim',
 ] as const;
 
+/**
+ * WorkOS users import template. `password_hash` is intentionally written
+ * blank — Cognito does not expose password hashes. Users that relied on
+ * email/password in Cognito will need to reset their password after
+ * migration (or rely on SSO + JIT provisioning via the migration proxy).
+ */
+export const USER_HEADERS = [
+  'user_id',
+  'email',
+  'email_verified',
+  'first_name',
+  'last_name',
+  'password_hash',
+] as const;
+
 /** User pool attribute keys used in Cognito's AttributeMapping dict. */
 const UP_EMAIL = 'email';
 const UP_GIVEN_NAME = 'given_name';
@@ -121,6 +136,53 @@ export function buildCustomAttributesJson(attrs: Record<string, string>): string
 export type SamlRow = Record<(typeof SAML_HEADERS)[number], string>;
 export type OidcRow = Record<(typeof OIDC_HEADERS)[number], string>;
 export type CustomAttrRow = Record<(typeof CUSTOM_ATTR_HEADERS)[number], string>;
+export type UserRow = Record<(typeof USER_HEADERS)[number], string>;
+
+export interface CognitoUser {
+  userPoolId: string;
+  /** Cognito's login identifier — can be email, phone, or sub. */
+  username: string;
+  /** Flattened attribute map — { email: 'x@y.com', sub: '...', given_name: 'Jane' }. */
+  attributes: Record<string, string>;
+  userStatus?: string;
+  enabled?: boolean;
+}
+
+/**
+ * Map a Cognito user into the WorkOS users.csv template.
+ *
+ *   user_id        → Cognito `sub` attribute (stable unique ID), falls back to username
+ *   email          → Cognito `email` attribute
+ *   email_verified → Cognito `email_verified` attribute (Cognito returns 'true'/'false' strings)
+ *   first_name     → `given_name`, falling back to the first whitespace-split token of `name`
+ *   last_name      → `family_name`, falling back to the remaining tokens of `name`
+ *   password_hash  → always blank (Cognito does not export password hashes)
+ */
+export function toUserRow(u: CognitoUser): UserRow {
+  const a = u.attributes;
+  const { first, last } = splitName(a.name ?? '');
+
+  return {
+    user_id: a.sub ?? u.username,
+    email: a.email ?? '',
+    email_verified: a.email_verified ?? '',
+    first_name: a.given_name ?? first,
+    last_name: a.family_name ?? last,
+    password_hash: '',
+  };
+}
+
+/** Whitespace-split a full name into first/last halves. Multi-word last names stay intact. */
+export function splitName(name: string): { first: string; last: string } {
+  const trimmed = name.trim();
+  if (!trimmed) return { first: '', last: '' };
+  const parts = trimmed.split(/\s+/);
+  if (parts.length === 1) return { first: parts[0], last: '' };
+  return {
+    first: parts[0],
+    last: parts.slice(1).join(' '),
+  };
+}
 
 export function toSamlRow(p: CognitoProvider, proxy: ProxyTemplates = {}): SamlRow {
   const details = p.providerDetails;

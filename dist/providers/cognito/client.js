@@ -9,6 +9,17 @@ const path_1 = __importDefault(require("path"));
 const chalk_1 = __importDefault(require("chalk"));
 const client_cognito_identity_provider_1 = require("@aws-sdk/client-cognito-identity-provider");
 const workos_csv_1 = require("./workos-csv");
+function countDuplicates(values) {
+    const seen = new Set();
+    let dupes = 0;
+    for (const v of values) {
+        if (seen.has(v))
+            dupes += 1;
+        else
+            seen.add(v);
+    }
+    return dupes;
+}
 class CognitoClient {
     constructor(credentials, options = {}) {
         this.credentials = credentials;
@@ -55,8 +66,8 @@ class CognitoClient {
             {
                 key: 'users',
                 name: 'Users',
-                description: 'Cognito user pool users (not yet implemented for export)',
-                enabled: false,
+                description: 'Cognito user pool users (password hashes not exportable)',
+                enabled: true,
             },
         ];
     }
@@ -65,22 +76,36 @@ class CognitoClient {
             throw new Error('call authenticate() before exportEntities()');
         const entities = {};
         const summary = {};
+        const outputFiles = [];
         for (const entityType of entityTypes) {
-            switch (entityType) {
-                case 'connections': {
-                    const { providers, writtenFiles } = await this.exportConnections();
-                    entities.connections = providers;
-                    summary.connections = providers.length;
-                    entities.output_files = writtenFiles;
-                    break;
+            try {
+                switch (entityType) {
+                    case 'connections': {
+                        const { providers, writtenFiles } = await this.exportConnections();
+                        entities.connections = providers;
+                        summary.connections = providers.length;
+                        outputFiles.push(...writtenFiles);
+                        break;
+                    }
+                    case 'users': {
+                        const { users, writtenFiles } = await this.exportUsers();
+                        entities.users = users;
+                        summary.users = users.length;
+                        outputFiles.push(...writtenFiles);
+                        break;
+                    }
+                    default:
+                        console.warn(chalk_1.default.yellow(`  skipping unknown entity: ${entityType}`));
                 }
-                case 'users': {
-                    throw new Error('users export is not yet implemented for Cognito');
-                }
-                default:
-                    console.warn(chalk_1.default.yellow(`  skipping unknown entity: ${entityType}`));
+            }
+            catch (error) {
+                console.warn(chalk_1.default.yellow(`  failed to export ${entityType}: ${error instanceof Error ? error.message : 'unknown error'}`));
+                entities[entityType] = [];
+                summary[entityType] = 0;
             }
         }
+        if (outputFiles.length > 0)
+            entities.output_files = outputFiles;
         return {
             timestamp: new Date().toISOString(),
             provider: 'cognito',
@@ -134,6 +159,80 @@ class CognitoClient {
             providers: all,
             writtenFiles: [samlPath, oidcPath, customPath],
         };
+    }
+    async exportUsers() {
+        const poolIds = this.resolvePoolIds();
+        if (poolIds.length === 0) {
+            throw new Error('no user pool IDs provided — set COGNITO_USER_POOL_IDS, pass --user-pool-ids, or save to config');
+        }
+        const all = [];
+        for (const poolId of poolIds) {
+            console.log(chalk_1.default.gray(`  fetching users from ${poolId}...`));
+            const users = await this.fetchUsers(poolId);
+            console.log(chalk_1.default.gray(`  ${poolId}: ${users.length} user(s)`));
+            all.push(...users);
+        }
+        const rows = all.map(workos_csv_1.toUserRow);
+        const outDir = this.options.outDir ?? process.cwd();
+        fs_1.default.mkdirSync(outDir, { recursive: true });
+        const usersPath = path_1.default.join(outDir, 'workos_users.csv');
+        fs_1.default.writeFileSync(usersPath, (0, workos_csv_1.rowsToCsv)(workos_csv_1.USER_HEADERS, rows));
+        console.log(chalk_1.default.blue('\n  output files:'));
+        console.log(chalk_1.default.gray(`    ${usersPath}`));
+        this.logUserWarnings(rows);
+        return { users: all, writtenFiles: [usersPath] };
+    }
+    async fetchUsers(poolId) {
+        const client = this.client;
+        const users = [];
+        let paginationToken;
+        do {
+            const resp = await client.send(new client_cognito_identity_provider_1.ListUsersCommand({
+                UserPoolId: poolId,
+                Limit: 60,
+                PaginationToken: paginationToken,
+            }));
+            for (const u of resp.Users ?? []) {
+                const mapped = this.mapUser(poolId, u);
+                if (mapped)
+                    users.push(mapped);
+            }
+            paginationToken = resp.PaginationToken;
+            if (users.length > 0 && users.length % 300 === 0) {
+                console.log(chalk_1.default.gray(`    ...${users.length} users so far`));
+            }
+        } while (paginationToken);
+        return users;
+    }
+    mapUser(poolId, u) {
+        if (!u.Username)
+            return null;
+        const attributes = {};
+        for (const attr of u.Attributes ?? []) {
+            if (attr.Name && attr.Value !== undefined)
+                attributes[attr.Name] = attr.Value;
+        }
+        return {
+            userPoolId: poolId,
+            username: u.Username,
+            attributes,
+            userStatus: u.UserStatus,
+            enabled: u.Enabled,
+        };
+    }
+    logUserWarnings(rows) {
+        const missingEmail = rows.filter((r) => !r.email).length;
+        if (missingEmail > 0) {
+            console.log(chalk_1.default.yellow(`  [warn] ${missingEmail} user(s) have no email attribute — these rows will likely fail WorkOS import.`));
+        }
+        if (rows.length > 0) {
+            console.log(chalk_1.default.yellow(`  [warn] password_hash is blank for all ${rows.length} user(s) — Cognito does not expose hashes. ` +
+                `Affected users will need to reset their password post-migration (or rely on SSO JIT provisioning).`));
+            const dupes = countDuplicates(rows.map((r) => r.user_id).filter(Boolean));
+            if (dupes > 0) {
+                console.log(chalk_1.default.yellow(`  [warn] ${dupes} duplicate user_id value(s) detected across pools — consider exporting pools separately or prefixing IDs.`));
+            }
+        }
     }
     async fetchProviders(poolId) {
         const client = this.client;

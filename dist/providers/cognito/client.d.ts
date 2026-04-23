@@ -19,6 +19,10 @@ export declare class CognitoClient implements ProviderClient {
     getAvailableEntities(): Promise<EntityType[]>;
     exportEntities(entityTypes: string[]): Promise<ExportResult>;
     private exportConnections;
+    private exportUsers;
+    private fetchUsers;
+    private mapUser;
+    private logUserWarnings;
     private fetchProviders;
     private describeProvider;
     private resolvePoolIds;

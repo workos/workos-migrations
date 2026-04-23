@@ -1,11 +1,13 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.DEFAULT_SAML_CUSTOM_ENTITY_ID_TEMPLATE = exports.CUSTOM_ATTR_HEADERS = exports.OIDC_HEADERS = exports.SAML_HEADERS = void 0;
+exports.DEFAULT_SAML_CUSTOM_ENTITY_ID_TEMPLATE = exports.USER_HEADERS = exports.CUSTOM_ATTR_HEADERS = exports.OIDC_HEADERS = exports.SAML_HEADERS = void 0;
 exports.isSaml = isSaml;
 exports.isOidc = isOidc;
 exports.importedId = importedId;
 exports.renderTemplate = renderTemplate;
 exports.buildCustomAttributesJson = buildCustomAttributesJson;
+exports.toUserRow = toUserRow;
+exports.splitName = splitName;
 exports.toSamlRow = toSamlRow;
 exports.toOidcRow = toOidcRow;
 exports.toCustomAttrRows = toCustomAttrRows;
@@ -58,6 +60,20 @@ exports.CUSTOM_ATTR_HEADERS = [
     'userPoolAttribute',
     'idpClaim',
 ];
+/**
+ * WorkOS users import template. `password_hash` is intentionally written
+ * blank — Cognito does not expose password hashes. Users that relied on
+ * email/password in Cognito will need to reset their password after
+ * migration (or rely on SSO + JIT provisioning via the migration proxy).
+ */
+exports.USER_HEADERS = [
+    'user_id',
+    'email',
+    'email_verified',
+    'first_name',
+    'last_name',
+    'password_hash',
+];
 /** User pool attribute keys used in Cognito's AttributeMapping dict. */
 const UP_EMAIL = 'email';
 const UP_GIVEN_NAME = 'given_name';
@@ -100,6 +116,41 @@ function buildCustomAttributesJson(attrs) {
     if (entries.length === 0)
         return '';
     return JSON.stringify(Object.fromEntries(entries));
+}
+/**
+ * Map a Cognito user into the WorkOS users.csv template.
+ *
+ *   user_id        → Cognito `sub` attribute (stable unique ID), falls back to username
+ *   email          → Cognito `email` attribute
+ *   email_verified → Cognito `email_verified` attribute (Cognito returns 'true'/'false' strings)
+ *   first_name     → `given_name`, falling back to the first whitespace-split token of `name`
+ *   last_name      → `family_name`, falling back to the remaining tokens of `name`
+ *   password_hash  → always blank (Cognito does not export password hashes)
+ */
+function toUserRow(u) {
+    const a = u.attributes;
+    const { first, last } = splitName(a.name ?? '');
+    return {
+        user_id: a.sub ?? u.username,
+        email: a.email ?? '',
+        email_verified: a.email_verified ?? '',
+        first_name: a.given_name ?? first,
+        last_name: a.family_name ?? last,
+        password_hash: '',
+    };
+}
+/** Whitespace-split a full name into first/last halves. Multi-word last names stay intact. */
+function splitName(name) {
+    const trimmed = name.trim();
+    if (!trimmed)
+        return { first: '', last: '' };
+    const parts = trimmed.split(/\s+/);
+    if (parts.length === 1)
+        return { first: parts[0], last: '' };
+    return {
+        first: parts[0],
+        last: parts.slice(1).join(' '),
+    };
 }
 function toSamlRow(p, proxy = {}) {
     const details = p.providerDetails;

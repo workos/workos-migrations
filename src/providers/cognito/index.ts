@@ -50,8 +50,8 @@ export const cognitoProvider: Provider = {
     {
       key: 'users',
       name: 'Users',
-      description: 'Cognito user pool users (coming soon)',
-      enabled: false,
+      description: 'Cognito user pool users (password hashes not exportable)',
+      enabled: true,
     },
   ],
 };
