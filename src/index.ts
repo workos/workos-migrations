@@ -5,6 +5,7 @@ import chalk from 'chalk';
 import { CLI } from './cli';
 import { getProvider } from './providers';
 import { Auth0Client } from './providers/auth0';
+import { CognitoClient } from './providers/cognito';
 import { CSVClient, getAllTemplates } from './providers/csv';
 import { getProviderCredentials } from './utils/config';
 import { saveExportResult } from './utils/export';
@@ -252,8 +253,103 @@ program
     }
   });
 
+// Cognito export — full implementation
+program
+  .command('cognito')
+  .description('AWS Cognito migration commands')
+  .argument('<action>', 'Action to perform (export|import)')
+  .option('--entities <entities>', 'Comma-separated list of entities to export (default: connections)')
+  .option('--region <region>', 'AWS region')
+  .option('--user-pool-ids <ids>', 'Comma-separated Cognito user pool IDs')
+  .option('--out-dir <dir>', 'Directory to write CSV output (default: current directory)')
+  .option('--access-key-id <id>', 'AWS access key ID (omit to use default credential chain)')
+  .option('--secret-access-key <key>', 'AWS secret access key (omit to use default credential chain)')
+  .option('--session-token <token>', 'AWS session token (optional)')
+  .option('--saml-custom-acs-url-template <tpl>', 'Template for SAML customAcsUrl column, e.g. https://sso.example.com/{provider_name}/acs')
+  .option('--saml-custom-entity-id-template <tpl>', 'Template for SAML customEntityId column (default: urn:amazon:cognito:sp:{user_pool_id})')
+  .option('--oidc-custom-redirect-uri-template <tpl>', 'Template for OIDC customRedirectUri column')
+  .action(async (action, options) => {
+    if (action === 'import') {
+      await recordFeatureRequest('cognito', 'import');
+      return;
+    }
+    if (action !== 'export') {
+      console.error(chalk.red('❌ Invalid action. Use "export" or "import"'));
+      process.exit(1);
+    }
+
+    try {
+      const saved = getProviderCredentials('cognito');
+      const credentials = {
+        region: options.region || process.env.AWS_REGION || saved.region,
+        userPoolIds:
+          options.userPoolIds ||
+          process.env.COGNITO_USER_POOL_IDS ||
+          saved.userPoolIds ||
+          '',
+        accessKeyId:
+          options.accessKeyId || process.env.AWS_ACCESS_KEY_ID || saved.accessKeyId || '',
+        secretAccessKey:
+          options.secretAccessKey || process.env.AWS_SECRET_ACCESS_KEY || saved.secretAccessKey || '',
+        sessionToken:
+          options.sessionToken || process.env.AWS_SESSION_TOKEN || saved.sessionToken || '',
+      };
+
+      if (!credentials.region) {
+        console.error(chalk.red('❌ Missing required AWS region. Provide via --region or AWS_REGION.'));
+        process.exit(1);
+      }
+      if (!credentials.userPoolIds) {
+        console.error(
+          chalk.red('❌ Missing required user pool IDs. Provide via --user-pool-ids or COGNITO_USER_POOL_IDS.'),
+        );
+        process.exit(1);
+      }
+
+      const client = new CognitoClient(credentials, {
+        outDir: options.outDir,
+        proxy: {
+          samlCustomAcsUrl: options.samlCustomAcsUrlTemplate,
+          samlCustomEntityId: options.samlCustomEntityIdTemplate,
+          oidcCustomRedirectUri: options.oidcCustomRedirectUriTemplate,
+        },
+      });
+
+      console.log(chalk.blue('📡 Connecting to AWS Cognito...'));
+      await client.authenticate();
+      console.log(chalk.green('✓ Successfully authenticated with AWS'));
+
+      const availableEntities = await client.getAvailableEntities();
+      const enabledEntityKeys = availableEntities
+        .filter((entity) => entity.enabled)
+        .map((entity) => entity.key);
+
+      let selectedEntities = enabledEntityKeys;
+      if (options.entities) {
+        const requested = options.entities.split(',').map((e: string) => e.trim());
+        const invalid = requested.filter((e: string) => !enabledEntityKeys.includes(e));
+        if (invalid.length > 0) {
+          console.error(chalk.red(`❌ Invalid entities: ${invalid.join(', ')}`));
+          console.error(chalk.gray(`Available entities: ${enabledEntityKeys.join(', ')}`));
+          process.exit(1);
+        }
+        selectedEntities = requested;
+      }
+
+      console.log(chalk.blue(`📥 Exporting entities: ${selectedEntities.join(', ')}`));
+      const result = await client.exportEntities(selectedEntities);
+      saveExportResult(result);
+    } catch (error) {
+      console.error(
+        chalk.red('❌ Error:'),
+        error instanceof Error ? error.message : 'Unknown error',
+      );
+      process.exit(1);
+    }
+  });
+
 // Add commands for other providers (which will show feature requests)
-['clerk', 'firebase', 'cognito'].forEach(providerName => {
+['clerk', 'firebase'].forEach(providerName => {
   const provider = getProvider(providerName);
   if (provider) {
     program

@@ -2,6 +2,7 @@ import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { getAllProviders, getProvider } from './providers';
 import { Auth0Client } from './providers/auth0';
+import { CognitoClient } from './providers/cognito';
 import { CSVClient, getAllTemplates } from './providers/csv';
 import { CSV_TEMPLATES } from './providers/csv/templates';
 import { ProviderCredentials, EntityType } from './types';
@@ -73,40 +74,56 @@ export class CLI {
 
   private async handleExport(providerName: string): Promise<void> {
     const provider = getProvider(providerName)!;
-    
-    if (providerName !== 'auth0') {
-      await recordFeatureRequest(providerName, 'export');
+
+    if (providerName === 'auth0') {
+      const credentials = await this.getCredentials(provider);
+      const client = new Auth0Client(credentials);
+
+      console.log(chalk.blue('\n📡 Connecting to Auth0...'));
+      await client.authenticate();
+      console.log(chalk.green('✓ Successfully authenticated with Auth0'));
+
+      const scopes = client.getScopes();
+      if (scopes.length > 0) {
+        console.log(chalk.blue('\n🔐 Available scopes:'));
+        scopes.forEach((scope) => console.log(chalk.gray(`   • ${scope}`)));
+      }
+
+      const availableEntities = await client.getAvailableEntities();
+      const selectedEntities = await this.selectEntities(availableEntities);
+      if (selectedEntities.length === 0) {
+        console.log(chalk.yellow('No entities selected for export.'));
+        return;
+      }
+
+      console.log(chalk.blue('\n📥 Exporting data...'));
+      const result = await client.exportEntities(selectedEntities);
+      saveExportResult(result);
       return;
     }
 
-    const credentials = await this.getCredentials(provider);
-    const client = new Auth0Client(credentials);
+    if (providerName === 'cognito') {
+      const credentials = await this.getCredentials(provider);
+      const client = new CognitoClient(credentials);
 
-    console.log(chalk.blue('\n📡 Connecting to Auth0...'));
-    await client.authenticate();
-    console.log(chalk.green('✓ Successfully authenticated with Auth0'));
+      console.log(chalk.blue('\n📡 Connecting to AWS Cognito...'));
+      await client.authenticate();
+      console.log(chalk.green('✓ Successfully authenticated with AWS'));
 
-    // Show available scopes
-    const scopes = client.getScopes();
-    if (scopes.length > 0) {
-      console.log(chalk.blue('\n🔐 Available scopes:'));
-      scopes.forEach(scope => {
-        console.log(chalk.gray(`   • ${scope}`));
-      });
-    }
+      const availableEntities = await client.getAvailableEntities();
+      const selectedEntities = await this.selectEntities(availableEntities);
+      if (selectedEntities.length === 0) {
+        console.log(chalk.yellow('No entities selected for export.'));
+        return;
+      }
 
-    const availableEntities = await client.getAvailableEntities();
-    const selectedEntities = await this.selectEntities(availableEntities);
-
-    if (selectedEntities.length === 0) {
-      console.log(chalk.yellow('No entities selected for export.'));
+      console.log(chalk.blue('\n📥 Exporting data...'));
+      const result = await client.exportEntities(selectedEntities);
+      saveExportResult(result);
       return;
     }
 
-    console.log(chalk.blue('\n📥 Exporting data...'));
-    const result = await client.exportEntities(selectedEntities);
-
-    saveExportResult(result);
+    await recordFeatureRequest(providerName, 'export');
   }
 
   private async handleImport(providerName: string): Promise<void> {

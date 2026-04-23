@@ -29,10 +29,12 @@
   "author": "WorkOS",
   "license": "MIT",
   "dependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3.1036.0",
     "axios": "^1.15.0",
     "chalk": "^4.1.2",
     "commander": "^11.1.0",
     "csv-parse": "^6.1.0",
+    "fast-xml-parser": "^5.7.1",
     "form-data": "^4.0.4",
     "inquirer": "^8.2.6"
   },

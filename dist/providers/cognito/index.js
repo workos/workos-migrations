@@ -1,24 +1,10 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.cognitoProvider = void 0;
+exports.CognitoClient = exports.cognitoProvider = void 0;
 exports.cognitoProvider = {
     name: 'cognito',
     displayName: 'AWS Cognito',
     credentials: [
-        {
-            key: 'accessKeyId',
-            name: 'AWS Access Key ID',
-            type: 'input',
-            required: true,
-            envVar: 'AWS_ACCESS_KEY_ID',
-        },
-        {
-            key: 'secretAccessKey',
-            name: 'AWS Secret Access Key',
-            type: 'password',
-            required: true,
-            envVar: 'AWS_SECRET_ACCESS_KEY',
-        },
         {
             key: 'region',
             name: 'AWS Region',
@@ -27,26 +13,49 @@ exports.cognitoProvider = {
             envVar: 'AWS_REGION',
         },
         {
-            key: 'userPoolId',
-            name: 'User Pool ID',
+            key: 'userPoolIds',
+            name: 'User Pool IDs (comma-separated)',
             type: 'input',
             required: true,
-            envVar: 'COGNITO_USER_POOL_ID',
+            envVar: 'COGNITO_USER_POOL_IDS',
+        },
+        {
+            key: 'accessKeyId',
+            name: 'AWS Access Key ID (leave blank to use default credential chain)',
+            type: 'input',
+            required: false,
+            envVar: 'AWS_ACCESS_KEY_ID',
+        },
+        {
+            key: 'secretAccessKey',
+            name: 'AWS Secret Access Key (leave blank to use default credential chain)',
+            type: 'password',
+            required: false,
+            envVar: 'AWS_SECRET_ACCESS_KEY',
+        },
+        {
+            key: 'sessionToken',
+            name: 'AWS Session Token (optional)',
+            type: 'password',
+            required: false,
+            envVar: 'AWS_SESSION_TOKEN',
         },
     ],
     entities: [
         {
-            key: 'users',
-            name: 'Users',
-            description: 'Cognito user pool users',
-            enabled: false,
+            key: 'connections',
+            name: 'Connections',
+            description: 'Identity providers attached to Cognito user pools (SAML + OIDC)',
+            enabled: true,
         },
         {
-            key: 'groups',
-            name: 'Groups',
-            description: 'User pool groups',
+            key: 'users',
+            name: 'Users',
+            description: 'Cognito user pool users (coming soon)',
             enabled: false,
         },
     ],
 };
+var client_1 = require("./client");
+Object.defineProperty(exports, "CognitoClient", { enumerable: true, get: function () { return client_1.CognitoClient; } });
 //# sourceMappingURL=index.js.map
