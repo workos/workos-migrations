@@ -1,0 +1,14 @@
+{
+  "userPoolId": "us-east-1_AAAPOOL",
+  "username": "google_109876543210123456789",
+  "userStatus": "EXTERNAL_PROVIDER",
+  "enabled": true,
+  "attributes": {
+    "sub": "55667788-9900-aabb-ccdd-eeff00112233",
+    "email": "fiona@gmail.com",
+    "email_verified": "true",
+    "given_name": "Fiona",
+    "family_name": "Brown",
+    "picture": "https://lh3.googleusercontent.com/a/placeholder"
+  }
+}

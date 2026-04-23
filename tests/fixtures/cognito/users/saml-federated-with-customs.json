@@ -1,0 +1,18 @@
+{
+  "userPoolId": "us-east-1_AAAPOOL",
+  "username": "SomeSamlIdP_dave@acme.com",
+  "userStatus": "EXTERNAL_PROVIDER",
+  "enabled": true,
+  "attributes": {
+    "sub": "abc12345-6789-0abc-def1-23456789abcd",
+    "email": "dave@acme.com",
+    "email_verified": "true",
+    "given_name": "Dave",
+    "family_name": "Wilson",
+    "custom:department": "Sales",
+    "custom:location": "London",
+    "custom:title": "Sr. Account Executive",
+    "custom:user_status": "Active",
+    "custom:user_type": "FullTime"
+  }
+}

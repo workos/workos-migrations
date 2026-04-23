@@ -1,0 +1,13 @@
+{
+  "userPoolId": "us-east-1_AAAPOOL",
+  "username": "unicode-user",
+  "userStatus": "CONFIRMED",
+  "enabled": true,
+  "attributes": {
+    "sub": "12345678-aaaa-bbbb-cccc-dddd00000000",
+    "email": "pablo@example.com",
+    "email_verified": "true",
+    "given_name": "María",
+    "family_name": "García López"
+  }
+}

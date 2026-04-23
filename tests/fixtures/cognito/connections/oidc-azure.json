@@ -1,0 +1,19 @@
+{
+  "userPoolId": "us-east-1_AAAPOOL",
+  "providerName": "azure-oidc",
+  "providerType": "OIDC",
+  "region": "us-east-1",
+  "providerDetails": {
+    "client_id": "5dc7420f-de78-4033-b963-b0553f166d33",
+    "client_secret": "v3.8Q-fake-secret-for-testing",
+    "oidc_issuer": "https://login.microsoftonline.com/a74900dd-e48b-47b6-b212-306653d7f33d/v2.0",
+    "authorize_scopes": "openid profile email",
+    "attributes_request_method": "GET"
+  },
+  "attributeMapping": {
+    "email": "email",
+    "given_name": "given_name",
+    "family_name": "family_name"
+  },
+  "idpIdentifiers": []
+}

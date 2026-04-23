@@ -1,0 +1,13 @@
+{
+  "userPoolId": "us-east-1_AAAPOOL",
+  "username": "AzureOIDC_a74900dd-e48b-47b6-b212-306653d7f33d",
+  "userStatus": "EXTERNAL_PROVIDER",
+  "enabled": true,
+  "attributes": {
+    "sub": "f0e1d2c3-b4a5-9687-7869-5a4b3c2d1e0f",
+    "email": "eve@acme.com",
+    "email_verified": "true",
+    "given_name": "Eve",
+    "family_name": "Parker"
+  }
+}
