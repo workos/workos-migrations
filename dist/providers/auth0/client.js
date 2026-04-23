@@ -5,15 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Auth0Client = void 0;
 const axios_1 = __importDefault(require("axios"));
-const SSO_STRATEGIES = [
-    'ad',
-    'adfs',
-    'auth0-adldap',
-    'oidc',
-    'okta',
-    'pingfederate',
-    'samlp',
-];
+const SSO_STRATEGIES = ['ad', 'adfs', 'auth0-adldap', 'oidc', 'okta', 'pingfederate', 'samlp'];
 class Auth0Client {
     constructor(credentials) {
         this.credentials = credentials;

@@ -8,7 +8,7 @@ const chalk_1 = __importDefault(require("chalk"));
 const inquirer_1 = __importDefault(require("inquirer"));
 async function recordFeatureRequest(providerName, action) {
     console.log(chalk_1.default.yellow(`\n🚧 ${providerName} ${action} functionality is not yet implemented.`));
-    console.log(chalk_1.default.gray('We\'d love to add support for this provider!'));
+    console.log(chalk_1.default.gray("We'd love to add support for this provider!"));
     const { recordRequest } = await inquirer_1.default.prompt([
         {
             type: 'confirm',
@@ -33,7 +33,7 @@ async function recordFeatureRequest(providerName, action) {
         ]);
         // In a real implementation, this would send the request to a backend
         console.log(chalk_1.default.green('\n✅ Feature request recorded!'));
-        console.log(chalk_1.default.gray('We\'ll prioritize based on demand and notify you when it\'s available.'));
+        console.log(chalk_1.default.gray("We'll prioritize based on demand and notify you when it's available."));
         // Store the request locally for now
         const request = {
             provider: providerName,
