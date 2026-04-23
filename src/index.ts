@@ -285,16 +285,31 @@ program
   .command('cognito')
   .description('AWS Cognito migration commands')
   .argument('<action>', 'Action to perform (export|import)')
-  .option('--entities <entities>', 'Comma-separated list of entities to export (default: connections)')
+  .option(
+    '--entities <entities>',
+    'Comma-separated list of entities to export (default: connections)',
+  )
   .option('--region <region>', 'AWS region')
   .option('--user-pool-ids <ids>', 'Comma-separated Cognito user pool IDs')
   .option('--out-dir <dir>', 'Directory to write CSV output (default: current directory)')
   .option('--access-key-id <id>', 'AWS access key ID (omit to use default credential chain)')
-  .option('--secret-access-key <key>', 'AWS secret access key (omit to use default credential chain)')
+  .option(
+    '--secret-access-key <key>',
+    'AWS secret access key (omit to use default credential chain)',
+  )
   .option('--session-token <token>', 'AWS session token (optional)')
-  .option('--saml-custom-acs-url-template <tpl>', 'Template for SAML customAcsUrl column, e.g. https://sso.example.com/{provider_name}/acs')
-  .option('--saml-custom-entity-id-template <tpl>', 'Template for SAML customEntityId column (default: urn:amazon:cognito:sp:{user_pool_id})')
-  .option('--oidc-custom-redirect-uri-template <tpl>', 'Template for OIDC customRedirectUri column')
+  .option(
+    '--saml-custom-acs-url-template <tpl>',
+    'Template for SAML customAcsUrl column, e.g. https://sso.example.com/{provider_name}/acs',
+  )
+  .option(
+    '--saml-custom-entity-id-template <tpl>',
+    'Template for SAML customEntityId column (default: urn:amazon:cognito:sp:{user_pool_id})',
+  )
+  .option(
+    '--oidc-custom-redirect-uri-template <tpl>',
+    'Template for OIDC customRedirectUri column',
+  )
   .action(async (action, options) => {
     if (action === 'import') {
       await recordFeatureRequest('cognito', 'import');
@@ -310,25 +325,28 @@ program
       const credentials = {
         region: options.region || process.env.AWS_REGION || saved.region,
         userPoolIds:
-          options.userPoolIds ||
-          process.env.COGNITO_USER_POOL_IDS ||
-          saved.userPoolIds ||
-          '',
-        accessKeyId:
-          options.accessKeyId || process.env.AWS_ACCESS_KEY_ID || saved.accessKeyId || '',
+          options.userPoolIds || process.env.COGNITO_USER_POOL_IDS || saved.userPoolIds || '',
+        accessKeyId: options.accessKeyId || process.env.AWS_ACCESS_KEY_ID || saved.accessKeyId || '',
         secretAccessKey:
-          options.secretAccessKey || process.env.AWS_SECRET_ACCESS_KEY || saved.secretAccessKey || '',
+          options.secretAccessKey ||
+          process.env.AWS_SECRET_ACCESS_KEY ||
+          saved.secretAccessKey ||
+          '',
         sessionToken:
           options.sessionToken || process.env.AWS_SESSION_TOKEN || saved.sessionToken || '',
       };
 
       if (!credentials.region) {
-        console.error(chalk.red('❌ Missing required AWS region. Provide via --region or AWS_REGION.'));
+        console.error(
+          chalk.red('❌ Missing required AWS region. Provide via --region or AWS_REGION.'),
+        );
         process.exit(1);
       }
       if (!credentials.userPoolIds) {
         console.error(
-          chalk.red('❌ Missing required user pool IDs. Provide via --user-pool-ids or COGNITO_USER_POOL_IDS.'),
+          chalk.red(
+            '❌ Missing required user pool IDs. Provide via --user-pool-ids or COGNITO_USER_POOL_IDS.',
+          ),
         );
         process.exit(1);
       }

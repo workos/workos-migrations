@@ -10,12 +10,7 @@ import {
   ProviderDescription,
   UserType,
 } from '@aws-sdk/client-cognito-identity-provider';
-import {
-  ProviderClient,
-  EntityType,
-  ExportResult,
-  ProviderCredentials,
-} from '../../types';
+import { ProviderClient, EntityType, ExportResult, ProviderCredentials } from '../../types';
 import {
   CognitoProvider,
   CognitoUser,
@@ -93,10 +88,7 @@ export class CognitoClient implements ProviderClient {
   }
 
   getScopes(): string[] {
-    return [
-      'cognito-idp:ListIdentityProviders',
-      'cognito-idp:DescribeIdentityProvider',
-    ];
+    return ['cognito-idp:ListIdentityProviders', 'cognito-idp:DescribeIdentityProvider'];
   }
 
   async getAvailableEntities(): Promise<EntityType[]> {
@@ -383,8 +375,8 @@ export class CognitoClient implements ProviderClient {
       (this.credentials.userPoolIds
         ? this.credentials.userPoolIds.split(',')
         : this.credentials.userPoolId
-        ? [this.credentials.userPoolId]
-        : []);
+          ? [this.credentials.userPoolId]
+          : []);
     return candidates.map((s) => s.trim()).filter(Boolean);
   }
 

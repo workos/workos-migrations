@@ -112,10 +112,7 @@ export interface ProxyTemplates {
 /** Default pattern matches what customers' IdPs already have configured as the Cognito SP. */
 export const DEFAULT_SAML_CUSTOM_ENTITY_ID_TEMPLATE = 'urn:amazon:cognito:sp:{user_pool_id}';
 
-export function renderTemplate(
-  template: string | null | undefined,
-  p: CognitoProvider,
-): string {
+export function renderTemplate(template: string | null | undefined, p: CognitoProvider): string {
   if (!template) return '';
   return template
     .replace(/\{provider_name\}/g, p.providerName)
