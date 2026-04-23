@@ -1,15 +1,132 @@
 #!/usr/bin/env node
 
+import fs from 'fs';
+import path from 'path';
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { CLI } from './cli';
 import { getProvider } from './providers';
-import { Auth0Client } from './providers/auth0';
+import { Auth0Client, type Auth0Connection, type Auth0User } from './providers/auth0';
+import { transformAuth0Connections } from './providers/auth0/transform';
+import { toWorkOSUserRow, summarizeAuth0Users } from './providers/auth0/user';
 import { CognitoClient } from './providers/cognito';
 import { CSVClient, getAllTemplates } from './providers/csv';
+import { USER_HEADERS, rowsToCsv } from './shared/csv';
 import { getProviderCredentials } from './utils/config';
 import { saveExportResult } from './utils/export';
 import { recordFeatureRequest } from './utils/feature-request';
+
+/**
+ * Run the Auth0 transform pipeline against a pre-exported JSON report
+ * (no live Auth0 API access required). Accepts the Ruby reporter's output
+ * shape `{ connections, clients, users }` or a raw `/api/v2/connections`
+ * array.
+ */
+async function runAuth0Transform(options: {
+  input?: string;
+  entities?: string;
+  outDir?: string;
+  customDomain?: string;
+  entityIdPrefix?: string;
+}): Promise<void> {
+  if (!options.input) {
+    console.error(chalk.red('❌ Auth0 transform requires --input <file>'));
+    process.exit(1);
+  }
+
+  let raw: unknown;
+  try {
+    raw = JSON.parse(fs.readFileSync(options.input, 'utf-8'));
+  } catch (e) {
+    console.error(
+      chalk.red(`❌ Could not read input file ${options.input}:`),
+      e instanceof Error ? e.message : e,
+    );
+    process.exit(1);
+  }
+
+  // Accept either { connections, users } or a raw connections array.
+  let connections: Auth0Connection[] = [];
+  let users: Auth0User[] = [];
+  if (Array.isArray(raw)) {
+    connections = raw as Auth0Connection[];
+  } else if (raw && typeof raw === 'object') {
+    const obj = raw as { connections?: unknown; users?: unknown };
+    if (Array.isArray(obj.connections)) connections = obj.connections as Auth0Connection[];
+    if (Array.isArray(obj.users)) users = obj.users as Auth0User[];
+  }
+
+  const entitiesRequested = options.entities
+    ? options.entities.split(',').map((s) => s.trim()).filter(Boolean)
+    : ['connections', 'users'];
+
+  const outDir = options.outDir ?? process.cwd();
+  fs.mkdirSync(outDir, { recursive: true });
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const outputs: string[] = [];
+
+  if (entitiesRequested.includes('connections')) {
+    if (connections.length === 0) {
+      console.log(chalk.yellow('  no connections in input — skipping connection transform'));
+    } else {
+      const transformConfig = {
+        customDomain: options.customDomain || process.env.AUTH0_CUSTOM_DOMAIN,
+        entityIdPrefix: options.entityIdPrefix || process.env.AUTH0_ENTITY_ID_PREFIX,
+      };
+      const result = transformAuth0Connections(connections, transformConfig);
+
+      const samlPath = path.join(outDir, `auth0_saml_${timestamp}.csv`);
+      const oidcPath = path.join(outDir, `auth0_oidc_${timestamp}.csv`);
+      fs.writeFileSync(samlPath, result.samlCsv);
+      fs.writeFileSync(oidcPath, result.oidcCsv);
+      outputs.push(samlPath, oidcPath);
+
+      console.log(chalk.blue('📥 Connection transform:'));
+      console.log(chalk.gray(`  SAML rows: ${result.samlCount}`));
+      console.log(chalk.gray(`  OIDC rows: ${result.oidcCount}`));
+      if (result.skipped.length > 0) {
+        console.log(chalk.yellow(`  [warn] skipped: ${result.skipped.length}`));
+        for (const s of result.skipped) {
+          console.log(chalk.gray(`    • ${s.connectionName} [${s.type}] — ${s.reason}`));
+        }
+      }
+      if (result.manualSetup.length > 0) {
+        console.log(chalk.yellow(`  [warn] manual setup: ${result.manualSetup.length}`));
+        for (const m of result.manualSetup) {
+          console.log(chalk.gray(`    • ${m.connectionName} [${m.strategy}] — ${m.reason}`));
+        }
+      }
+    }
+  }
+
+  if (entitiesRequested.includes('users')) {
+    if (users.length === 0) {
+      console.log(chalk.yellow('  no users in input — skipping user transform'));
+    } else {
+      const userRows = users.map(toWorkOSUserRow);
+      const summary = summarizeAuth0Users(users, userRows);
+      const usersPath = path.join(outDir, `auth0_users_${timestamp}.csv`);
+      fs.writeFileSync(usersPath, rowsToCsv(USER_HEADERS, userRows));
+      outputs.push(usersPath);
+
+      console.log(chalk.blue('📥 User transform:'));
+      console.log(chalk.gray(`  Total: ${summary.total}`));
+      for (const [provider, count] of Object.entries(summary.byProvider).sort()) {
+        console.log(chalk.gray(`    • ${provider}: ${count}`));
+      }
+      if (summary.missingEmail > 0) {
+        console.log(chalk.yellow(`  [warn] ${summary.missingEmail} user(s) missing email`));
+      }
+    }
+  }
+
+  if (outputs.length === 0) {
+    console.log(chalk.yellow('\nNo outputs written. Check --entities and input file shape.'));
+    return;
+  }
+  console.log(chalk.green(`\n✅ Wrote ${outputs.length} file(s):`));
+  for (const p of outputs) console.log(chalk.gray(`  ${p}`));
+}
 
 const program = new Command();
 
@@ -31,23 +148,28 @@ program
 program
   .command('auth0')
   .description('Auth0 migration commands')
-  .argument('<action>', 'Action to perform (export|import)')
-  .option('--entities <entities>', 'Comma-separated list of entities to export')
-  .option('--client-id <clientId>', 'Auth0 Client ID')
-  .option('--client-secret <clientSecret>', 'Auth0 Client Secret')
-  .option('--domain <domain>', 'Auth0 Domain')
+  .argument('<action>', 'Action to perform (export|transform|import)')
+  .option('--entities <entities>', 'Comma-separated list of entities to export / transform')
+  .option('--client-id <clientId>', 'Auth0 Client ID (export only)')
+  .option('--client-secret <clientSecret>', 'Auth0 Client Secret (export only)')
+  .option('--domain <domain>', 'Auth0 Domain (export only)')
+  .option('--input <file>', 'Path to a pre-exported Auth0 JSON report (transform only). Accepts either the Ruby reporter shape { connections: [], clients: [], users: [] } or a raw /api/v2/connections array.')
   .option('--out-dir <dir>', 'Directory to write CSV output (default: current directory)')
   .option('--custom-domain <domain>', 'Auth0 custom domain — used to synthesize customAcsUrl / customRedirectUri on migrated connections')
   .option('--entity-id-prefix <prefix>', 'Prefix for synthesized SAML customEntityId. Example: urn:acme:sso:')
-  .option('--bookmark-map-file <file>', 'JSON file mapping Auth0 client_id → WorkOS bookmark slug. Example: { "XXX": "my-app" }')
   .action(async (action, options) => {
     if (action === 'import') {
       await recordFeatureRequest('auth0', 'import');
       return;
     }
 
+    if (action === 'transform') {
+      await runAuth0Transform(options);
+      return;
+    }
+
     if (action !== 'export') {
-      console.error(chalk.red('❌ Invalid action. Use "export" or "import"'));
+      console.error(chalk.red('❌ Invalid action. Use "export", "transform", or "import"'));
       process.exit(1);
     }
 
@@ -75,26 +197,9 @@ program
         process.exit(1);
       }
 
-      let bookmarkSlugMap: Record<string, string> | undefined;
-      if (options.bookmarkMapFile) {
-        const fs = await import('fs');
-        try {
-          bookmarkSlugMap = JSON.parse(
-            fs.readFileSync(options.bookmarkMapFile, 'utf-8'),
-          );
-        } catch (e) {
-          console.error(
-            chalk.red(`❌ Could not read bookmark map file ${options.bookmarkMapFile}:`),
-            e instanceof Error ? e.message : e,
-          );
-          process.exit(1);
-        }
-      }
-
       const transformConfig = {
         customDomain: options.customDomain || process.env.AUTH0_CUSTOM_DOMAIN,
         entityIdPrefix: options.entityIdPrefix || process.env.AUTH0_ENTITY_ID_PREFIX,
-        bookmarkSlugMap,
       };
 
       const client = new Auth0Client(credentials, transformConfig, options.outDir);

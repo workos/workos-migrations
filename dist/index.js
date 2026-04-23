@@ -37,16 +37,120 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+const fs_1 = __importDefault(require("fs"));
+const path_1 = __importDefault(require("path"));
 const commander_1 = require("commander");
 const chalk_1 = __importDefault(require("chalk"));
 const cli_1 = require("./cli");
 const providers_1 = require("./providers");
 const auth0_1 = require("./providers/auth0");
+const transform_1 = require("./providers/auth0/transform");
+const user_1 = require("./providers/auth0/user");
 const cognito_1 = require("./providers/cognito");
 const csv_1 = require("./providers/csv");
+const csv_2 = require("./shared/csv");
 const config_1 = require("./utils/config");
 const export_1 = require("./utils/export");
 const feature_request_1 = require("./utils/feature-request");
+/**
+ * Run the Auth0 transform pipeline against a pre-exported JSON report
+ * (no live Auth0 API access required). Accepts the Ruby reporter's output
+ * shape `{ connections, clients, users }` or a raw `/api/v2/connections`
+ * array.
+ */
+async function runAuth0Transform(options) {
+    if (!options.input) {
+        console.error(chalk_1.default.red('❌ Auth0 transform requires --input <file>'));
+        process.exit(1);
+    }
+    let raw;
+    try {
+        raw = JSON.parse(fs_1.default.readFileSync(options.input, 'utf-8'));
+    }
+    catch (e) {
+        console.error(chalk_1.default.red(`❌ Could not read input file ${options.input}:`), e instanceof Error ? e.message : e);
+        process.exit(1);
+    }
+    // Accept either { connections, users } or a raw connections array.
+    let connections = [];
+    let users = [];
+    if (Array.isArray(raw)) {
+        connections = raw;
+    }
+    else if (raw && typeof raw === 'object') {
+        const obj = raw;
+        if (Array.isArray(obj.connections))
+            connections = obj.connections;
+        if (Array.isArray(obj.users))
+            users = obj.users;
+    }
+    const entitiesRequested = options.entities
+        ? options.entities.split(',').map((s) => s.trim()).filter(Boolean)
+        : ['connections', 'users'];
+    const outDir = options.outDir ?? process.cwd();
+    fs_1.default.mkdirSync(outDir, { recursive: true });
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const outputs = [];
+    if (entitiesRequested.includes('connections')) {
+        if (connections.length === 0) {
+            console.log(chalk_1.default.yellow('  no connections in input — skipping connection transform'));
+        }
+        else {
+            const transformConfig = {
+                customDomain: options.customDomain || process.env.AUTH0_CUSTOM_DOMAIN,
+                entityIdPrefix: options.entityIdPrefix || process.env.AUTH0_ENTITY_ID_PREFIX,
+            };
+            const result = (0, transform_1.transformAuth0Connections)(connections, transformConfig);
+            const samlPath = path_1.default.join(outDir, `auth0_saml_${timestamp}.csv`);
+            const oidcPath = path_1.default.join(outDir, `auth0_oidc_${timestamp}.csv`);
+            fs_1.default.writeFileSync(samlPath, result.samlCsv);
+            fs_1.default.writeFileSync(oidcPath, result.oidcCsv);
+            outputs.push(samlPath, oidcPath);
+            console.log(chalk_1.default.blue('📥 Connection transform:'));
+            console.log(chalk_1.default.gray(`  SAML rows: ${result.samlCount}`));
+            console.log(chalk_1.default.gray(`  OIDC rows: ${result.oidcCount}`));
+            if (result.skipped.length > 0) {
+                console.log(chalk_1.default.yellow(`  [warn] skipped: ${result.skipped.length}`));
+                for (const s of result.skipped) {
+                    console.log(chalk_1.default.gray(`    • ${s.connectionName} [${s.type}] — ${s.reason}`));
+                }
+            }
+            if (result.manualSetup.length > 0) {
+                console.log(chalk_1.default.yellow(`  [warn] manual setup: ${result.manualSetup.length}`));
+                for (const m of result.manualSetup) {
+                    console.log(chalk_1.default.gray(`    • ${m.connectionName} [${m.strategy}] — ${m.reason}`));
+                }
+            }
+        }
+    }
+    if (entitiesRequested.includes('users')) {
+        if (users.length === 0) {
+            console.log(chalk_1.default.yellow('  no users in input — skipping user transform'));
+        }
+        else {
+            const userRows = users.map(user_1.toWorkOSUserRow);
+            const summary = (0, user_1.summarizeAuth0Users)(users, userRows);
+            const usersPath = path_1.default.join(outDir, `auth0_users_${timestamp}.csv`);
+            fs_1.default.writeFileSync(usersPath, (0, csv_2.rowsToCsv)(csv_2.USER_HEADERS, userRows));
+            outputs.push(usersPath);
+            console.log(chalk_1.default.blue('📥 User transform:'));
+            console.log(chalk_1.default.gray(`  Total: ${summary.total}`));
+            for (const [provider, count] of Object.entries(summary.byProvider).sort()) {
+                console.log(chalk_1.default.gray(`    • ${provider}: ${count}`));
+            }
+            if (summary.missingEmail > 0) {
+                console.log(chalk_1.default.yellow(`  [warn] ${summary.missingEmail} user(s) missing email`));
+            }
+        }
+    }
+    if (outputs.length === 0) {
+        console.log(chalk_1.default.yellow('\nNo outputs written. Check --entities and input file shape.'));
+        return;
+    }
+    console.log(chalk_1.default.green(`\n✅ Wrote ${outputs.length} file(s):`));
+    for (const p of outputs)
+        console.log(chalk_1.default.gray(`  ${p}`));
+}
 const program = new commander_1.Command();
 program
     .name('workos-migrations')
@@ -64,22 +168,26 @@ program
 program
     .command('auth0')
     .description('Auth0 migration commands')
-    .argument('<action>', 'Action to perform (export|import)')
-    .option('--entities <entities>', 'Comma-separated list of entities to export')
-    .option('--client-id <clientId>', 'Auth0 Client ID')
-    .option('--client-secret <clientSecret>', 'Auth0 Client Secret')
-    .option('--domain <domain>', 'Auth0 Domain')
+    .argument('<action>', 'Action to perform (export|transform|import)')
+    .option('--entities <entities>', 'Comma-separated list of entities to export / transform')
+    .option('--client-id <clientId>', 'Auth0 Client ID (export only)')
+    .option('--client-secret <clientSecret>', 'Auth0 Client Secret (export only)')
+    .option('--domain <domain>', 'Auth0 Domain (export only)')
+    .option('--input <file>', 'Path to a pre-exported Auth0 JSON report (transform only). Accepts either the Ruby reporter shape { connections: [], clients: [], users: [] } or a raw /api/v2/connections array.')
     .option('--out-dir <dir>', 'Directory to write CSV output (default: current directory)')
     .option('--custom-domain <domain>', 'Auth0 custom domain — used to synthesize customAcsUrl / customRedirectUri on migrated connections')
     .option('--entity-id-prefix <prefix>', 'Prefix for synthesized SAML customEntityId. Example: urn:acme:sso:')
-    .option('--bookmark-map-file <file>', 'JSON file mapping Auth0 client_id → WorkOS bookmark slug. Example: { "XXX": "my-app" }')
     .action(async (action, options) => {
     if (action === 'import') {
         await (0, feature_request_1.recordFeatureRequest)('auth0', 'import');
         return;
     }
+    if (action === 'transform') {
+        await runAuth0Transform(options);
+        return;
+    }
     if (action !== 'export') {
-        console.error(chalk_1.default.red('❌ Invalid action. Use "export" or "import"'));
+        console.error(chalk_1.default.red('❌ Invalid action. Use "export", "transform", or "import"'));
         process.exit(1);
     }
     try {
@@ -103,21 +211,9 @@ program
             console.error(chalk_1.default.gray('  • --domain or AUTH0_DOMAIN'));
             process.exit(1);
         }
-        let bookmarkSlugMap;
-        if (options.bookmarkMapFile) {
-            const fs = await Promise.resolve().then(() => __importStar(require('fs')));
-            try {
-                bookmarkSlugMap = JSON.parse(fs.readFileSync(options.bookmarkMapFile, 'utf-8'));
-            }
-            catch (e) {
-                console.error(chalk_1.default.red(`❌ Could not read bookmark map file ${options.bookmarkMapFile}:`), e instanceof Error ? e.message : e);
-                process.exit(1);
-            }
-        }
         const transformConfig = {
             customDomain: options.customDomain || process.env.AUTH0_CUSTOM_DOMAIN,
             entityIdPrefix: options.entityIdPrefix || process.env.AUTH0_ENTITY_ID_PREFIX,
-            bookmarkSlugMap,
         };
         const client = new auth0_1.Auth0Client(credentials, transformConfig, options.outDir);
         console.log(chalk_1.default.blue('📡 Connecting to Auth0...'));
