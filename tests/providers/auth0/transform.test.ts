@@ -475,6 +475,9 @@ describe('classifyStrategy', () => {
     ['oauth2', 'out-of-scope'],
     ['apple', 'out-of-scope'],
     ['github', 'out-of-scope'],
+    ['salesforce', 'out-of-scope'],
+    ['salesforce-community', 'out-of-scope'],
+    ['salesforce-sandbox', 'out-of-scope'],
     ['custom-strategy', 'unknown'],
   ])('classifyStrategy(%p).kind = %p', (strategy, expectedKind) => {
     expect(classifyStrategy(strategy).kind).toBe(expectedKind);

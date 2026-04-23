@@ -93,6 +93,13 @@ const SOCIAL_STRATEGIES = new Set<string>([
   'amazon',
   'yahoo',
   'oauth2', // generic OAuth2 custom social connections
+  // Auth0's first-party Salesforce connectors are OAuth2-based social
+  // connections — not SAML. Enterprise Salesforce federation via SAML
+  // comes through as `samlp` with Salesforce as the IdP, which the
+  // `samlp` processor already handles.
+  'salesforce',
+  'salesforce-community',
+  'salesforce-sandbox',
 ]);
 
 /** Database (username/password) connections — users migrate via users.csv, not as connections. */
