@@ -1,8 +1,7 @@
 /**
  * Shared CSV helpers + column schemas for WorkOS import CSVs.
  *
- * Schemas align with the existing helpers reference repo plus the newer
- * `name` / `customAttributes` columns flagged as shipping soon.
+ * Canonical SAML / OIDC / common header sets used by all provider transforms.
  */
 export declare const COMMON_HEADERS: readonly ["organizationName", "organizationId", "organizationExternalId", "domains", "importedId", "connectionBookmarks"];
 export declare const SAML_HEADERS: readonly ["organizationName", "organizationId", "organizationExternalId", "domains", "importedId", "connectionBookmarks", "idpEntityId", "idpUrl", "x509Cert", "idpIdAttribute", "emailAttribute", "firstNameAttribute", "lastNameAttribute", "name", "customAttributes", "idpMetadataUrl", "customEntityId", "customAcsUrl", "idpInitiatedSsoEnabled", "defaultConnectionBookmarkForIdpInitiatedSso"];

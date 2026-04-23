@@ -210,9 +210,8 @@ export class Auth0Client implements ProviderClient {
       }
     }
 
-    // Run the connection transform whenever connections were fetched — it's the
-    // single biggest feature-gap vs the existing codebase. Writes SAML + OIDC
-    // CSVs alongside the raw JSON dump.
+    // Run the connection transform whenever connections were fetched.
+    // Writes SAML + OIDC CSVs alongside the raw JSON dump.
     if (Array.isArray(entities.connections) && entities.connections.length > 0) {
       const transformResult = transformAuth0Connections(
         entities.connections,

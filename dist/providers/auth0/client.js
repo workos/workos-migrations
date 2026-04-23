@@ -129,9 +129,8 @@ class Auth0Client {
                 summary[entityType] = 0;
             }
         }
-        // Run the connection transform whenever connections were fetched — it's the
-        // single biggest feature-gap vs the existing codebase. Writes SAML + OIDC
-        // CSVs alongside the raw JSON dump.
+        // Run the connection transform whenever connections were fetched.
+        // Writes SAML + OIDC CSVs alongside the raw JSON dump.
         if (Array.isArray(entities.connections) && entities.connections.length > 0) {
             const transformResult = (0, transform_1.transformAuth0Connections)(entities.connections, entities.clients, this.transformConfig);
             outputFiles.push(...this.writeTransformOutputs(transformResult));

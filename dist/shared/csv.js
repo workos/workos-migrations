@@ -2,8 +2,7 @@
 /**
  * Shared CSV helpers + column schemas for WorkOS import CSVs.
  *
- * Schemas align with the existing helpers reference repo plus the newer
- * `name` / `customAttributes` columns flagged as shipping soon.
+ * Canonical SAML / OIDC / common header sets used by all provider transforms.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.OIDC_HEADERS = exports.SAML_HEADERS = exports.COMMON_HEADERS = void 0;

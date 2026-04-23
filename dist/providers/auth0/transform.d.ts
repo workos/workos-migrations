@@ -1,8 +1,9 @@
 /**
  * Strategy-specific Auth0 → WorkOS connection transforms.
  *
- * Ported from the existing codebase/src/providers/auth0/transform.ts with
- * minor adaptations to fit this repo's live-fetch pipeline.
+ * Handles each Auth0 connection strategy — samlp, oidc, waad, adfs,
+ * pingfederate, google-apps, ad, auth0-adldap — with per-strategy field
+ * mapping, skip rules, and manual-setup flagging.
  */
 import type { Auth0Connection, Auth0Client as Auth0AppClient } from './client';
 export interface Auth0TransformConfig {
