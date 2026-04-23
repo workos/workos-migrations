@@ -177,7 +177,6 @@ export class CognitoClient implements ProviderClient {
       all.push(...providers);
     }
 
-    const region = this.credentials.region;
     const proxy: ProxyTemplates = {
       samlCustomEntityId:
         this.options.proxy?.samlCustomEntityId ??
@@ -212,9 +211,6 @@ export class CognitoClient implements ProviderClient {
     console.log(chalk.gray(`    ${customPath}`));
 
     this.logWarnings(all, samlRows.length + oidcRows.length);
-
-    // Void the unused region to keep TS happy without changing semantics
-    void region;
 
     return {
       providers: all,

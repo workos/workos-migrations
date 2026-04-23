@@ -112,6 +112,32 @@ describe('parseSamlMetadata', () => {
     expect(parsed.x509Cert).toBe('NOPREFIXCERT');
   });
 
+  it('picks the first IDPSSODescriptor when multiple are present', () => {
+    const multipleDescriptors = `<?xml version="1.0"?>
+<md:EntityDescriptor entityID="https://idp.multi-desc.example.com/entity"
+    xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"
+    xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+  <md:IDPSSODescriptor>
+    <md:KeyDescriptor use="signing">
+      <ds:KeyInfo><ds:X509Data><ds:X509Certificate>FIRSTDESCCERT</ds:X509Certificate></ds:X509Data></ds:KeyInfo>
+    </md:KeyDescriptor>
+    <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+        Location="https://idp.multi-desc.example.com/sso/first"/>
+  </md:IDPSSODescriptor>
+  <md:IDPSSODescriptor>
+    <md:KeyDescriptor use="signing">
+      <ds:KeyInfo><ds:X509Data><ds:X509Certificate>SECONDDESCCERT</ds:X509Certificate></ds:X509Data></ds:KeyInfo>
+    </md:KeyDescriptor>
+    <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+        Location="https://idp.multi-desc.example.com/sso/second"/>
+  </md:IDPSSODescriptor>
+</md:EntityDescriptor>`;
+    const parsed = parseSamlMetadata(multipleDescriptors);
+    expect(parsed.entityId).toBe('https://idp.multi-desc.example.com/entity');
+    expect(parsed.ssoRedirectUrl).toBe('https://idp.multi-desc.example.com/sso/first');
+    expect(parsed.x509Cert).toBe('FIRSTDESCCERT');
+  });
+
   it('picks the first signing cert when multiple KeyDescriptors are present', () => {
     const multipleCerts = `<?xml version="1.0"?>
 <md:EntityDescriptor entityID="https://idp.multi.example.com/entity"

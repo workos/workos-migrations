@@ -122,7 +122,6 @@ class CognitoClient {
             console.log(chalk_1.default.gray(`  ${poolId}: ${providers.length} IdP(s)`));
             all.push(...providers);
         }
-        const region = this.credentials.region;
         const proxy = {
             samlCustomEntityId: this.options.proxy?.samlCustomEntityId ??
                 process.env.SAML_CUSTOM_ENTITY_ID_TEMPLATE ??
@@ -148,8 +147,6 @@ class CognitoClient {
         console.log(chalk_1.default.gray(`    ${oidcPath}`));
         console.log(chalk_1.default.gray(`    ${customPath}`));
         this.logWarnings(all, samlRows.length + oidcRows.length);
-        // Void the unused region to keep TS happy without changing semantics
-        void region;
         return {
             providers: all,
             writtenFiles: [samlPath, oidcPath, customPath],

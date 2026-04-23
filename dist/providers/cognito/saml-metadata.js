@@ -33,7 +33,8 @@ function parseSamlMetadata(xml) {
     const entityDescriptor = root?.EntityDescriptor;
     if (!entityDescriptor)
         return empty;
-    const idpSsoDescriptor = entityDescriptor.IDPSSODescriptor ?? entityDescriptor.IDPSSODescriptor?.[0];
+    const idpSsoRaw = entityDescriptor.IDPSSODescriptor;
+    const idpSsoDescriptor = Array.isArray(idpSsoRaw) ? idpSsoRaw[0] : idpSsoRaw;
     if (!idpSsoDescriptor) {
         return {
             entityId: entityDescriptor['@_entityID'] ?? null,
