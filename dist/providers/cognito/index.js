@@ -49,4 +49,3 @@ exports.cognitoProvider = {
         },
     ],
 };
-//# sourceMappingURL=index.js.map

@@ -45,4 +45,3 @@ function saveProviderCredentials(providerName, credentials) {
     config.providers[providerName] = credentials;
     saveConfig(config);
 }
-//# sourceMappingURL=config.js.map

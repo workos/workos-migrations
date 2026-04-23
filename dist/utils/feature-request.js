@@ -48,4 +48,3 @@ async function recordFeatureRequest(providerName, action) {
         console.log(chalk_1.default.gray('No problem! Feel free to reach out if you change your mind.'));
     }
 }
-//# sourceMappingURL=feature-request.js.map

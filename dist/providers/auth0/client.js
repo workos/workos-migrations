@@ -189,4 +189,3 @@ Auth0Client.SCOPE_REQUIREMENTS = {
     organizations: ['read:organizations'],
     permissions: ['read:resource_servers'],
 };
-//# sourceMappingURL=client.js.map

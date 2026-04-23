@@ -28,4 +28,3 @@ exports.clerkProvider = {
         },
     ],
 };
-//# sourceMappingURL=index.js.map

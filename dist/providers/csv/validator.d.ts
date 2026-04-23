@@ -16,4 +16,3 @@ export declare class CSVValidator {
     private static validateHeaders;
     private static validateRow;
 }
-//# sourceMappingURL=validator.d.ts.map

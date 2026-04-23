@@ -87,4 +87,3 @@ class WorkOSAPIClient {
     }
 }
 exports.WorkOSAPIClient = WorkOSAPIClient;
-//# sourceMappingURL=workos-api.js.map

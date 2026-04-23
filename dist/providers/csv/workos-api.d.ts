@@ -17,4 +17,3 @@ export declare class WorkOSAPIClient {
     getImportStatus(jobId: string): Promise<WorkOSImportResponse>;
     listImportJobs(): Promise<WorkOSImportResponse[]>;
 }
-//# sourceMappingURL=workos-api.d.ts.map

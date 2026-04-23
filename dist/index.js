@@ -273,4 +273,3 @@ if (process.argv.length === 2) {
 else {
     program.parse();
 }
-//# sourceMappingURL=index.js.map
