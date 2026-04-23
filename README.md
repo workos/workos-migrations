@@ -48,13 +48,45 @@ npx workos-migrations auth0 export \
 npx workos-migrations auth0 export --entities users,connections
 ```
 
+#### AWS Cognito Export
+
+```bash
+# Using environment variables (default AWS credential chain works too — env, ~/.aws, aws-vault, etc.)
+export AWS_REGION="us-east-1"
+export COGNITO_USER_POOL_IDS="us-east-1_AAA,us-east-1_BBB"
+
+npx workos-migrations cognito export
+
+# Using CLI arguments
+npx workos-migrations cognito export \
+  --region us-east-1 \
+  --user-pool-ids us-east-1_AAA,us-east-1_BBB \
+  --out-dir ./out
+
+# Migration-proxy mode: populate customAcsUrl / customEntityId / customRedirectUri via templates.
+# Placeholders: {provider_name}, {user_pool_id}, {region}.
+npx workos-migrations cognito export \
+  --region us-east-1 \
+  --user-pool-ids us-east-1_AAA \
+  --saml-custom-acs-url-template "https://sso.example.com/{provider_name}/acs" \
+  --oidc-custom-redirect-uri-template "https://sso.example.com/{provider_name}/oidc-callback"
+```
+
+Output files (written to `--out-dir`, or the current directory by default):
+
+- `workos_saml_connections.csv` — matches the WorkOS standalone SSO import template
+- `workos_oidc_connections.csv` — same, for OIDC
+- `custom_attribute_mappings.csv` — supplementary view of all non-standard mappings
+- `cognito-export-<timestamp>.json` — full raw export dump
+
+See [`proxy-sample-cognito/`](./proxy-sample-cognito) for a reference Lambda-based SAML migration proxy (receives SAML POSTs at the legacy ACS URL, forwards to WorkOS or Cognito per-tenant based on DynamoDB migration state).
+
 #### Other Providers
 
 ```bash
 # These will record feature requests
 npx workos-migrations clerk export
 npx workos-migrations firebase export
-npx workos-migrations cognito export
 
 # CSV Import to WorkOS
 export WORKOS_API_KEY="your_workos_api_key"
@@ -97,10 +129,39 @@ Credentials can be saved to `~/.workos-migrations/config.json`:
 ## Supported Providers
 
 - ✅ **Auth0** - Full export support
+- ✅ **AWS Cognito** - Connection export (SAML + OIDC) → WorkOS SSO import CSVs
 - ✅ **CSV Import to WorkOS** - Full import support with templates
 - 🚧 **Clerk** - Coming soon
 - 🚧 **Firebase Auth** - Coming soon
-- 🚧 **AWS Cognito** - Coming soon
+
+## AWS Cognito Setup
+
+The tool uses the standard AWS credential chain — env vars, `~/.aws/credentials` profile, instance profile, aws-vault, or SSO. IAM permissions needed on the target account:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "cognito-idp:ListUserPools",
+        "cognito-idp:ListIdentityProviders",
+        "cognito-idp:DescribeIdentityProvider"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+The exporter is **read-only** — it calls list/describe only, never writes to your Cognito setup.
+
+### Cognito → WorkOS column mapping
+
+The exporter handles the `name` + `customAttributes` columns that WorkOS is adding alongside the standard `firstNameAttribute` / `lastNameAttribute` / `emailAttribute` fields. Cognito custom attribute mappings (`custom:department`, `custom:location`, etc.) are serialized into the `customAttributes` cell as a compact JSON blob with the `custom:` prefix stripped, matching the import-side contract.
+
+The `customEntityId` column defaults to the Cognito SP pattern (`urn:amazon:cognito:sp:{user_pool_id}`) so WorkOS accepts SAML assertions that customers' IdPs signed for the existing Cognito SP. Override with `--saml-custom-entity-id-template` when migrating off a non-Cognito SP.
 
 ## Auth0 Setup
 

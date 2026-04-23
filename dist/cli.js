@@ -8,6 +8,7 @@ const inquirer_1 = __importDefault(require("inquirer"));
 const chalk_1 = __importDefault(require("chalk"));
 const providers_1 = require("./providers");
 const auth0_1 = require("./providers/auth0");
+const cognito_1 = require("./providers/cognito");
 const csv_1 = require("./providers/csv");
 const templates_1 = require("./providers/csv/templates");
 const config_1 = require("./utils/config");
@@ -67,32 +68,46 @@ class CLI {
     }
     async handleExport(providerName) {
         const provider = (0, providers_1.getProvider)(providerName);
-        if (providerName !== 'auth0') {
-            await (0, feature_request_1.recordFeatureRequest)(providerName, 'export');
+        if (providerName === 'auth0') {
+            const credentials = await this.getCredentials(provider);
+            const client = new auth0_1.Auth0Client(credentials);
+            console.log(chalk_1.default.blue('\n📡 Connecting to Auth0...'));
+            await client.authenticate();
+            console.log(chalk_1.default.green('✓ Successfully authenticated with Auth0'));
+            const scopes = client.getScopes();
+            if (scopes.length > 0) {
+                console.log(chalk_1.default.blue('\n🔐 Available scopes:'));
+                scopes.forEach((scope) => console.log(chalk_1.default.gray(`   • ${scope}`)));
+            }
+            const availableEntities = await client.getAvailableEntities();
+            const selectedEntities = await this.selectEntities(availableEntities);
+            if (selectedEntities.length === 0) {
+                console.log(chalk_1.default.yellow('No entities selected for export.'));
+                return;
+            }
+            console.log(chalk_1.default.blue('\n📥 Exporting data...'));
+            const result = await client.exportEntities(selectedEntities);
+            (0, export_1.saveExportResult)(result);
             return;
         }
-        const credentials = await this.getCredentials(provider);
-        const client = new auth0_1.Auth0Client(credentials);
-        console.log(chalk_1.default.blue('\n📡 Connecting to Auth0...'));
-        await client.authenticate();
-        console.log(chalk_1.default.green('✓ Successfully authenticated with Auth0'));
-        // Show available scopes
-        const scopes = client.getScopes();
-        if (scopes.length > 0) {
-            console.log(chalk_1.default.blue('\n🔐 Available scopes:'));
-            scopes.forEach(scope => {
-                console.log(chalk_1.default.gray(`   • ${scope}`));
-            });
-        }
-        const availableEntities = await client.getAvailableEntities();
-        const selectedEntities = await this.selectEntities(availableEntities);
-        if (selectedEntities.length === 0) {
-            console.log(chalk_1.default.yellow('No entities selected for export.'));
+        if (providerName === 'cognito') {
+            const credentials = await this.getCredentials(provider);
+            const client = new cognito_1.CognitoClient(credentials);
+            console.log(chalk_1.default.blue('\n📡 Connecting to AWS Cognito...'));
+            await client.authenticate();
+            console.log(chalk_1.default.green('✓ Successfully authenticated with AWS'));
+            const availableEntities = await client.getAvailableEntities();
+            const selectedEntities = await this.selectEntities(availableEntities);
+            if (selectedEntities.length === 0) {
+                console.log(chalk_1.default.yellow('No entities selected for export.'));
+                return;
+            }
+            console.log(chalk_1.default.blue('\n📥 Exporting data...'));
+            const result = await client.exportEntities(selectedEntities);
+            (0, export_1.saveExportResult)(result);
             return;
         }
-        console.log(chalk_1.default.blue('\n📥 Exporting data...'));
-        const result = await client.exportEntities(selectedEntities);
-        (0, export_1.saveExportResult)(result);
+        await (0, feature_request_1.recordFeatureRequest)(providerName, 'export');
     }
     async handleImport(providerName) {
         if (providerName !== 'csv') {

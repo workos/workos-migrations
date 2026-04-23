@@ -9,3 +9,17 @@ config.json
 
 # Export files
 *-export-*.json
+
+# Cognito export output
+out/
+out-*/
+out-test/
+workos_saml_connections.csv
+workos_oidc_connections.csv
+custom_attribute_mappings.csv
+
+# OS / editors
+.DS_Store
+.vscode/
+.idea/
+*.swp
