@@ -13,7 +13,11 @@ export function registerExportCognitoCommand(program: Command): void {
       'Comma-separated Cognito user pool IDs',
       process.env.COGNITO_USER_POOL_IDS,
     )
-    .option('--entities <entities>', 'Comma-separated entities to export (connections,users)', 'connections,users')
+    .option(
+      '--entities <entities>',
+      'Comma-separated entities to export (connections,users)',
+      'connections,users',
+    )
     .option('--output-dir <dir>', 'Output directory for CSV files', '.')
     .option('--access-key-id <id>', 'AWS Access Key ID (uses default credential chain if omitted)')
     .option('--secret-access-key <secret>', 'AWS Secret Access Key')
@@ -26,10 +30,7 @@ export function registerExportCognitoCommand(program: Command): void {
       '--saml-custom-entity-id-template <url>',
       'Template for SAML custom Entity ID (default: urn:amazon:cognito:sp:{user_pool_id})',
     )
-    .option(
-      '--oidc-custom-redirect-uri-template <url>',
-      'Template for OIDC custom redirect URI',
-    )
+    .option('--oidc-custom-redirect-uri-template <url>', 'Template for OIDC custom redirect URI')
     .action(async (opts) => {
       try {
         const credentials: ProviderCredentials = {

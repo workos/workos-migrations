@@ -248,9 +248,7 @@ async function configureFirebaseExport(state: WizardState): Promise<WizardState>
 }
 
 async function configureCognitoExport(state: WizardState): Promise<WizardState> {
-  console.log(
-    chalk.gray('  Cognito export connects to your user pool(s) via the AWS SDK.\n'),
-  );
+  console.log(chalk.gray('  Cognito export connects to your user pool(s) via the AWS SDK.\n'));
 
   const response = await prompts(
     [

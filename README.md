@@ -32,7 +32,7 @@ npx workos-migrate <command>
 | -------------------------- | ------------------------------------------------------ |
 | `wizard`                   | Interactive step-by-step migration wizard              |
 | `export-auth0`             | Export users from Auth0 via Management API             |
-| `export-cognito`           | Export users + SSO connections from AWS Cognito         |
+| `export-cognito`           | Export users + SSO connections from AWS Cognito        |
 | `merge-passwords`          | Merge Auth0 password hashes into the export CSV        |
 | `transform-clerk`          | Transform a Clerk CSV export to WorkOS format          |
 | `transform-firebase`       | Transform a Firebase Auth JSON export to WorkOS format |

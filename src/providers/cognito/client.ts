@@ -10,7 +10,12 @@ import {
   type ProviderDescription,
   type UserType,
 } from '@aws-sdk/client-cognito-identity-provider';
-import type { ProviderClient, EntityType, ExportResult, ProviderCredentials } from '../../shared/types.js';
+import type {
+  ProviderClient,
+  EntityType,
+  ExportResult,
+  ProviderCredentials,
+} from '../../shared/types.js';
 import {
   type CognitoProvider,
   type CognitoUser,
