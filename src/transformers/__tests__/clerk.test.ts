@@ -1,9 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { jest } from '@jest/globals';
 
-// Mock logger to avoid chalk ESM issues in Jest
-jest.mock('../../shared/logger.js', () => ({
+// Mock logger to avoid chalk ESM issues
+jest.unstable_mockModule('../../shared/logger.js', () => ({
   info: jest.fn(),
   warn: jest.fn(),
   error: jest.fn(),
@@ -11,7 +12,7 @@ jest.mock('../../shared/logger.js', () => ({
   debug: jest.fn(),
 }));
 
-import { transformClerkExport } from '../clerk/transformer.js';
+const { transformClerkExport } = await import('../clerk/transformer.js');
 
 describe('Clerk Transformer', () => {
   let tmpDir: string;

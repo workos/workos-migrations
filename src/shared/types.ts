@@ -431,6 +431,86 @@ export interface WorkerImportOptions {
   quiet?: boolean;
 }
 
+// --- TOTP Enrollment Types ---
+
+export interface TotpRecord {
+  email: string;
+  totpSecret: string; // Base32-encoded
+  totpIssuer?: string;
+  totpUser?: string;
+}
+
+export interface TotpEnrollSummary {
+  total: number;
+  enrolled: number;
+  skipped: number;
+  failures: number;
+  userNotFound: number;
+  duration: number;
+  warnings: string[];
+}
+
+export interface TotpErrorRecord {
+  recordNumber: number;
+  email: string;
+  errorType: 'user_lookup' | 'enroll_factor' | 'parse';
+  errorMessage: string;
+  timestamp: string;
+  httpStatus?: number;
+}
+
+// --- Role Processing Types ---
+
+export interface RoleDefinitionRow {
+  role_slug: string;
+  role_name: string;
+  role_type: 'environment' | 'organization';
+  permissions: string;
+  org_id?: string;
+  org_external_id?: string;
+}
+
+export interface ParsedRoleDefinition {
+  slug: string;
+  name: string;
+  type: 'environment' | 'organization';
+  permissions: string[];
+  orgId?: string;
+  orgExternalId?: string;
+}
+
+export interface RoleProcessingResult {
+  slug: string;
+  action: 'created' | 'exists' | 'skipped' | 'error';
+  warnings: string[];
+  error?: string;
+  permissionDiff?: {
+    csvPermissions: string[];
+    existingPermissions: string[];
+    missing: string[];
+    extra: string[];
+  };
+}
+
+export interface RoleDefinitionsSummary {
+  total: number;
+  created: number;
+  alreadyExist: number;
+  skipped: number;
+  errors: number;
+  warnings: string[];
+  results: RoleProcessingResult[];
+}
+
+export interface RoleAssignmentSummary {
+  totalMappings: number;
+  assigned: number;
+  skipped: number;
+  failures: number;
+  userNotFound: number;
+  warnings: string[];
+}
+
 // --- Create User Payload (for WorkOS SDK) ---
 
 export interface CreateUserPayload {

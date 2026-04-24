@@ -6,6 +6,8 @@ import { registerMergePasswordsCommand } from './commands/merge-passwords.js';
 import { registerTransformClerkCommand } from './commands/transform-clerk.js';
 import { registerTransformFirebaseCommand } from './commands/transform-firebase.js';
 import { registerAnalyzeCommand } from './commands/analyze.js';
+import { registerEnrollTotpCommand } from './commands/enroll-totp.js';
+import { registerProcessRolesCommand } from './commands/process-roles.js';
 
 const program = new Command();
 
@@ -21,5 +23,7 @@ registerMergePasswordsCommand(program);
 registerTransformClerkCommand(program);
 registerTransformFirebaseCommand(program);
 registerAnalyzeCommand(program);
+registerEnrollTotpCommand(program);
+registerProcessRolesCommand(program);
 
 export { program };
