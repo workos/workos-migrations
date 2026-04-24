@@ -5,6 +5,7 @@ import chalk from 'chalk';
 import { ProviderClient, EntityType, ExportResult, ProviderCredentials } from '../../types';
 import {
   transformAuth0Connections,
+  MIGRATABLE_STRATEGIES,
   type Auth0TransformConfig,
   type TransformResult,
 } from './transform';
@@ -59,8 +60,6 @@ export interface Auth0Organization {
   display_name: string;
   [key: string]: any;
 }
-
-const SSO_STRATEGIES = ['ad', 'adfs', 'auth0-adldap', 'oidc', 'okta', 'pingfederate', 'samlp'];
 
 export class Auth0Client implements ProviderClient {
   private httpClient: AxiosInstance;
@@ -366,9 +365,15 @@ export class Auth0Client implements ProviderClient {
     const data = response.data;
     const allConnections = Array.isArray(data) ? data : data.connections || [];
 
-    // Filter for SSO strategies
-    return allConnections.filter((conn: Auth0Connection) =>
-      SSO_STRATEGIES.includes(conn.strategy.toLowerCase()),
+    // Filter to the enterprise strategies the transform layer knows how to
+    // process. Kept in lockstep with `MIGRATABLE_STRATEGIES` so every strategy
+    // with a dedicated processor — SAML (samlp, adfs, pingfederate), OIDC
+    // (oidc, waad, google-apps, okta), and manual-setup (ad, auth0-adldap) —
+    // reaches the transform. Out-of-scope connections (social, database,
+    // passwordless) are filtered here to keep the raw export dump small.
+    return allConnections.filter(
+      (conn: Auth0Connection) =>
+        typeof conn.strategy === 'string' && MIGRATABLE_STRATEGIES.has(conn.strategy.toLowerCase()),
     );
   }
 

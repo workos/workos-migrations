@@ -11,7 +11,6 @@ const chalk_1 = __importDefault(require("chalk"));
 const transform_1 = require("./transform");
 const user_1 = require("./user");
 const csv_1 = require("../../shared/csv");
-const SSO_STRATEGIES = ['ad', 'adfs', 'auth0-adldap', 'oidc', 'okta', 'pingfederate', 'samlp'];
 class Auth0Client {
     constructor(credentials, transformConfig = {}, outputDir) {
         this.credentials = credentials;
@@ -243,8 +242,14 @@ class Auth0Client {
         });
         const data = response.data;
         const allConnections = Array.isArray(data) ? data : data.connections || [];
-        // Filter for SSO strategies
-        return allConnections.filter((conn) => SSO_STRATEGIES.includes(conn.strategy.toLowerCase()));
+        // Filter to the enterprise strategies the transform layer knows how to
+        // process. Kept in lockstep with `MIGRATABLE_STRATEGIES` so every strategy
+        // with a dedicated processor — SAML (samlp, adfs, pingfederate), OIDC
+        // (oidc, waad, google-apps, okta), and manual-setup (ad, auth0-adldap) —
+        // reaches the transform. Out-of-scope connections (social, database,
+        // passwordless) are filtered here to keep the raw export dump small.
+        return allConnections.filter((conn) => typeof conn.strategy === 'string' &&
+            transform_1.MIGRATABLE_STRATEGIES.has(conn.strategy.toLowerCase()));
     }
     async getClients() {
         const response = await this.httpClient.get('/clients', {

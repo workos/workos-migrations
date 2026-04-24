@@ -58,13 +58,25 @@ export interface TransformResult {
 // ---------------------------------------------------------------------------
 
 /** Enterprise SSO strategies that produce SAML rows. */
-const ENTERPRISE_SAML_STRATEGIES = new Set<string>(['samlp', 'adfs', 'pingfederate']);
+export const ENTERPRISE_SAML_STRATEGIES = new Set<string>(['samlp', 'adfs', 'pingfederate']);
 
 /** Enterprise SSO strategies that produce OIDC rows. */
-const ENTERPRISE_OIDC_STRATEGIES = new Set<string>(['oidc', 'waad', 'google-apps', 'okta']);
+export const ENTERPRISE_OIDC_STRATEGIES = new Set<string>(['oidc', 'waad', 'google-apps', 'okta']);
 
 /** Enterprise strategies with no auto-migration path (require manual setup). */
-const ENTERPRISE_MANUAL_SETUP_STRATEGIES = new Set<string>(['ad', 'auth0-adldap']);
+export const ENTERPRISE_MANUAL_SETUP_STRATEGIES = new Set<string>(['ad', 'auth0-adldap']);
+
+/**
+ * Union of every enterprise strategy the transform recognizes — including ones
+ * that require manual setup. The Auth0 client uses this to filter `/connections`
+ * API results so out-of-scope connections (social, database, passwordless) don't
+ * bloat the raw export, while still fetching everything the transform can process.
+ */
+export const MIGRATABLE_STRATEGIES: ReadonlySet<string> = new Set<string>([
+  ...ENTERPRISE_SAML_STRATEGIES,
+  ...ENTERPRISE_OIDC_STRATEGIES,
+  ...ENTERPRISE_MANUAL_SETUP_STRATEGIES,
+]);
 
 /** Social OAuth providers — WorkOS handles these natively via dashboard config, not via CSV import. */
 const SOCIAL_STRATEGIES = new Set<string>([

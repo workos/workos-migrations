@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.MIGRATABLE_STRATEGIES = exports.ENTERPRISE_MANUAL_SETUP_STRATEGIES = exports.ENTERPRISE_OIDC_STRATEGIES = exports.ENTERPRISE_SAML_STRATEGIES = void 0;
 exports.classifyStrategy = classifyStrategy;
 exports.transformAuth0Connections = transformAuth0Connections;
 exports.ensureWellKnown = ensureWellKnown;
@@ -10,11 +11,27 @@ const DEFAULT_ORG_NAME_PREFIX = '[MIGRATED] sso-';
 // Strategy classification
 // ---------------------------------------------------------------------------
 /** Enterprise SSO strategies that produce SAML rows. */
-const ENTERPRISE_SAML_STRATEGIES = new Set(['samlp', 'adfs', 'pingfederate']);
+exports.ENTERPRISE_SAML_STRATEGIES = new Set(['samlp', 'adfs', 'pingfederate']);
 /** Enterprise SSO strategies that produce OIDC rows. */
-const ENTERPRISE_OIDC_STRATEGIES = new Set(['oidc', 'waad', 'google-apps', 'okta']);
+exports.ENTERPRISE_OIDC_STRATEGIES = new Set([
+    'oidc',
+    'waad',
+    'google-apps',
+    'okta',
+]);
 /** Enterprise strategies with no auto-migration path (require manual setup). */
-const ENTERPRISE_MANUAL_SETUP_STRATEGIES = new Set(['ad', 'auth0-adldap']);
+exports.ENTERPRISE_MANUAL_SETUP_STRATEGIES = new Set(['ad', 'auth0-adldap']);
+/**
+ * Union of every enterprise strategy the transform recognizes — including ones
+ * that require manual setup. The Auth0 client uses this to filter `/connections`
+ * API results so out-of-scope connections (social, database, passwordless) don't
+ * bloat the raw export, while still fetching everything the transform can process.
+ */
+exports.MIGRATABLE_STRATEGIES = new Set([
+    ...exports.ENTERPRISE_SAML_STRATEGIES,
+    ...exports.ENTERPRISE_OIDC_STRATEGIES,
+    ...exports.ENTERPRISE_MANUAL_SETUP_STRATEGIES,
+]);
 /** Social OAuth providers — WorkOS handles these natively via dashboard config, not via CSV import. */
 const SOCIAL_STRATEGIES = new Set([
     'facebook',
@@ -41,11 +58,11 @@ const DATABASE_STRATEGIES = new Set(['auth0']);
 /** Passwordless — no WorkOS equivalent as an SSO connection. */
 const PASSWORDLESS_STRATEGIES = new Set(['email', 'sms']);
 function classifyStrategy(strategy) {
-    if (ENTERPRISE_SAML_STRATEGIES.has(strategy))
+    if (exports.ENTERPRISE_SAML_STRATEGIES.has(strategy))
         return { kind: 'enterprise-saml' };
-    if (ENTERPRISE_OIDC_STRATEGIES.has(strategy))
+    if (exports.ENTERPRISE_OIDC_STRATEGIES.has(strategy))
         return { kind: 'enterprise-oidc' };
-    if (ENTERPRISE_MANUAL_SETUP_STRATEGIES.has(strategy))
+    if (exports.ENTERPRISE_MANUAL_SETUP_STRATEGIES.has(strategy))
         return { kind: 'enterprise-manual-setup' };
     if (SOCIAL_STRATEGIES.has(strategy))
         return { kind: 'out-of-scope', category: 'social' };

@@ -8,6 +8,7 @@ import {
   transformAuth0Connections,
   ensureHttps,
   ensureWellKnown,
+  MIGRATABLE_STRATEGIES,
   type Auth0TransformConfig,
 } from '../../../src/providers/auth0/transform';
 import type { Auth0Connection } from '../../../src/providers/auth0/client';
@@ -482,6 +483,34 @@ describe('classifyStrategy', () => {
   ])('classifyStrategy(%p).kind = %p', (strategy, expectedKind) => {
     expect(classifyStrategy(strategy).kind).toBe(expectedKind);
   });
+});
+
+describe('MIGRATABLE_STRATEGIES', () => {
+  // The Auth0 client uses this set to decide which connections survive the
+  // pre-transform filter in `getConnections`. Every enterprise strategy the
+  // transform has a processor for — including waad, google-apps, and the
+  // manual-setup strategies — must be present, otherwise those connections
+  // get silently dropped before reaching the transform.
+  it.each([
+    'samlp',
+    'adfs',
+    'pingfederate',
+    'oidc',
+    'waad',
+    'google-apps',
+    'okta',
+    'ad',
+    'auth0-adldap',
+  ])('includes enterprise strategy %s', (strategy) => {
+    expect(MIGRATABLE_STRATEGIES.has(strategy)).toBe(true);
+  });
+
+  it.each(['facebook', 'google-oauth2', 'twitter', 'auth0', 'email', 'sms', 'salesforce'])(
+    'excludes out-of-scope strategy %s',
+    (strategy) => {
+      expect(MIGRATABLE_STRATEGIES.has(strategy)).toBe(false);
+    },
+  );
 });
 
 describe('URL normalization helpers', () => {

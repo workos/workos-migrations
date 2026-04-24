@@ -43,6 +43,19 @@ export interface TransformResult {
     /** Non-SSO connections silently filtered out — not errors, just outside the migration scope. */
     outOfScope: OutOfScopeConnection[];
 }
+/** Enterprise SSO strategies that produce SAML rows. */
+export declare const ENTERPRISE_SAML_STRATEGIES: Set<string>;
+/** Enterprise SSO strategies that produce OIDC rows. */
+export declare const ENTERPRISE_OIDC_STRATEGIES: Set<string>;
+/** Enterprise strategies with no auto-migration path (require manual setup). */
+export declare const ENTERPRISE_MANUAL_SETUP_STRATEGIES: Set<string>;
+/**
+ * Union of every enterprise strategy the transform recognizes — including ones
+ * that require manual setup. The Auth0 client uses this to filter `/connections`
+ * API results so out-of-scope connections (social, database, passwordless) don't
+ * bloat the raw export, while still fetching everything the transform can process.
+ */
+export declare const MIGRATABLE_STRATEGIES: ReadonlySet<string>;
 export declare function classifyStrategy(strategy: string): {
     kind: 'enterprise-saml';
 } | {
