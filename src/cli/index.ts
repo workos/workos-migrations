@@ -8,6 +8,7 @@ import { registerTransformFirebaseCommand } from './commands/transform-firebase.
 import { registerAnalyzeCommand } from './commands/analyze.js';
 import { registerEnrollTotpCommand } from './commands/enroll-totp.js';
 import { registerProcessRolesCommand } from './commands/process-roles.js';
+import { registerWizardCommand } from './commands/wizard.js';
 
 const program = new Command();
 
@@ -25,5 +26,6 @@ registerTransformFirebaseCommand(program);
 registerAnalyzeCommand(program);
 registerEnrollTotpCommand(program);
 registerProcessRolesCommand(program);
+registerWizardCommand(program);
 
 export { program };
