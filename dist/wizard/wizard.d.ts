@@ -1,0 +1,49 @@
+export type Provider = 'auth0' | 'clerk' | 'firebase' | 'csv';
+export interface WizardState {
+    provider?: Provider;
+    auth0Domain?: string;
+    auth0ClientId?: string;
+    auth0ClientSecret?: string;
+    workosApiKey?: string;
+    auth0RateLimit?: number;
+    auth0Orgs?: string[];
+    auth0UseMetadata?: boolean;
+    clerkCsvPath?: string;
+    clerkOrgMapping?: string;
+    clerkRoleMapping?: string;
+    firebaseJsonPath?: string;
+    firebaseOrgMapping?: string;
+    firebaseRoleMapping?: string;
+    firebaseNameSplit?: 'first-space' | 'last-space' | 'first-name-only';
+    firebaseSignerKey?: string;
+    firebaseSaltSeparator?: string;
+    firebaseRounds?: number;
+    firebaseMemCost?: number;
+    firebaseIncludeDisabled?: boolean;
+    customCsvPath?: string;
+    csvFilePath?: string;
+    auth0PasswordsPath?: string;
+    validationPassed?: boolean;
+    fixesApplied?: number;
+    concurrency?: number;
+    rateLimit?: number;
+    workers?: number;
+    orgId?: string;
+    orgExternalId?: string;
+    createOrgIfMissing?: boolean;
+    dryRun?: boolean;
+    jobId?: string;
+    importSuccesses?: number;
+    importFailures?: number;
+    errorsPath?: string;
+    totpFilePath?: string;
+    totpIssuer?: string;
+    roleDefinitionsPath?: string;
+    roleUserMappingPath?: string;
+    cancelled?: boolean;
+}
+export declare class MigrationWizard {
+    state: WizardState;
+    run(): Promise<void>;
+    private onCancel;
+}

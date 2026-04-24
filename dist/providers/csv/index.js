@@ -1,7 +1,4 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.CSVValidator = exports.generateTemplateExample = exports.getTemplate = exports.getAllTemplates = exports.CSVClient = exports.csvProvider = void 0;
-exports.csvProvider = {
+export const csvProvider = {
     name: 'csv',
     displayName: 'CSV Import to WorkOS',
     credentials: [
@@ -40,11 +37,4 @@ exports.csvProvider = {
         },
     ],
 };
-var client_1 = require("./client");
-Object.defineProperty(exports, "CSVClient", { enumerable: true, get: function () { return client_1.CSVClient; } });
-var templates_1 = require("./templates");
-Object.defineProperty(exports, "getAllTemplates", { enumerable: true, get: function () { return templates_1.getAllTemplates; } });
-Object.defineProperty(exports, "getTemplate", { enumerable: true, get: function () { return templates_1.getTemplate; } });
-Object.defineProperty(exports, "generateTemplateExample", { enumerable: true, get: function () { return templates_1.generateTemplateExample; } });
-var validator_1 = require("./validator");
-Object.defineProperty(exports, "CSVValidator", { enumerable: true, get: function () { return validator_1.CSVValidator; } });
+export { getAllTemplates, getTemplate, generateTemplateExample, validateCSVHeaders } from './templates.js';

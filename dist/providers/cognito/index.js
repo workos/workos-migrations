@@ -1,7 +1,4 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.cognitoProvider = void 0;
-exports.cognitoProvider = {
+export const cognitoProvider = {
     name: 'cognito',
     displayName: 'AWS Cognito',
     credentials: [

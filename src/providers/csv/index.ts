@@ -1,4 +1,4 @@
-import { Provider } from '../../types';
+import type { Provider } from '../../shared/types.js';
 
 export const csvProvider: Provider = {
   name: 'csv',
@@ -40,6 +40,9 @@ export const csvProvider: Provider = {
   ],
 };
 
-export { CSVClient } from './client';
-export { getAllTemplates, getTemplate, generateTemplateExample } from './templates';
-export { CSVValidator } from './validator';
+export {
+  getAllTemplates,
+  getTemplate,
+  generateTemplateExample,
+  validateCSVHeaders,
+} from './templates.js';

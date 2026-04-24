@@ -1,0 +1,5 @@
+email,first_name,last_name,email_verified,org_external_id,org_name,role_slugs
+alice@example.com,Alice,Johnson,true,org-acme,Acme Corp,admin
+bob@example.com,Bob,Smith,true,org-acme,Acme Corp,member
+carol@example.com,Carol,Williams,false,org-globex,Globex Inc,admin
+dave@example.com,Dave,Brown,true,org-globex,Globex Inc,"admin,member"

@@ -1,7 +1,4 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.clerkProvider = void 0;
-exports.clerkProvider = {
+export const clerkProvider = {
     name: 'clerk',
     displayName: 'Clerk',
     credentials: [

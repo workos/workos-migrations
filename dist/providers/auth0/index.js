@@ -1,7 +1,4 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.Auth0Client = exports.auth0Provider = void 0;
-exports.auth0Provider = {
+export const auth0Provider = {
     name: 'auth0',
     displayName: 'Auth0',
     credentials: [
@@ -60,5 +57,3 @@ exports.auth0Provider = {
         },
     ],
 };
-var client_1 = require("./client");
-Object.defineProperty(exports, "Auth0Client", { enumerable: true, get: function () { return client_1.Auth0Client; } });
