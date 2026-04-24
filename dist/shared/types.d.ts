@@ -109,13 +109,84 @@ export interface ExportSummary {
 }
 export interface CheckpointState {
     jobId: string;
+    csvPath: string;
+    csvHash: string;
+    createdAt: number;
+    updatedAt: number;
+    chunkSize: number;
+    concurrency: number;
+    totalRows: number;
+    chunks: ChunkMetadata[];
+    summary: CheckpointSummary;
+    orgCache?: SerializedOrgCache;
+    mode: 'single-org' | 'multi-org' | 'user-only';
+    orgId?: string | null;
+}
+export interface ChunkMetadata {
+    chunkId: number;
+    startRow: number;
+    endRow: number;
+    status: 'pending' | 'completed' | 'failed';
+    successes: number;
+    failures: number;
+    membershipsCreated: number;
+    usersCreated: number;
+    duplicateUsers: number;
+    duplicateMemberships: number;
+    rolesAssigned?: number;
+    startedAt?: number;
+    completedAt?: number;
+    durationMs?: number;
+}
+export interface CheckpointSummary {
+    total: number;
+    successes: number;
+    failures: number;
+    membershipsCreated: number;
+    usersCreated: number;
+    duplicateUsers: number;
+    duplicateMemberships: number;
+    rolesAssigned?: number;
+    roleAssignmentFailures?: number;
+    startedAt: number;
+    endedAt: number | null;
+    warnings: string[];
+}
+export interface SerializedOrgCache {
+    entries: SerializedCacheEntry[];
+    stats: {
+        hits: number;
+        misses: number;
+        evictions: number;
+    };
+}
+export interface SerializedCacheEntry {
+    key: string;
+    id: string;
+    externalId?: string;
+    name?: string;
+}
+export interface CreateCheckpointOptions {
+    jobId: string;
+    csvPath: string;
     csvHash: string;
     totalRows: number;
-    processedRows: number;
-    chunkStates: Record<string, 'pending' | 'processing' | 'complete'>;
-    orgCache: Record<string, string>;
-    summary: Partial<ImportSummary>;
-    timestamp: string;
+    chunkSize: number;
+    concurrency: number;
+    mode: 'single-org' | 'multi-org' | 'user-only';
+    orgId?: string | null;
+    checkpointDir?: string;
+}
+export interface ChunkSummary {
+    successes: number;
+    failures: number;
+    membershipsCreated: number;
+    usersCreated: number;
+    duplicateUsers: number;
+    duplicateMemberships: number;
+    rolesAssigned: number;
+    durationMs: number;
+    warnings?: string[];
 }
 export interface ProviderCredentials {
     [key: string]: string;
@@ -146,8 +217,69 @@ export interface ProgressStats {
     failures: number;
     rate: number;
 }
-export interface WorkerMessage {
-    type: 'rate-limit-request' | 'rate-limit-grant' | 'progress' | 'chunk-complete' | 'error';
-    requestId?: string;
-    data?: unknown;
+export type CoordinatorMessage = {
+    type: 'initialize';
+    payload: InitializePayload;
+} | {
+    type: 'process-chunk';
+    payload: ProcessChunkPayload;
+} | {
+    type: 'rate-limit-grant';
+    requestId: string;
+} | {
+    type: 'shutdown';
+};
+export type WorkerMessage = {
+    type: 'ready';
+} | {
+    type: 'rate-limit-request';
+    requestId: string;
+} | {
+    type: 'chunk-complete';
+    payload: ChunkCompletePayload;
+} | {
+    type: 'chunk-failed';
+    payload: ChunkFailedPayload;
+};
+export interface InitializePayload {
+    cacheEntries: SerializedCacheEntry[];
+    options: WorkerImportOptions;
+    checkpointDir: string;
+}
+export interface ProcessChunkPayload {
+    chunk: ChunkMetadata;
+}
+export interface ChunkCompletePayload {
+    chunkId: number;
+    summary: ChunkSummary;
+    cacheUpdates: CacheUpdate[];
+}
+export interface ChunkFailedPayload {
+    chunkId: number;
+    error: string;
+    partialSummary?: Partial<ChunkSummary>;
+}
+export interface CacheUpdate {
+    key: string;
+    id: string;
+    externalId?: string;
+    name?: string;
+}
+export interface WorkerImportOptions {
+    csvPath: string;
+    concurrency: number;
+    orgId: string | null;
+    dryRun: boolean;
+    quiet?: boolean;
+}
+export interface CreateUserPayload {
+    email: string;
+    firstName?: string;
+    lastName?: string;
+    password?: string;
+    passwordHash?: string;
+    passwordHashType?: string;
+    emailVerified?: boolean;
+    externalId?: string;
+    metadata?: Record<string, unknown>;
 }

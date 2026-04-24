@@ -1,0 +1,79 @@
+{
+  "jobId": "test-job-1",
+  "csvPath": "test-fixtures/multi-org.csv",
+  "csvHash": "837c4f18fc0d867d1a60bd510b975579ee172b9e9e3584251064dcc27700142e",
+  "createdAt": 1777050884409,
+  "updatedAt": 1777050884412,
+  "chunkSize": 2,
+  "concurrency": 10,
+  "totalRows": 4,
+  "chunks": [
+    {
+      "chunkId": 0,
+      "startRow": 1,
+      "endRow": 2,
+      "status": "completed",
+      "successes": 2,
+      "failures": 0,
+      "membershipsCreated": 2,
+      "usersCreated": 2,
+      "duplicateUsers": 0,
+      "duplicateMemberships": 0,
+      "startedAt": 1777050884410,
+      "completedAt": 1777050884411,
+      "durationMs": 1,
+      "rolesAssigned": 2
+    },
+    {
+      "chunkId": 1,
+      "startRow": 3,
+      "endRow": 4,
+      "status": "completed",
+      "successes": 2,
+      "failures": 0,
+      "membershipsCreated": 2,
+      "usersCreated": 2,
+      "duplicateUsers": 0,
+      "duplicateMemberships": 0,
+      "startedAt": 1777050884411,
+      "completedAt": 1777050884412,
+      "durationMs": 1,
+      "rolesAssigned": 3
+    }
+  ],
+  "summary": {
+    "total": 4,
+    "successes": 4,
+    "failures": 0,
+    "membershipsCreated": 4,
+    "usersCreated": 4,
+    "duplicateUsers": 0,
+    "duplicateMemberships": 0,
+    "startedAt": 1777050884409,
+    "endedAt": null,
+    "warnings": [],
+    "rolesAssigned": 5
+  },
+  "mode": "multi-org",
+  "orgCache": {
+    "entries": [
+      {
+        "key": "ext:org-acme",
+        "id": "org_dryrun_org-acme",
+        "externalId": "org-acme",
+        "name": "Acme Corp"
+      },
+      {
+        "key": "ext:org-globex",
+        "id": "org_dryrun_org-globex",
+        "externalId": "org-globex",
+        "name": "Globex Inc"
+      }
+    ],
+    "stats": {
+      "hits": 2,
+      "misses": 2,
+      "evictions": 0
+    }
+  }
+}

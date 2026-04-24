@@ -1,0 +1,4 @@
+email,first_name,last_name,email_verified
+alice@example.com,Alice,Johnson,true
+bob@example.com,Bob,Smith,true
+carol@example.com,Carol,Williams,false
