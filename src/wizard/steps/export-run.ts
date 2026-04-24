@@ -121,8 +121,14 @@ async function runFirebaseTransform(state: WizardState): Promise<WizardState> {
     console.log();
 
     if (!scryptConfig) {
-      console.log(chalk.yellow('  Note: No scrypt parameters provided. Users will need to reset passwords.'));
-      console.log(chalk.gray('  Get params from Firebase Console > Authentication > Password Hash Parameters\n'));
+      console.log(
+        chalk.yellow('  Note: No scrypt parameters provided. Users will need to reset passwords.'),
+      );
+      console.log(
+        chalk.gray(
+          '  Get params from Firebase Console > Authentication > Password Hash Parameters\n',
+        ),
+      );
     }
   } catch (err) {
     console.error(chalk.red(`\n  Firebase transform failed: ${(err as Error).message}`));

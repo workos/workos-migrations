@@ -78,7 +78,12 @@ function mapFirebaseUser(
 
   const email = user.email?.trim();
   if (!email) {
-    return { csvRow: {} as CSVRow, warnings: [], skipped: true, skipReason: 'Missing email address' };
+    return {
+      csvRow: {} as CSVRow,
+      warnings: [],
+      skipped: true,
+      skipReason: 'Missing email address',
+    };
   }
 
   if (user.disabled && !includeDisabled) {
@@ -183,7 +188,8 @@ function parseFirebaseExport(filePath: string): FirebaseUserRecord[] {
 export async function transformFirebaseExport(
   options: FirebaseTransformOptions,
 ): Promise<TransformSummary> {
-  const { input, output, scryptConfig, nameSplitStrategy, includeDisabled, skipPasswords, quiet } = options;
+  const { input, output, scryptConfig, nameSplitStrategy, includeDisabled, skipPasswords, quiet } =
+    options;
 
   if (!quiet) logger.info('Parsing Firebase JSON export...');
   const users = parseFirebaseExport(input);
@@ -243,7 +249,14 @@ export async function transformFirebaseExport(
 
       const uid = user.localId?.trim();
       const userOrg = uid && orgMap ? orgMap.get(uid) : undefined;
-      const result = mapFirebaseUser(user, nameSplitStrategy, scryptConfig, includeDisabled, skipPasswords, userOrg);
+      const result = mapFirebaseUser(
+        user,
+        nameSplitStrategy,
+        scryptConfig,
+        includeDisabled,
+        skipPasswords,
+        userOrg,
+      );
 
       if (result.skipped) {
         summary.skippedUsers++;
@@ -284,7 +297,9 @@ export async function transformFirebaseExport(
       stringifier.write(result.csvRow);
 
       if (!quiet && summary.totalUsers % 1000 === 0) {
-        logger.info(`  Processed ${summary.totalUsers} users (${summary.transformedUsers} transformed)...`);
+        logger.info(
+          `  Processed ${summary.totalUsers} users (${summary.transformedUsers} transformed)...`,
+        );
       }
     }
 
@@ -295,10 +310,17 @@ export async function transformFirebaseExport(
   });
 }
 
-function logSkipped(stream: WriteStream, userId: string | undefined, email: string | undefined, reason: string): void {
-  stream.write(JSON.stringify({
-    firebase_uid: userId ?? 'unknown',
-    email: email ?? 'unknown',
-    reason,
-  }) + '\n');
+function logSkipped(
+  stream: WriteStream,
+  userId: string | undefined,
+  email: string | undefined,
+  reason: string,
+): void {
+  stream.write(
+    JSON.stringify({
+      firebase_uid: userId ?? 'unknown',
+      email: email ?? 'unknown',
+      reason,
+    }) + '\n',
+  );
 }

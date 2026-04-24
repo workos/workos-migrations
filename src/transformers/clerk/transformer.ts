@@ -27,7 +27,12 @@ function mapClerkUser(
 
   const email = row.primary_email_address?.trim();
   if (!email) {
-    return { csvRow: {} as CSVRow, warnings: [], skipped: true, skipReason: 'Missing primary_email_address' };
+    return {
+      csvRow: {} as CSVRow,
+      warnings: [],
+      skipped: true,
+      skipReason: 'Missing primary_email_address',
+    };
   }
 
   // Password: bcrypt only
@@ -42,7 +47,9 @@ function mapClerkUser(
       passwordHash = digest;
       passwordHashType = 'bcrypt';
     } else {
-      warnings.push(`Unsupported password hasher "${row.password_hasher}" for user ${row.id} — password skipped`);
+      warnings.push(
+        `Unsupported password hasher "${row.password_hasher}" for user ${row.id} — password skipped`,
+      );
     }
   }
 
@@ -50,11 +57,16 @@ function mapClerkUser(
   const metadata: Record<string, string> = {};
   if (row.id?.trim()) metadata.clerk_user_id = row.id.trim();
   if (row.username?.trim()) metadata.username = row.username.trim();
-  if (row.primary_phone_number?.trim()) metadata.primary_phone_number = row.primary_phone_number.trim();
-  if (row.verified_phone_numbers?.trim()) metadata.verified_phone_numbers = row.verified_phone_numbers.trim();
-  if (row.unverified_phone_numbers?.trim()) metadata.unverified_phone_numbers = row.unverified_phone_numbers.trim();
-  if (row.verified_email_addresses?.trim()) metadata.verified_email_addresses = row.verified_email_addresses.trim();
-  if (row.unverified_email_addresses?.trim()) metadata.unverified_email_addresses = row.unverified_email_addresses.trim();
+  if (row.primary_phone_number?.trim())
+    metadata.primary_phone_number = row.primary_phone_number.trim();
+  if (row.verified_phone_numbers?.trim())
+    metadata.verified_phone_numbers = row.verified_phone_numbers.trim();
+  if (row.unverified_phone_numbers?.trim())
+    metadata.unverified_phone_numbers = row.unverified_phone_numbers.trim();
+  if (row.verified_email_addresses?.trim())
+    metadata.verified_email_addresses = row.verified_email_addresses.trim();
+  if (row.unverified_email_addresses?.trim())
+    metadata.unverified_email_addresses = row.unverified_email_addresses.trim();
   if (row.totp_secret?.trim()) metadata.totp_secret = row.totp_secret.trim();
 
   const csvRow: CSVRow = {
@@ -121,7 +133,12 @@ export async function transformClerkExport(
 
     const inputStream = createReadStream(input);
     const outputStream = createWriteStream(output);
-    const parser = parse({ columns: true, skip_empty_lines: true, relax_column_count: true, trim: true });
+    const parser = parse({
+      columns: true,
+      skip_empty_lines: true,
+      relax_column_count: true,
+      trim: true,
+    });
     const stringifier = stringify({ header: true, columns: outputColumns });
 
     // Pipe must be set up BEFORE writing data
@@ -148,16 +165,18 @@ export async function transformClerkExport(
           const headers = Object.keys(row);
 
           if (!headers.includes('primary_email_address')) {
-            reject(new Error(
-              `Clerk CSV must have a 'primary_email_address' column. Found columns: ${headers.join(', ')}`,
-            ));
+            reject(
+              new Error(
+                `Clerk CSV must have a 'primary_email_address' column. Found columns: ${headers.join(', ')}`,
+              ),
+            );
             return;
           }
 
           if (!headers.includes('id')) {
-            reject(new Error(
-              `Clerk CSV must have an 'id' column. Found columns: ${headers.join(', ')}`,
-            ));
+            reject(
+              new Error(`Clerk CSV must have an 'id' column. Found columns: ${headers.join(', ')}`),
+            );
             return;
           }
         }
@@ -207,7 +226,9 @@ export async function transformClerkExport(
         stringifier.write(result.csvRow);
 
         if (!quiet && summary.totalUsers % 1000 === 0) {
-          logger.info(`  Processed ${summary.totalUsers} users (${summary.transformedUsers} transformed)...`);
+          logger.info(
+            `  Processed ${summary.totalUsers} users (${summary.transformedUsers} transformed)...`,
+          );
         }
       })
       .on('end', () => {
@@ -220,10 +241,17 @@ export async function transformClerkExport(
   });
 }
 
-function logSkipped(stream: WriteStream, userId: string | undefined, email: string | undefined, reason: string): void {
-  stream.write(JSON.stringify({
-    clerk_user_id: userId ?? 'unknown',
-    email: email ?? 'unknown',
-    reason,
-  }) + '\n');
+function logSkipped(
+  stream: WriteStream,
+  userId: string | undefined,
+  email: string | undefined,
+  reason: string,
+): void {
+  stream.write(
+    JSON.stringify({
+      clerk_user_id: userId ?? 'unknown',
+      email: email ?? 'unknown',
+      reason,
+    }) + '\n',
+  );
 }

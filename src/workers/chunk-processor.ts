@@ -177,7 +177,9 @@ export async function processChunkInWorker(
                   }
                 } catch (membershipErr: any) {
                   const membershipStatus =
-                    membershipErr?.status ?? membershipErr?.httpStatus ?? membershipErr?.response?.status;
+                    membershipErr?.status ??
+                    membershipErr?.httpStatus ??
+                    membershipErr?.response?.status;
                   if (membershipStatus === 409) {
                     duplicateMemberships += 1;
                     createdMemberships.add(membershipKey);

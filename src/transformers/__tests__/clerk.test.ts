@@ -125,10 +125,7 @@ describe('Clerk Transformer', () => {
 
     fs.writeFileSync(
       orgCsv,
-      [
-        'clerk_user_id,org_external_id,org_name',
-        'user_abc,org_ext_1,Acme Corp',
-      ].join('\n'),
+      ['clerk_user_id,org_external_id,org_name', 'user_abc,org_ext_1,Acme Corp'].join('\n'),
     );
 
     const summary = await transformClerkExport({
@@ -162,11 +159,7 @@ describe('Clerk Transformer', () => {
 
     fs.writeFileSync(
       roleCsv,
-      [
-        'clerk_user_id,role_slug',
-        'user_abc,admin',
-        'user_abc,editor',
-      ].join('\n'),
+      ['clerk_user_id,role_slug', 'user_abc,admin', 'user_abc,editor'].join('\n'),
     );
 
     const summary = await transformClerkExport({

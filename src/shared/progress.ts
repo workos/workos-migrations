@@ -2,7 +2,10 @@ import cliProgress from 'cli-progress';
 import chalk from 'chalk';
 import type { ImportSummary, ProgressStats } from './types.js';
 
-export function createProgressBar(total: number, label: string = 'Progress'): cliProgress.SingleBar {
+export function createProgressBar(
+  total: number,
+  label: string = 'Progress',
+): cliProgress.SingleBar {
   return new cliProgress.SingleBar(
     {
       format: `${label} |${chalk.cyan('{bar}')}| {percentage}% | {value}/{total} | ETA: {eta_formatted}`,

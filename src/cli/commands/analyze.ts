@@ -52,9 +52,13 @@ export function registerAnalyzeCommand(program: Command): void {
 
           console.log(chalk.blue('\nError Groups:'));
           for (const group of result.errorGroups) {
-            const retryTag = group.retryable ? chalk.green('[retryable]') : chalk.red('[non-retryable]');
+            const retryTag = group.retryable
+              ? chalk.green('[retryable]')
+              : chalk.red('[non-retryable]');
             console.log(`\n  ${retryTag} ${group.pattern}`);
-            console.log(`    Count: ${group.count} | Type: ${group.errorType}${group.httpStatus ? ` | HTTP ${group.httpStatus}` : ''}`);
+            console.log(
+              `    Count: ${group.count} | Type: ${group.errorType}${group.httpStatus ? ` | HTTP ${group.httpStatus}` : ''}`,
+            );
             console.log(`    Suggestion: ${group.suggestion}`);
           }
 

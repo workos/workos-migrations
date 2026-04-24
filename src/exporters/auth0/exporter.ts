@@ -59,12 +59,24 @@ export async function exportAuth0(options: Auth0ExportOptions): Promise<ExportSu
     writeStream.write(CSV_COLUMNS.join(',') + '\n');
 
     if (options.useMetadata) {
-      const stats = await exportUsersWithMetadata(client, writeStream, skippedStream, options, warnings);
+      const stats = await exportUsersWithMetadata(
+        client,
+        writeStream,
+        skippedStream,
+        options,
+        warnings,
+      );
       totalUsers = stats.totalUsers;
       totalOrgs = stats.totalOrgs;
       skippedUsers = stats.skippedUsers;
     } else {
-      const stats = await exportOrganizations(client, writeStream, skippedStream, options, warnings);
+      const stats = await exportOrganizations(
+        client,
+        writeStream,
+        skippedStream,
+        options,
+        warnings,
+      );
       totalUsers = stats.totalUsers;
       totalOrgs = stats.totalOrgs;
       skippedUsers = stats.skippedUsers;
@@ -144,7 +156,15 @@ async function exportOrganizations(
 
           for (const result of results) {
             if (result.status === 'rejected') {
-              logSkipped(skippedStream, undefined, undefined, org.id, org.name, 'fetch_failed', String(result.reason));
+              logSkipped(
+                skippedStream,
+                undefined,
+                undefined,
+                org.id,
+                org.name,
+                'fetch_failed',
+                String(result.reason),
+              );
               orgSkippedCount++;
               continue;
             }
@@ -159,7 +179,15 @@ async function exportOrganizations(
             const csvRow = mapAuth0UserToWorkOS(user, org);
             const validationError = validateMappedRow(csvRow);
             if (validationError) {
-              logSkipped(skippedStream, user.user_id, user.email, org.id, org.name, 'validation_failed', validationError);
+              logSkipped(
+                skippedStream,
+                user.user_id,
+                user.email,
+                org.id,
+                org.name,
+                'validation_failed',
+                validationError,
+              );
               orgSkippedCount++;
               continue;
             }
@@ -177,7 +205,9 @@ async function exportOrganizations(
       skippedUsers += orgSkippedCount;
 
       if (!options.quiet) {
-        logger.info(`  ${org.display_name || org.name}: ${orgUserCount} users${orgSkippedCount > 0 ? ` (${orgSkippedCount} skipped)` : ''}`);
+        logger.info(
+          `  ${org.display_name || org.name}: ${orgUserCount} users${orgSkippedCount > 0 ? ` (${orgSkippedCount} skipped)` : ''}`,
+        );
       }
     } catch (error: unknown) {
       const msg = (error as Error).message;
@@ -221,7 +251,14 @@ async function exportUsersWithMetadata(
       );
 
       if (!orgInfo || !orgInfo.orgId) {
-        logSkipped(skippedStream, user.user_id, user.email, undefined, undefined, 'no_org_in_metadata');
+        logSkipped(
+          skippedStream,
+          user.user_id,
+          user.email,
+          undefined,
+          undefined,
+          'no_org_in_metadata',
+        );
         skippedUsers++;
         continue;
       }
@@ -241,7 +278,15 @@ async function exportUsersWithMetadata(
 
       const validationError = validateMappedRow(csvRow);
       if (validationError) {
-        logSkipped(skippedStream, user.user_id, user.email, orgInfo.orgId, orgInfo.orgName, 'validation_failed', validationError);
+        logSkipped(
+          skippedStream,
+          user.user_id,
+          user.email,
+          orgInfo.orgId,
+          orgInfo.orgName,
+          'validation_failed',
+          validationError,
+        );
         skippedUsers++;
         continue;
       }

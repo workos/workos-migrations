@@ -106,8 +106,7 @@ export class Auth0Client {
         return await fn();
       } catch (error: unknown) {
         const err = error as Error & { statusCode?: number; retryAfterMs?: number };
-        const isRateLimited =
-          err.statusCode === 429 || /rate.?limit/i.test(err.message ?? '');
+        const isRateLimited = err.statusCode === 429 || /rate.?limit/i.test(err.message ?? '');
 
         attempt++;
         if (isRateLimited && attempt <= maxRetries) {
@@ -122,9 +121,9 @@ export class Auth0Client {
   }
 
   async getOrganizations(page = 0, perPage = 100): Promise<Auth0Organization[]> {
-    const data = await this.apiCall<
-      Auth0Organization[] | { organizations?: Auth0Organization[] }
-    >(`/api/v2/organizations?page=${page}&per_page=${perPage}`);
+    const data = await this.apiCall<Auth0Organization[] | { organizations?: Auth0Organization[] }>(
+      `/api/v2/organizations?page=${page}&per_page=${perPage}`,
+    );
 
     const orgs = Array.isArray(data) ? data : (data.organizations ?? []);
     return orgs.map((org) => ({

@@ -40,15 +40,16 @@ export function parsePermissions(raw: string): string[] {
     }
   }
 
-  return trimmed.split(',').map(p => p.trim()).filter(Boolean);
+  return trimmed
+    .split(',')
+    .map((p) => p.trim())
+    .filter(Boolean);
 }
 
 /**
  * Parse role definitions from a CSV file.
  */
-export async function parseRoleDefinitionsCsv(
-  csvPath: string,
-): Promise<{
+export async function parseRoleDefinitionsCsv(csvPath: string): Promise<{
   definitions: ParsedRoleDefinition[];
   warnings: string[];
   errors: string[];
@@ -81,7 +82,7 @@ export async function parseRoleDefinitionsCsv(
         if (!headerValidated) {
           headerValidated = true;
           const headers = Object.keys(row);
-          const missing = REQUIRED_DEFINITION_COLUMNS.filter(c => !headers.includes(c));
+          const missing = REQUIRED_DEFINITION_COLUMNS.filter((c) => !headers.includes(c));
           if (missing.length > 0) {
             reject(
               new Error(
@@ -158,8 +159,8 @@ function comparePermissions(
 ): { match: boolean; missing: string[]; extra: string[] } {
   const csvSet = new Set(csvPerms);
   const existingSet = new Set(existingPerms);
-  const missing = csvPerms.filter(p => !existingSet.has(p));
-  const extra = existingPerms.filter(p => !csvSet.has(p));
+  const missing = csvPerms.filter((p) => !existingSet.has(p));
+  const extra = existingPerms.filter((p) => !csvSet.has(p));
   return { match: missing.length === 0 && extra.length === 0, missing, extra };
 }
 
@@ -191,7 +192,7 @@ async function ensurePermissionsExist(
     try {
       const name = slug
         .split(/[:._-]/)
-        .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
         .join(' ');
       const wasCreated = await createPermission({ slug, name });
       if (wasCreated) created++;
@@ -213,11 +214,14 @@ export async function processRoleDefinitions(
   definitionsPath: string,
   options: { orgId?: string; dryRun: boolean },
 ): Promise<RoleDefinitionsSummary> {
-  const { definitions, warnings: parseWarnings, errors: parseErrors } =
-    await parseRoleDefinitionsCsv(definitionsPath);
+  const {
+    definitions,
+    warnings: parseWarnings,
+    errors: parseErrors,
+  } = await parseRoleDefinitionsCsv(definitionsPath);
 
-  const envRoles = definitions.filter(d => d.type === 'environment');
-  const orgRoles = definitions.filter(d => d.type === 'organization');
+  const envRoles = definitions.filter((d) => d.type === 'environment');
+  const orgRoles = definitions.filter((d) => d.type === 'organization');
 
   // Ensure all permissions exist before creating roles
   await ensurePermissionsExist(definitions, options.dryRun);
@@ -248,10 +252,10 @@ export async function processRoleDefinitions(
 
   return {
     total: definitions.length,
-    created: results.filter(r => r.action === 'created').length,
-    alreadyExist: results.filter(r => r.action === 'exists').length,
-    skipped: results.filter(r => r.action === 'skipped').length,
-    errors: results.filter(r => r.action === 'error').length + parseErrors.length,
+    created: results.filter((r) => r.action === 'created').length,
+    alreadyExist: results.filter((r) => r.action === 'exists').length,
+    skipped: results.filter((r) => r.action === 'skipped').length,
+    errors: results.filter((r) => r.action === 'error').length + parseErrors.length,
     warnings: allWarnings,
     results,
   };
@@ -286,7 +290,7 @@ async function processOneRole(
         }
       }
 
-      const existing = orgRoleCache.get(def.orgId)!.find(r => r.slug === def.slug);
+      const existing = orgRoleCache.get(def.orgId)!.find((r) => r.slug === def.slug);
       if (existing) {
         const comparison = comparePermissions(def.permissions, existing.permissions);
         if (!comparison.match) {
@@ -346,10 +350,14 @@ async function processOneRole(
 
         result.action = 'created';
       } catch (err: unknown) {
-        const message = (err as Record<string, unknown>)?.message as string || '';
+        const message = ((err as Record<string, unknown>)?.message as string) || '';
         const status = (err as Record<string, unknown>)?.status as number;
         // If role already exists (409), mark as exists
-        if (status === 409 || message.includes('already exists') || message.includes('already been taken')) {
+        if (
+          status === 409 ||
+          message.includes('already exists') ||
+          message.includes('already been taken')
+        ) {
           result.action = 'exists';
           return result;
         }
@@ -410,7 +418,9 @@ async function parseUserRoleMappingCsv(csvPath: string): Promise<{
           hasEmail = headers.includes('email');
           hasUserId = headers.includes('user_id') || headers.includes('external_id');
           if (!hasEmail && !hasUserId) {
-            reject(new Error('User-role mapping CSV must have email, user_id, or external_id column'));
+            reject(
+              new Error('User-role mapping CSV must have email, user_id, or external_id column'),
+            );
             return;
           }
           if (!headers.includes('role_slug')) {
@@ -492,9 +502,7 @@ export async function assignRolesToUsers(
 
       if (memberships.data.length === 0) {
         summary.failures += 1;
-        warnings.push(
-          `No membership found for user ${userId} in org ${options.orgId}`,
-        );
+        warnings.push(`No membership found for user ${userId} in org ${options.orgId}`);
         continue;
       }
 

@@ -18,10 +18,7 @@ export interface EnrollTotpOptions {
 /**
  * Look up a user in WorkOS by email. Returns the user ID or null.
  */
-async function lookupUserByEmail(
-  workos: WorkOS,
-  email: string,
-): Promise<string | null> {
+async function lookupUserByEmail(workos: WorkOS, email: string): Promise<string | null> {
   const users = await workos.userManagement.listUsers({ email });
   const data = users.data;
   if (data.length === 0) return null;
@@ -44,7 +41,7 @@ class Semaphore {
       this.count += 1;
       return;
     }
-    await new Promise<void>(resolve => {
+    await new Promise<void>((resolve) => {
       this.queue.push(() => {
         this.count += 1;
         resolve();
@@ -71,15 +68,7 @@ export async function enrollTotp(
   workos: WorkOS,
   options: EnrollTotpOptions,
 ): Promise<{ summary: TotpEnrollSummary; errors: TotpErrorRecord[] }> {
-  const {
-    inputPath,
-    format,
-    concurrency,
-    rateLimit,
-    dryRun,
-    errorsPath,
-    totpIssuer,
-  } = options;
+  const { inputPath, format, concurrency, rateLimit, dryRun, errorsPath, totpIssuer } = options;
 
   const rateLimiter = new RateLimiter(rateLimit);
   const semaphore = new Semaphore(concurrency);

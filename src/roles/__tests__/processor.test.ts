@@ -64,11 +64,14 @@ describe('Role Processor', () => {
   describe('parseRoleDefinitionsCsv', () => {
     it('should parse valid role definitions', async () => {
       const csvPath = path.join(tmpDir, 'roles.csv');
-      fs.writeFileSync(csvPath, [
-        'role_slug,role_name,role_type,permissions',
-        'admin,Admin,environment,"read,write,delete"',
-        'viewer,Viewer,environment,read',
-      ].join('\n'));
+      fs.writeFileSync(
+        csvPath,
+        [
+          'role_slug,role_name,role_type,permissions',
+          'admin,Admin,environment,"read,write,delete"',
+          'viewer,Viewer,environment,read',
+        ].join('\n'),
+      );
 
       const { definitions, errors } = await parseRoleDefinitionsCsv(csvPath);
 
@@ -81,46 +84,48 @@ describe('Role Processor', () => {
 
     it('should error on missing required columns', async () => {
       const csvPath = path.join(tmpDir, 'roles.csv');
-      fs.writeFileSync(csvPath, [
-        'role_slug,role_name',
-        'admin,Admin',
-      ].join('\n'));
+      fs.writeFileSync(csvPath, ['role_slug,role_name', 'admin,Admin'].join('\n'));
 
       await expect(parseRoleDefinitionsCsv(csvPath)).rejects.toThrow('missing required columns');
     });
 
     it('should warn on invalid role_type', async () => {
       const csvPath = path.join(tmpDir, 'roles.csv');
-      fs.writeFileSync(csvPath, [
-        'role_slug,role_name,role_type,permissions',
-        'admin,Admin,invalid,read',
-      ].join('\n'));
+      fs.writeFileSync(
+        csvPath,
+        ['role_slug,role_name,role_type,permissions', 'admin,Admin,invalid,read'].join('\n'),
+      );
 
       const { definitions, warnings } = await parseRoleDefinitionsCsv(csvPath);
 
       expect(definitions).toHaveLength(0);
-      expect(warnings.some(w => w.includes('Invalid role_type'))).toBe(true);
+      expect(warnings.some((w) => w.includes('Invalid role_type'))).toBe(true);
     });
 
     it('should warn on org role without org reference', async () => {
       const csvPath = path.join(tmpDir, 'roles.csv');
-      fs.writeFileSync(csvPath, [
-        'role_slug,role_name,role_type,permissions',
-        'org-admin,Org Admin,organization,read',
-      ].join('\n'));
+      fs.writeFileSync(
+        csvPath,
+        ['role_slug,role_name,role_type,permissions', 'org-admin,Org Admin,organization,read'].join(
+          '\n',
+        ),
+      );
 
       const { definitions, warnings } = await parseRoleDefinitionsCsv(csvPath);
 
       expect(definitions).toHaveLength(0);
-      expect(warnings.some(w => w.includes('missing org_id'))).toBe(true);
+      expect(warnings.some((w) => w.includes('missing org_id'))).toBe(true);
     });
 
     it('should parse org roles with org_id', async () => {
       const csvPath = path.join(tmpDir, 'roles.csv');
-      fs.writeFileSync(csvPath, [
-        'role_slug,role_name,role_type,permissions,org_id',
-        'org-admin,Org Admin,organization,"read,write",org_123',
-      ].join('\n'));
+      fs.writeFileSync(
+        csvPath,
+        [
+          'role_slug,role_name,role_type,permissions,org_id',
+          'org-admin,Org Admin,organization,"read,write",org_123',
+        ].join('\n'),
+      );
 
       const { definitions } = await parseRoleDefinitionsCsv(csvPath);
 
@@ -131,39 +136,44 @@ describe('Role Processor', () => {
 
     it('should deduplicate by slug within same scope', async () => {
       const csvPath = path.join(tmpDir, 'roles.csv');
-      fs.writeFileSync(csvPath, [
-        'role_slug,role_name,role_type,permissions',
-        'admin,Admin,environment,read',
-        'admin,Admin Dupe,environment,"read,write"',
-      ].join('\n'));
+      fs.writeFileSync(
+        csvPath,
+        [
+          'role_slug,role_name,role_type,permissions',
+          'admin,Admin,environment,read',
+          'admin,Admin Dupe,environment,"read,write"',
+        ].join('\n'),
+      );
 
       const { definitions, warnings } = await parseRoleDefinitionsCsv(csvPath);
 
       expect(definitions).toHaveLength(1);
       expect(definitions[0]!.name).toBe('Admin');
-      expect(warnings.some(w => w.includes('Duplicate'))).toBe(true);
+      expect(warnings.some((w) => w.includes('Duplicate'))).toBe(true);
     });
 
     it('should error on missing role_slug', async () => {
       const csvPath = path.join(tmpDir, 'roles.csv');
-      fs.writeFileSync(csvPath, [
-        'role_slug,role_name,role_type,permissions',
-        ',Admin,environment,read',
-      ].join('\n'));
+      fs.writeFileSync(
+        csvPath,
+        ['role_slug,role_name,role_type,permissions', ',Admin,environment,read'].join('\n'),
+      );
 
       const { errors } = await parseRoleDefinitionsCsv(csvPath);
 
-      expect(errors.some(e => e.includes('Missing role_slug'))).toBe(true);
+      expect(errors.some((e) => e.includes('Missing role_slug'))).toBe(true);
     });
   });
 
   describe('processRoleDefinitions', () => {
     it('should create environment roles', async () => {
       const csvPath = path.join(tmpDir, 'roles.csv');
-      fs.writeFileSync(csvPath, [
-        'role_slug,role_name,role_type,permissions',
-        'admin,Admin,environment,"read,write"',
-      ].join('\n'));
+      fs.writeFileSync(
+        csvPath,
+        ['role_slug,role_name,role_type,permissions', 'admin,Admin,environment,"read,write"'].join(
+          '\n',
+        ),
+      );
 
       mockCreatePermission.mockResolvedValue(true);
       mockCreateEnvRole.mockResolvedValue({
@@ -192,10 +202,13 @@ describe('Role Processor', () => {
 
     it('should create organization roles', async () => {
       const csvPath = path.join(tmpDir, 'roles.csv');
-      fs.writeFileSync(csvPath, [
-        'role_slug,role_name,role_type,permissions,org_id',
-        'org-admin,Org Admin,organization,manage,org_123',
-      ].join('\n'));
+      fs.writeFileSync(
+        csvPath,
+        [
+          'role_slug,role_name,role_type,permissions,org_id',
+          'org-admin,Org Admin,organization,manage,org_123',
+        ].join('\n'),
+      );
 
       mockCreatePermission.mockResolvedValue(true);
       mockListRoles.mockResolvedValue([]);
@@ -222,14 +235,23 @@ describe('Role Processor', () => {
 
     it('should detect existing org roles', async () => {
       const csvPath = path.join(tmpDir, 'roles.csv');
-      fs.writeFileSync(csvPath, [
-        'role_slug,role_name,role_type,permissions,org_id',
-        'org-admin,Org Admin,organization,manage,org_123',
-      ].join('\n'));
+      fs.writeFileSync(
+        csvPath,
+        [
+          'role_slug,role_name,role_type,permissions,org_id',
+          'org-admin,Org Admin,organization,manage,org_123',
+        ].join('\n'),
+      );
 
       mockCreatePermission.mockResolvedValue(true);
       mockListRoles.mockResolvedValue([
-        { id: 'role_existing', slug: 'org-admin', name: 'Org Admin', type: 'OrganizationRole', permissions: ['manage'] },
+        {
+          id: 'role_existing',
+          slug: 'org-admin',
+          name: 'Org Admin',
+          type: 'OrganizationRole',
+          permissions: ['manage'],
+        },
       ]);
 
       const summary = await processRoleDefinitions(csvPath, { dryRun: false });
@@ -240,28 +262,37 @@ describe('Role Processor', () => {
 
     it('should warn on permission mismatch for existing roles', async () => {
       const csvPath = path.join(tmpDir, 'roles.csv');
-      fs.writeFileSync(csvPath, [
-        'role_slug,role_name,role_type,permissions,org_id',
-        'org-admin,Org Admin,organization,"read,write",org_123',
-      ].join('\n'));
+      fs.writeFileSync(
+        csvPath,
+        [
+          'role_slug,role_name,role_type,permissions,org_id',
+          'org-admin,Org Admin,organization,"read,write",org_123',
+        ].join('\n'),
+      );
 
       mockCreatePermission.mockResolvedValue(true);
       mockListRoles.mockResolvedValue([
-        { id: 'role_existing', slug: 'org-admin', name: 'Org Admin', type: 'OrganizationRole', permissions: ['read', 'delete'] },
+        {
+          id: 'role_existing',
+          slug: 'org-admin',
+          name: 'Org Admin',
+          type: 'OrganizationRole',
+          permissions: ['read', 'delete'],
+        },
       ]);
 
       const summary = await processRoleDefinitions(csvPath, { dryRun: false });
 
       expect(summary.alreadyExist).toBe(1);
-      expect(summary.warnings.some(w => w.includes('Permission mismatch'))).toBe(true);
+      expect(summary.warnings.some((w) => w.includes('Permission mismatch'))).toBe(true);
     });
 
     it('should not call APIs in dry-run mode', async () => {
       const csvPath = path.join(tmpDir, 'roles.csv');
-      fs.writeFileSync(csvPath, [
-        'role_slug,role_name,role_type,permissions',
-        'admin,Admin,environment,read',
-      ].join('\n'));
+      fs.writeFileSync(
+        csvPath,
+        ['role_slug,role_name,role_type,permissions', 'admin,Admin,environment,read'].join('\n'),
+      );
 
       const summary = await processRoleDefinitions(csvPath, { dryRun: true });
 
@@ -273,10 +304,10 @@ describe('Role Processor', () => {
 
     it('should handle API errors gracefully', async () => {
       const csvPath = path.join(tmpDir, 'roles.csv');
-      fs.writeFileSync(csvPath, [
-        'role_slug,role_name,role_type,permissions',
-        'admin,Admin,environment,read',
-      ].join('\n'));
+      fs.writeFileSync(
+        csvPath,
+        ['role_slug,role_name,role_type,permissions', 'admin,Admin,environment,read'].join('\n'),
+      );
 
       mockCreatePermission.mockResolvedValue(true);
       mockCreateEnvRole.mockRejectedValue(new Error('API error'));
@@ -288,10 +319,10 @@ describe('Role Processor', () => {
 
     it('should treat 409 as exists for environment roles', async () => {
       const csvPath = path.join(tmpDir, 'roles.csv');
-      fs.writeFileSync(csvPath, [
-        'role_slug,role_name,role_type,permissions',
-        'admin,Admin,environment,read',
-      ].join('\n'));
+      fs.writeFileSync(
+        csvPath,
+        ['role_slug,role_name,role_type,permissions', 'admin,Admin,environment,read'].join('\n'),
+      );
 
       mockCreatePermission.mockResolvedValue(true);
       const err = new Error('Role already exists') as any;
@@ -308,10 +339,7 @@ describe('Role Processor', () => {
   describe('assignRolesToUsers', () => {
     it('should assign roles via email lookup', async () => {
       const csvPath = path.join(tmpDir, 'mapping.csv');
-      fs.writeFileSync(csvPath, [
-        'email,role_slug',
-        'alice@example.com,admin',
-      ].join('\n'));
+      fs.writeFileSync(csvPath, ['email,role_slug', 'alice@example.com,admin'].join('\n'));
 
       const workos = {
         userManagement: {
@@ -331,18 +359,14 @@ describe('Role Processor', () => {
       });
 
       expect(result.assigned).toBe(1);
-      expect(workos.userManagement.updateOrganizationMembership).toHaveBeenCalledWith(
-        'mem_123',
-        { roleSlugs: ['admin'] },
-      );
+      expect(workos.userManagement.updateOrganizationMembership).toHaveBeenCalledWith('mem_123', {
+        roleSlugs: ['admin'],
+      });
     });
 
     it('should handle user not found', async () => {
       const csvPath = path.join(tmpDir, 'mapping.csv');
-      fs.writeFileSync(csvPath, [
-        'email,role_slug',
-        'unknown@example.com,admin',
-      ].join('\n'));
+      fs.writeFileSync(csvPath, ['email,role_slug', 'unknown@example.com,admin'].join('\n'));
 
       const workos = {
         userManagement: {
@@ -361,10 +385,7 @@ describe('Role Processor', () => {
 
     it('should not make API calls in dry-run mode', async () => {
       const csvPath = path.join(tmpDir, 'mapping.csv');
-      fs.writeFileSync(csvPath, [
-        'email,role_slug',
-        'alice@example.com,admin',
-      ].join('\n'));
+      fs.writeFileSync(csvPath, ['email,role_slug', 'alice@example.com,admin'].join('\n'));
 
       const workos = {
         userManagement: {
@@ -387,10 +408,7 @@ describe('Role Processor', () => {
 
     it('should handle no membership found', async () => {
       const csvPath = path.join(tmpDir, 'mapping.csv');
-      fs.writeFileSync(csvPath, [
-        'email,role_slug',
-        'alice@example.com,admin',
-      ].join('\n'));
+      fs.writeFileSync(csvPath, ['email,role_slug', 'alice@example.com,admin'].join('\n'));
 
       const workos = {
         userManagement: {
@@ -407,7 +425,7 @@ describe('Role Processor', () => {
       });
 
       expect(result.failures).toBe(1);
-      expect(result.warnings.some(w => w.includes('No membership found'))).toBe(true);
+      expect(result.warnings.some((w) => w.includes('No membership found'))).toBe(true);
     });
   });
 });

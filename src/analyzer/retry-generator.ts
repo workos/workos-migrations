@@ -91,10 +91,7 @@ export async function generateRetryCsv(
     const outputStream = createWriteStream(outputCsvPath);
     const stringifier = stringify({ header: true, columns: headers });
 
-    stringifier
-      .pipe(outputStream)
-      .on('finish', resolve)
-      .on('error', reject);
+    stringifier.pipe(outputStream).on('finish', resolve).on('error', reject);
 
     for (const row of rows) {
       stringifier.write(row);

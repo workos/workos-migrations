@@ -10,7 +10,10 @@ export async function showSummary(state: WizardState): Promise<void> {
   console.log(chalk.bold('  CSV:        ') + (state.csvFilePath || 'N/A'));
 
   if (state.validationPassed !== undefined) {
-    console.log(chalk.bold('  Validation: ') + (state.validationPassed ? chalk.green('passed') : chalk.yellow('passed with warnings')));
+    console.log(
+      chalk.bold('  Validation: ') +
+        (state.validationPassed ? chalk.green('passed') : chalk.yellow('passed with warnings')),
+    );
   }
 
   if (state.fixesApplied && state.fixesApplied > 0) {
@@ -38,7 +41,9 @@ export async function showSummary(state: WizardState): Promise<void> {
   }
 
   if (state.dryRun) {
-    console.log(chalk.gray('  4. Re-run without dry-run: workos-migrate import --csv ' + state.csvFilePath));
+    console.log(
+      chalk.gray('  4. Re-run without dry-run: workos-migrate import --csv ' + state.csvFilePath),
+    );
   }
 
   console.log(chalk.gray('\n  For help: workos-migrate --help\n'));

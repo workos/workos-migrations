@@ -10,12 +10,19 @@ import {
 export async function mergePasswords(state: WizardState): Promise<WizardState> {
   console.log(chalk.cyan('  Step 5: Password Hash Merge\n'));
 
-  const response = await prompts({
-    type: 'confirm',
-    name: 'hasPasswords',
-    message: 'Do you have an Auth0 password hash export (NDJSON)?',
-    initial: false,
-  }, { onCancel: () => { state.cancelled = true; } });
+  const response = await prompts(
+    {
+      type: 'confirm',
+      name: 'hasPasswords',
+      message: 'Do you have an Auth0 password hash export (NDJSON)?',
+      initial: false,
+    },
+    {
+      onCancel: () => {
+        state.cancelled = true;
+      },
+    },
+  );
 
   if (state.cancelled) return state;
 
@@ -26,12 +33,19 @@ export async function mergePasswords(state: WizardState): Promise<WizardState> {
     return state;
   }
 
-  const fileResponse = await prompts({
-    type: 'text',
-    name: 'passwordsPath',
-    message: 'Path to Auth0 password hash NDJSON file',
-    validate: (v: string) => fs.existsSync(v) || 'File not found',
-  }, { onCancel: () => { state.cancelled = true; } });
+  const fileResponse = await prompts(
+    {
+      type: 'text',
+      name: 'passwordsPath',
+      message: 'Path to Auth0 password hash NDJSON file',
+      validate: (v: string) => fs.existsSync(v) || 'File not found',
+    },
+    {
+      onCancel: () => {
+        state.cancelled = true;
+      },
+    },
+  );
 
   if (state.cancelled) return state;
 

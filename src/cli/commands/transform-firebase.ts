@@ -13,7 +13,11 @@ export function registerTransformFirebaseCommand(program: Command): void {
     .option('--org-mapping <path>', 'Org mapping CSV (firebase_uid,org_external_id,org_name)')
     .option('--role-mapping <path>', 'Role mapping CSV (firebase_uid,role_slug)')
     .option('--include-disabled', 'Include disabled users (excluded by default)')
-    .option('--name-split <strategy>', 'Name splitting: first-space, last-space, first-name-only', 'first-space')
+    .option(
+      '--name-split <strategy>',
+      'Name splitting: first-space, last-space, first-name-only',
+      'first-space',
+    )
     .option('--signer-key <key>', 'Firebase scrypt signer key (base64)')
     .option('--salt-separator <sep>', 'Firebase scrypt salt separator (base64)')
     .option('--rounds <n>', 'Firebase scrypt rounds', '8')

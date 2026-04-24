@@ -35,12 +35,7 @@ export interface UserRecord {
   roleSlugs?: string[];
 }
 
-export type PasswordHashType =
-  | 'bcrypt'
-  | 'firebase-scrypt'
-  | 'ssha'
-  | 'md5'
-  | 'okta-bcrypt';
+export type PasswordHashType = 'bcrypt' | 'firebase-scrypt' | 'ssha' | 'md5' | 'okta-bcrypt';
 
 // --- Import Types ---
 

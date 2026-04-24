@@ -1,8 +1,4 @@
-import {
-  mapAuth0UserToWorkOS,
-  validateMappedRow,
-  extractOrgFromMetadata,
-} from '../mapper.js';
+import { mapAuth0UserToWorkOS, validateMappedRow, extractOrgFromMetadata } from '../mapper.js';
 import type { Auth0User, Auth0Organization } from '../../../shared/types.js';
 
 describe('Auth0 Mapper', () => {

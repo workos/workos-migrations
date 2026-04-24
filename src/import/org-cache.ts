@@ -1,10 +1,6 @@
 import type { WorkOS } from '@workos-inc/node';
 import type { SerializedCacheEntry } from '../shared/types.js';
-import {
-  getOrganizationById,
-  getOrganizationByExternalId,
-  createOrganization,
-} from './org-api.js';
+import { getOrganizationById, getOrganizationByExternalId, createOrganization } from './org-api.js';
 
 export interface OrgCacheStats {
   hits: number;
@@ -76,7 +72,13 @@ export class OrgCache {
       return await inFlight;
     }
 
-    const requestPromise = this.fetchAndCache(cacheKey, orgId, orgExternalId, createIfMissing, orgName);
+    const requestPromise = this.fetchAndCache(
+      cacheKey,
+      orgId,
+      orgExternalId,
+      createIfMissing,
+      orgName,
+    );
     this.inFlightRequests.set(cacheKey, requestPromise);
 
     try {

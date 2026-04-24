@@ -21,29 +21,43 @@ export async function runPostImport(state: WizardState): Promise<WizardState> {
 }
 
 async function handleTotp(state: WizardState): Promise<void> {
-  const totpResponse = await prompts({
-    type: 'confirm',
-    name: 'hasTotp',
-    message: 'Do you have TOTP/MFA secrets to migrate?',
-    initial: false,
-  }, { onCancel: () => { state.cancelled = true; } });
+  const totpResponse = await prompts(
+    {
+      type: 'confirm',
+      name: 'hasTotp',
+      message: 'Do you have TOTP/MFA secrets to migrate?',
+      initial: false,
+    },
+    {
+      onCancel: () => {
+        state.cancelled = true;
+      },
+    },
+  );
 
   if (state.cancelled || !totpResponse.hasTotp) return;
 
-  const fileResponse = await prompts([
+  const fileResponse = await prompts(
+    [
+      {
+        type: 'text',
+        name: 'totpPath',
+        message: 'Path to TOTP secrets file (CSV or NDJSON)',
+        validate: (v: string) => fs.existsSync(v) || 'File not found',
+      },
+      {
+        type: 'text',
+        name: 'totpIssuer',
+        message: 'TOTP issuer name (shown in authenticator apps)',
+        initial: '',
+      },
+    ],
     {
-      type: 'text',
-      name: 'totpPath',
-      message: 'Path to TOTP secrets file (CSV or NDJSON)',
-      validate: (v: string) => fs.existsSync(v) || 'File not found',
+      onCancel: () => {
+        state.cancelled = true;
+      },
     },
-    {
-      type: 'text',
-      name: 'totpIssuer',
-      message: 'TOTP issuer name (shown in authenticator apps)',
-      initial: '',
-    },
-  ], { onCancel: () => { state.cancelled = true; } });
+  );
 
   if (state.cancelled) return;
 
@@ -84,41 +98,56 @@ async function handleTotp(state: WizardState): Promise<void> {
 }
 
 async function handleRoles(state: WizardState): Promise<void> {
-  const roleResponse = await prompts({
-    type: 'confirm',
-    name: 'hasRoles',
-    message: 'Do you have role definitions to process?',
-    initial: false,
-  }, { onCancel: () => { state.cancelled = true; } });
-
-  if (state.cancelled || !roleResponse.hasRoles) return;
-
-  const fileResponse = await prompts([
-    {
-      type: 'text',
-      name: 'definitionsPath',
-      message: 'Path to role definitions CSV',
-      validate: (v: string) => fs.existsSync(v) || 'File not found',
-    },
+  const roleResponse = await prompts(
     {
       type: 'confirm',
-      name: 'hasUserMapping',
-      message: 'Do you also have a user-role mapping CSV?',
+      name: 'hasRoles',
+      message: 'Do you have role definitions to process?',
       initial: false,
     },
     {
-      type: (prev: boolean) => prev ? 'text' : null,
-      name: 'userMappingPath',
-      message: 'Path to user-role mapping CSV',
-      validate: (v: string) => fs.existsSync(v) || 'File not found',
+      onCancel: () => {
+        state.cancelled = true;
+      },
     },
+  );
+
+  if (state.cancelled || !roleResponse.hasRoles) return;
+
+  const fileResponse = await prompts(
+    [
+      {
+        type: 'text',
+        name: 'definitionsPath',
+        message: 'Path to role definitions CSV',
+        validate: (v: string) => fs.existsSync(v) || 'File not found',
+      },
+      {
+        type: 'confirm',
+        name: 'hasUserMapping',
+        message: 'Do you also have a user-role mapping CSV?',
+        initial: false,
+      },
+      {
+        type: (prev: boolean) => (prev ? 'text' : null),
+        name: 'userMappingPath',
+        message: 'Path to user-role mapping CSV',
+        validate: (v: string) => fs.existsSync(v) || 'File not found',
+      },
+      {
+        type: (_: unknown, values: Record<string, unknown>) =>
+          values.hasUserMapping ? 'text' : null,
+        name: 'orgId',
+        message: 'Organization ID for role assignments',
+        validate: (v: string) => v.length > 0 || 'Required when using user-role mapping',
+      },
+    ],
     {
-      type: (_: unknown, values: Record<string, unknown>) => values.hasUserMapping ? 'text' : null,
-      name: 'orgId',
-      message: 'Organization ID for role assignments',
-      validate: (v: string) => v.length > 0 || 'Required when using user-role mapping',
+      onCancel: () => {
+        state.cancelled = true;
+      },
     },
-  ], { onCancel: () => { state.cancelled = true; } });
+  );
 
   if (state.cancelled) return;
 
@@ -146,11 +175,10 @@ async function handleRoles(state: WizardState): Promise<void> {
       console.log(chalk.blue('  Assigning roles to users...\n'));
 
       const workos = createWorkOSClient();
-      const assignResult = await assignRolesToUsers(
-        fileResponse.userMappingPath,
-        workos,
-        { orgId: fileResponse.orgId, dryRun: false },
-      );
+      const assignResult = await assignRolesToUsers(fileResponse.userMappingPath, workos, {
+        orgId: fileResponse.orgId,
+        dryRun: false,
+      });
 
       console.log(chalk.green('  Role Assignment Summary'));
       console.log(`    Total: ${assignResult.totalMappings}`);

@@ -23,14 +23,19 @@ export async function runImportStep(state: WizardState): Promise<WizardState> {
   console.log();
 
   // Confirm
-  const confirm = await prompts({
-    type: 'confirm',
-    name: 'proceed',
-    message: state.dryRun
-      ? 'Start dry-run import?'
-      : 'Start importing users to WorkOS?',
-    initial: true,
-  }, { onCancel: () => { state.cancelled = true; } });
+  const confirm = await prompts(
+    {
+      type: 'confirm',
+      name: 'proceed',
+      message: state.dryRun ? 'Start dry-run import?' : 'Start importing users to WorkOS?',
+      initial: true,
+    },
+    {
+      onCancel: () => {
+        state.cancelled = true;
+      },
+    },
+  );
 
   if (state.cancelled) return state;
   if (!confirm.proceed) {
@@ -39,9 +44,7 @@ export async function runImportStep(state: WizardState): Promise<WizardState> {
   }
 
   try {
-    const workos = state.dryRun
-      ? createWorkOSClient('dry-run-key')
-      : createWorkOSClient();
+    const workos = state.dryRun ? createWorkOSClient('dry-run-key') : createWorkOSClient();
 
     // Create checkpoint
     const csvHash = await calculateCsvHash(state.csvFilePath!);
@@ -75,12 +78,19 @@ export async function runImportStep(state: WizardState): Promise<WizardState> {
 
     // If it was a dry-run, ask to run for real
     if (state.dryRun) {
-      const realRun = await prompts({
-        type: 'confirm',
-        name: 'proceed',
-        message: 'Dry-run complete. Run the actual import now?',
-        initial: true,
-      }, { onCancel: () => { state.cancelled = true; } });
+      const realRun = await prompts(
+        {
+          type: 'confirm',
+          name: 'proceed',
+          message: 'Dry-run complete. Run the actual import now?',
+          initial: true,
+        },
+        {
+          onCancel: () => {
+            state.cancelled = true;
+          },
+        },
+      );
 
       if (state.cancelled) return state;
 
@@ -123,7 +133,11 @@ export async function runImportStep(state: WizardState): Promise<WizardState> {
     }
   } catch (err) {
     console.error(chalk.red(`\n  Import failed: ${(err as Error).message}`));
-    console.log(chalk.gray(`  You can retry with: workos-migrate import --csv ${state.csvFilePath} --resume\n`));
+    console.log(
+      chalk.gray(
+        `  You can retry with: workos-migrate import --csv ${state.csvFilePath} --resume\n`,
+      ),
+    );
   }
 
   return state;

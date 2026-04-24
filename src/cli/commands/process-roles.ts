@@ -79,14 +79,10 @@ export function registerProcessRolesCommand(program: Command): void {
 
           const workos = opts.dryRun ? createWorkOSClient('dry-run-key') : createWorkOSClient();
 
-          const assignResult = await assignRolesToUsers(
-            path.resolve(opts.userMapping),
-            workos,
-            {
-              orgId: opts.orgId,
-              dryRun: opts.dryRun || false,
-            },
-          );
+          const assignResult = await assignRolesToUsers(path.resolve(opts.userMapping), workos, {
+            orgId: opts.orgId,
+            dryRun: opts.dryRun || false,
+          });
 
           if (!opts.quiet) {
             console.log(chalk.blue('\nRole Assignment Summary'));

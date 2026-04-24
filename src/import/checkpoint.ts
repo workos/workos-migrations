@@ -207,8 +207,7 @@ export class CheckpointManager {
   } {
     const completedChunks = this.state.chunks.filter((c) => c.status === 'completed').length;
     const totalChunks = this.state.chunks.length;
-    const percentComplete =
-      totalChunks > 0 ? Math.round((completedChunks / totalChunks) * 100) : 0;
+    const percentComplete = totalChunks > 0 ? Math.round((completedChunks / totalChunks) * 100) : 0;
 
     const completedWithTime = this.state.chunks
       .filter((c) => c.status === 'completed' && c.durationMs)
@@ -221,8 +220,7 @@ export class CheckpointManager {
         : null;
 
     const remaining = totalChunks - completedChunks;
-    const estimatedTimeRemainingMs =
-      avgChunkMs && remaining > 0 ? avgChunkMs * remaining : null;
+    const estimatedTimeRemainingMs = avgChunkMs && remaining > 0 ? avgChunkMs * remaining : null;
 
     return { completedChunks, totalChunks, percentComplete, estimatedTimeRemainingMs };
   }
@@ -236,7 +234,10 @@ export class CheckpointManager {
     };
   }
 
-  restoreCache(workos: import('@workos-inc/node').WorkOS | null, dryRun?: boolean): OrgCache | null {
+  restoreCache(
+    workos: import('@workos-inc/node').WorkOS | null,
+    dryRun?: boolean,
+  ): OrgCache | null {
     if (!this.state.orgCache) return null;
     return OrgCache.deserialize(workos, this.state.orgCache.entries, { maxSize: 10000, dryRun });
   }

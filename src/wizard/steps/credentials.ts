@@ -10,12 +10,19 @@ export async function enterCredentials(state: WizardState): Promise<WizardState>
     console.log(chalk.yellow('  WORKOS_SECRET_KEY is not set in environment.'));
     console.log(chalk.gray('  Set it with: export WORKOS_SECRET_KEY=sk_...\n'));
 
-    const response = await prompts({
-      type: 'password',
-      name: 'workosKey',
-      message: 'Enter your WorkOS Secret Key (sk_...)',
-      validate: (v: string) => v.startsWith('sk_') || 'Must start with sk_',
-    }, { onCancel: () => { state.cancelled = true; } });
+    const response = await prompts(
+      {
+        type: 'password',
+        name: 'workosKey',
+        message: 'Enter your WorkOS Secret Key (sk_...)',
+        validate: (v: string) => v.startsWith('sk_') || 'Must start with sk_',
+      },
+      {
+        onCancel: () => {
+          state.cancelled = true;
+        },
+      },
+    );
 
     if (state.cancelled) return state;
 
@@ -28,29 +35,36 @@ export async function enterCredentials(state: WizardState): Promise<WizardState>
   }
 
   if (state.provider === 'auth0') {
-    const auth0Creds = await prompts([
+    const auth0Creds = await prompts(
+      [
+        {
+          type: 'text',
+          name: 'domain',
+          message: 'Auth0 tenant domain (e.g. my-tenant.us.auth0.com)',
+          initial: process.env.AUTH0_DOMAIN || '',
+          validate: (v: string) => v.length > 0 || 'Required',
+        },
+        {
+          type: 'text',
+          name: 'clientId',
+          message: 'Auth0 M2M Client ID',
+          initial: process.env.AUTH0_CLIENT_ID || '',
+          validate: (v: string) => v.length > 0 || 'Required',
+        },
+        {
+          type: 'password',
+          name: 'clientSecret',
+          message: 'Auth0 M2M Client Secret',
+          initial: process.env.AUTH0_CLIENT_SECRET || '',
+          validate: (v: string) => v.length > 0 || 'Required',
+        },
+      ],
       {
-        type: 'text',
-        name: 'domain',
-        message: 'Auth0 tenant domain (e.g. my-tenant.us.auth0.com)',
-        initial: process.env.AUTH0_DOMAIN || '',
-        validate: (v: string) => v.length > 0 || 'Required',
+        onCancel: () => {
+          state.cancelled = true;
+        },
       },
-      {
-        type: 'text',
-        name: 'clientId',
-        message: 'Auth0 M2M Client ID',
-        initial: process.env.AUTH0_CLIENT_ID || '',
-        validate: (v: string) => v.length > 0 || 'Required',
-      },
-      {
-        type: 'password',
-        name: 'clientSecret',
-        message: 'Auth0 M2M Client Secret',
-        initial: process.env.AUTH0_CLIENT_SECRET || '',
-        validate: (v: string) => v.length > 0 || 'Required',
-      },
-    ], { onCancel: () => { state.cancelled = true; } });
+    );
 
     if (state.cancelled) return state;
 

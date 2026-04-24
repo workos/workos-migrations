@@ -46,11 +46,14 @@ describe('TOTP Enroller', () => {
 
   it('should enroll TOTP factors for found users', async () => {
     const inputPath = path.join(tmpDir, 'totp.csv');
-    fs.writeFileSync(inputPath, [
-      'email,totp_secret',
-      'alice@example.com,JBSWY3DPEHPK3PXP',
-      'bob@example.com,KRSXG5CTMVRXEZLU',
-    ].join('\n'));
+    fs.writeFileSync(
+      inputPath,
+      [
+        'email,totp_secret',
+        'alice@example.com,JBSWY3DPEHPK3PXP',
+        'bob@example.com,KRSXG5CTMVRXEZLU',
+      ].join('\n'),
+    );
 
     const workos = createMockWorkOS({
       'alice@example.com': 'user_alice',
@@ -73,10 +76,7 @@ describe('TOTP Enroller', () => {
 
   it('should handle user not found gracefully', async () => {
     const inputPath = path.join(tmpDir, 'totp.csv');
-    fs.writeFileSync(inputPath, [
-      'email,totp_secret',
-      'unknown@example.com,SECRET123',
-    ].join('\n'));
+    fs.writeFileSync(inputPath, ['email,totp_secret', 'unknown@example.com,SECRET123'].join('\n'));
 
     const workos = createMockWorkOS({});
 
@@ -96,10 +96,7 @@ describe('TOTP Enroller', () => {
 
   it('should skip already-enrolled users', async () => {
     const inputPath = path.join(tmpDir, 'totp.csv');
-    fs.writeFileSync(inputPath, [
-      'email,totp_secret',
-      'alice@example.com,SECRET123',
-    ].join('\n'));
+    fs.writeFileSync(inputPath, ['email,totp_secret', 'alice@example.com,SECRET123'].join('\n'));
 
     const workos = createMockWorkOS({ 'alice@example.com': 'user_alice' });
     workos.userManagement.enrollAuthFactor.mockRejectedValueOnce(
@@ -121,10 +118,7 @@ describe('TOTP Enroller', () => {
 
   it('should not call APIs in dry-run mode', async () => {
     const inputPath = path.join(tmpDir, 'totp.csv');
-    fs.writeFileSync(inputPath, [
-      'email,totp_secret',
-      'alice@example.com,SECRET123',
-    ].join('\n'));
+    fs.writeFileSync(inputPath, ['email,totp_secret', 'alice@example.com,SECRET123'].join('\n'));
 
     const workos = createMockWorkOS({ 'alice@example.com': 'user_alice' });
 
@@ -143,10 +137,7 @@ describe('TOTP Enroller', () => {
 
   it('should handle enrollment API errors', async () => {
     const inputPath = path.join(tmpDir, 'totp.csv');
-    fs.writeFileSync(inputPath, [
-      'email,totp_secret',
-      'alice@example.com,SECRET123',
-    ].join('\n'));
+    fs.writeFileSync(inputPath, ['email,totp_secret', 'alice@example.com,SECRET123'].join('\n'));
 
     const workos = createMockWorkOS({ 'alice@example.com': 'user_alice' });
     workos.userManagement.enrollAuthFactor.mockRejectedValueOnce(
@@ -167,10 +158,7 @@ describe('TOTP Enroller', () => {
 
   it('should pass totpIssuer to enrollAuthFactor', async () => {
     const inputPath = path.join(tmpDir, 'totp.csv');
-    fs.writeFileSync(inputPath, [
-      'email,totp_secret',
-      'alice@example.com,SECRET123',
-    ].join('\n'));
+    fs.writeFileSync(inputPath, ['email,totp_secret', 'alice@example.com,SECRET123'].join('\n'));
 
     const workos = createMockWorkOS({ 'alice@example.com': 'user_alice' });
 
@@ -196,10 +184,7 @@ describe('TOTP Enroller', () => {
   it('should write errors to file when errorsPath is set', async () => {
     const inputPath = path.join(tmpDir, 'totp.csv');
     const errorsPath = path.join(tmpDir, 'errors.jsonl');
-    fs.writeFileSync(inputPath, [
-      'email,totp_secret',
-      'unknown@example.com,SECRET123',
-    ].join('\n'));
+    fs.writeFileSync(inputPath, ['email,totp_secret', 'unknown@example.com,SECRET123'].join('\n'));
 
     const workos = createMockWorkOS({});
 
@@ -240,10 +225,13 @@ describe('TOTP Enroller', () => {
 
   it('should handle NDJSON input format', async () => {
     const inputPath = path.join(tmpDir, 'totp.jsonl');
-    fs.writeFileSync(inputPath, [
-      '{"email":"alice@example.com","totp_secret":"SECRET123"}',
-      '{"email":"bob@example.com","mfa_factors":[{"type":"totp","secret":"SECRET456"}]}',
-    ].join('\n'));
+    fs.writeFileSync(
+      inputPath,
+      [
+        '{"email":"alice@example.com","totp_secret":"SECRET123"}',
+        '{"email":"bob@example.com","mfa_factors":[{"type":"totp","secret":"SECRET456"}]}',
+      ].join('\n'),
+    );
 
     const workos = createMockWorkOS({
       'alice@example.com': 'user_alice',

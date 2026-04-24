@@ -36,9 +36,7 @@ export async function loadRoleMapping(
           headerValidated = true;
           const headers = Object.keys(row);
 
-          const hasJoinKey =
-            headers.includes(userIdColumn) ||
-            headers.includes('external_id');
+          const hasJoinKey = headers.includes(userIdColumn) || headers.includes('external_id');
           if (!hasJoinKey) {
             reject(
               new Error(
@@ -60,8 +58,7 @@ export async function loadRoleMapping(
           }
         }
 
-        const userId =
-          (row[userIdColumn]?.trim() || row.external_id?.trim()) ?? '';
+        const userId = (row[userIdColumn]?.trim() || row.external_id?.trim()) ?? '';
         const roleSlug = row.role_slug?.trim() ?? '';
         if (!userId || !roleSlug) return;
 

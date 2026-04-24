@@ -28,18 +28,18 @@ npx workos-migrate <command>
 
 ## Commands
 
-| Command | Description |
-|---------|-------------|
-| `wizard` | Interactive step-by-step migration wizard |
-| `export-auth0` | Export users from Auth0 via Management API |
-| `merge-passwords` | Merge Auth0 password hashes into the export CSV |
-| `transform-clerk` | Transform a Clerk CSV export to WorkOS format |
-| `transform-firebase` | Transform a Firebase Auth JSON export to WorkOS format |
-| `validate` | Validate a CSV file before import |
-| `import` | Import users from CSV into WorkOS |
-| `analyze` | Analyze import errors and generate retry CSV |
-| `enroll-totp` | Enroll TOTP MFA factors for imported users |
-| `process-role-definitions` | Create roles and assign permissions in WorkOS |
+| Command                    | Description                                            |
+| -------------------------- | ------------------------------------------------------ |
+| `wizard`                   | Interactive step-by-step migration wizard              |
+| `export-auth0`             | Export users from Auth0 via Management API             |
+| `merge-passwords`          | Merge Auth0 password hashes into the export CSV        |
+| `transform-clerk`          | Transform a Clerk CSV export to WorkOS format          |
+| `transform-firebase`       | Transform a Firebase Auth JSON export to WorkOS format |
+| `validate`                 | Validate a CSV file before import                      |
+| `import`                   | Import users from CSV into WorkOS                      |
+| `analyze`                  | Analyze import errors and generate retry CSV           |
+| `enroll-totp`              | Enroll TOTP MFA factors for imported users             |
+| `process-role-definitions` | Create roles and assign permissions in WorkOS          |
 
 Run `workos-migrate <command> --help` for full option details on any command.
 
@@ -52,20 +52,20 @@ Run `workos-migrate <command> --help` for full option details on any command.
 
 The import CSV uses these columns:
 
-| Column | Required | Description |
-|--------|----------|-------------|
-| `email` | Yes | User email address |
-| `first_name` | No | First name |
-| `last_name` | No | Last name |
-| `email_verified` | No | `true` or `false` |
-| `password_hash` | No | Password hash value |
-| `password_hash_type` | No | `bcrypt`, `firebase-scrypt`, `ssha`, `md5` |
-| `external_id` | No | External identifier from source system |
-| `metadata` | No | JSON string of custom metadata |
-| `org_id` | No | WorkOS organization ID |
-| `org_external_id` | No | External org identifier (looked up or auto-created) |
-| `org_name` | No | Organization name (used with auto-creation) |
-| `role_slugs` | No | Comma-separated role slugs for org membership |
+| Column               | Required | Description                                         |
+| -------------------- | -------- | --------------------------------------------------- |
+| `email`              | Yes      | User email address                                  |
+| `first_name`         | No       | First name                                          |
+| `last_name`          | No       | Last name                                           |
+| `email_verified`     | No       | `true` or `false`                                   |
+| `password_hash`      | No       | Password hash value                                 |
+| `password_hash_type` | No       | `bcrypt`, `firebase-scrypt`, `ssha`, `md5`          |
+| `external_id`        | No       | External identifier from source system              |
+| `metadata`           | No       | JSON string of custom metadata                      |
+| `org_id`             | No       | WorkOS organization ID                              |
+| `org_external_id`    | No       | External org identifier (looked up or auto-created) |
+| `org_name`           | No       | Organization name (used with auto-creation)         |
+| `role_slugs`         | No       | Comma-separated role slugs for org membership       |
 
 The export and transform commands produce CSVs in this format automatically.
 
@@ -141,6 +141,7 @@ Options:
 - `--role-mapping <path>` - CSV mapping Clerk user IDs to roles (`clerk_user_id,role_slug`)
 
 The transformer handles:
+
 - Field mapping (Clerk columns to WorkOS columns)
 - bcrypt password passthrough (other hash types like argon2 are dropped with a warning since WorkOS does not support them)
 - Username, phone number, and TOTP secret preservation in metadata
@@ -183,6 +184,7 @@ Options:
 - `--role-mapping <path>` - CSV mapping Firebase UIDs to roles (`firebase_uid,role_slug`)
 
 The transformer handles:
+
 - Firebase scrypt to PHC format encoding (`$firebase-scrypt$hash=...`)
 - `displayName` splitting into `first_name` and `last_name`
 - Phone number, custom claims, and Firebase UID preservation in metadata
@@ -214,6 +216,7 @@ workos-migrate validate --csv users.csv
 ```
 
 The validator checks:
+
 - Required fields (`email` is present and non-empty)
 - Email format
 - Duplicate emails
@@ -243,16 +246,19 @@ workos-migrate import --csv users.csv
 ### Organization modes
 
 **User only** (no org membership):
+
 ```bash
 workos-migrate import --csv users.csv
 ```
 
 **Single org** (all users into one organization):
+
 ```bash
 workos-migrate import --csv users.csv --org-id org_01ABC
 ```
 
 **Multi-org** (org per row, from CSV columns):
+
 ```bash
 workos-migrate import --csv users.csv --create-org-if-missing
 ```
@@ -358,6 +364,7 @@ workos-migrate process-role-definitions \
 ```
 
 **Role definitions CSV** (`role_slug,role_name,role_type,permissions[,org_id]`):
+
 ```csv
 role_slug,role_name,role_type,permissions
 admin,Administrator,environment,"read,write,delete"
@@ -366,6 +373,7 @@ org-admin,Org Admin,organization,"read,write",org_01ABC
 ```
 
 **User-role mapping CSV** (`email,role_slug`):
+
 ```csv
 email,role_slug
 alice@example.com,admin

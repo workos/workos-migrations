@@ -79,7 +79,7 @@ export async function parseTotpNdjson(filePath: string): Promise<TotpRecord[]> {
 
       // Fall back to mfa_factors array
       if (!secret && record.mfa_factors) {
-        const totpFactor = record.mfa_factors.find(f => f.type === 'totp');
+        const totpFactor = record.mfa_factors.find((f) => f.type === 'totp');
         secret = totpFactor?.secret || totpFactor?.totp_secret;
       }
 
@@ -105,7 +105,5 @@ export async function loadTotpRecords(
   format?: 'csv' | 'ndjson',
 ): Promise<TotpRecord[]> {
   const resolvedFormat = format ?? detectFormat(filePath);
-  return resolvedFormat === 'ndjson'
-    ? parseTotpNdjson(filePath)
-    : parseTotpCsv(filePath);
+  return resolvedFormat === 'ndjson' ? parseTotpNdjson(filePath) : parseTotpCsv(filePath);
 }

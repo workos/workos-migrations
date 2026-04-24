@@ -106,8 +106,7 @@ function detectOrgMappingMode(headers: string[]): string {
   const hasOrgName = headers.includes('org_name');
 
   if (hasOrgId) return 'org_id (direct WorkOS org lookup)';
-  if (hasOrgExternalId && hasOrgName)
-    return 'org_external_id + org_name (create if missing)';
+  if (hasOrgExternalId && hasOrgName) return 'org_external_id + org_name (create if missing)';
   if (hasOrgExternalId) return 'org_external_id (lookup by external ID)';
   if (hasOrgName) return 'org_name (lookup or create by name)';
   return 'unknown';
@@ -156,8 +155,7 @@ export function buildOutputColumns(
     const firstEntry = orgMapping.values().next().value;
     if (firstEntry) {
       if (firstEntry.orgId !== undefined) columns.push('org_id');
-      if (firstEntry.orgExternalId !== undefined)
-        columns.push('org_external_id');
+      if (firstEntry.orgExternalId !== undefined) columns.push('org_external_id');
       if (firstEntry.orgName !== undefined) columns.push('org_name');
     }
   }

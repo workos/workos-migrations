@@ -109,7 +109,11 @@ describe('Password Merger', () => {
 
       const passwordLookup = {
         'alice@example.com': { hash: '$2a$10$alicehash', algorithm: 'bcrypt', setDate: undefined },
-        'bob@example.com': { hash: 'd41d8cd98f00b204e9800998ecf8427e', algorithm: 'md5', setDate: undefined },
+        'bob@example.com': {
+          hash: 'd41d8cd98f00b204e9800998ecf8427e',
+          algorithm: 'md5',
+          setDate: undefined,
+        },
       };
 
       const stats = await mergePasswordsIntoCsv(inputCsv, outputCsv, passwordLookup);

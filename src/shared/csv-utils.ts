@@ -109,7 +109,10 @@ export function parseRoleSlugs(value: string | undefined): string[] | undefined 
     }
   }
 
-  return trimmed.split(',').map((s) => s.trim()).filter(Boolean);
+  return trimmed
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
 
 /**

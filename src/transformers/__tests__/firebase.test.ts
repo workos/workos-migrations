@@ -142,7 +142,12 @@ describe('Firebase Transformer', () => {
         JSON.stringify({
           users: [
             { localId: 'uid1', email: 'active@example.com', displayName: 'Active User' },
-            { localId: 'uid2', email: 'disabled@example.com', displayName: 'Disabled User', disabled: true },
+            {
+              localId: 'uid2',
+              email: 'disabled@example.com',
+              displayName: 'Disabled User',
+              disabled: true,
+            },
           ],
         }),
       );
@@ -167,7 +172,12 @@ describe('Firebase Transformer', () => {
         inputJson,
         JSON.stringify({
           users: [
-            { localId: 'uid1', email: 'disabled@example.com', displayName: 'Disabled User', disabled: true },
+            {
+              localId: 'uid1',
+              email: 'disabled@example.com',
+              displayName: 'Disabled User',
+              disabled: true,
+            },
           ],
         }),
       );

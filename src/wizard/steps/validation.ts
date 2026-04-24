@@ -42,12 +42,19 @@ export async function runValidation(state: WizardState): Promise<WizardState> {
 
     if (!result.valid) {
       // Offer auto-fix
-      const fixResponse = await prompts({
-        type: 'confirm',
-        name: 'autoFix',
-        message: 'Validation found errors. Attempt auto-fix?',
-        initial: true,
-      }, { onCancel: () => { state.cancelled = true; } });
+      const fixResponse = await prompts(
+        {
+          type: 'confirm',
+          name: 'autoFix',
+          message: 'Validation found errors. Attempt auto-fix?',
+          initial: true,
+        },
+        {
+          onCancel: () => {
+            state.cancelled = true;
+          },
+        },
+      );
 
       if (state.cancelled) return state;
 
@@ -79,12 +86,19 @@ export async function runValidation(state: WizardState): Promise<WizardState> {
           state.validationPassed = true;
         } else {
           console.log(chalk.yellow(`  Still ${revalidated.errors.length} errors remaining.`));
-          const continueResponse = await prompts({
-            type: 'confirm',
-            name: 'proceed',
-            message: 'Continue anyway?',
-            initial: false,
-          }, { onCancel: () => { state.cancelled = true; } });
+          const continueResponse = await prompts(
+            {
+              type: 'confirm',
+              name: 'proceed',
+              message: 'Continue anyway?',
+              initial: false,
+            },
+            {
+              onCancel: () => {
+                state.cancelled = true;
+              },
+            },
+          );
 
           if (state.cancelled) return state;
           if (!continueResponse.proceed) {
@@ -94,12 +108,19 @@ export async function runValidation(state: WizardState): Promise<WizardState> {
           state.validationPassed = false;
         }
       } else {
-        const continueResponse = await prompts({
-          type: 'confirm',
-          name: 'proceed',
-          message: 'Continue with invalid CSV?',
-          initial: false,
-        }, { onCancel: () => { state.cancelled = true; } });
+        const continueResponse = await prompts(
+          {
+            type: 'confirm',
+            name: 'proceed',
+            message: 'Continue with invalid CSV?',
+            initial: false,
+          },
+          {
+            onCancel: () => {
+              state.cancelled = true;
+            },
+          },
+        );
 
         if (state.cancelled) return state;
         if (!continueResponse.proceed) {
@@ -114,12 +135,19 @@ export async function runValidation(state: WizardState): Promise<WizardState> {
     }
   } catch (err) {
     console.error(chalk.red(`\n  Validation failed: ${(err as Error).message}`));
-    const continueResponse = await prompts({
-      type: 'confirm',
-      name: 'proceed',
-      message: 'Continue without validation?',
-      initial: false,
-    }, { onCancel: () => { state.cancelled = true; } });
+    const continueResponse = await prompts(
+      {
+        type: 'confirm',
+        name: 'proceed',
+        message: 'Continue without validation?',
+        initial: false,
+      },
+      {
+        onCancel: () => {
+          state.cancelled = true;
+        },
+      },
+    );
 
     if (state.cancelled) return state;
     if (!continueResponse.proceed) {

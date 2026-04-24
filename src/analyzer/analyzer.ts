@@ -40,12 +40,18 @@ function normalizeMessage(message: string): string {
  * Classify whether an error is retryable based on HTTP status and type.
  */
 function classifyRetryability(error: ErrorRecord): { retryable: boolean; reason: string } {
-  if (error.httpStatus === 429) return { retryable: true, reason: 'Rate limited — retry with lower concurrency' };
-  if (error.httpStatus && error.httpStatus >= 500) return { retryable: true, reason: 'Server error — retry after service recovery' };
-  if (!error.httpStatus) return { retryable: true, reason: 'Unknown error (no HTTP status) — may be network issue' };
-  if (error.httpStatus === 409) return { retryable: false, reason: 'Conflict — resource already exists' };
-  if (error.httpStatus === 400 || error.httpStatus === 422) return { retryable: false, reason: 'Validation error — fix data before retry' };
-  if (error.httpStatus === 403) return { retryable: false, reason: 'Permission denied — check API key permissions' };
+  if (error.httpStatus === 429)
+    return { retryable: true, reason: 'Rate limited — retry with lower concurrency' };
+  if (error.httpStatus && error.httpStatus >= 500)
+    return { retryable: true, reason: 'Server error — retry after service recovery' };
+  if (!error.httpStatus)
+    return { retryable: true, reason: 'Unknown error (no HTTP status) — may be network issue' };
+  if (error.httpStatus === 409)
+    return { retryable: false, reason: 'Conflict — resource already exists' };
+  if (error.httpStatus === 400 || error.httpStatus === 422)
+    return { retryable: false, reason: 'Validation error — fix data before retry' };
+  if (error.httpStatus === 403)
+    return { retryable: false, reason: 'Permission denied — check API key permissions' };
   return { retryable: false, reason: 'Non-retryable client error' };
 }
 
@@ -56,14 +62,21 @@ function suggestFix(pattern: string, errorType: string, httpStatus?: number): st
   const lower = pattern.toLowerCase();
 
   if (httpStatus === 429) return 'Reduce --concurrency value (try 5 or lower) and retry';
-  if (httpStatus && httpStatus >= 500) return 'Wait a few minutes and retry with the generated retry CSV';
-  if (httpStatus === 409 && errorType === 'user_create') return 'Users already exist in WorkOS — these can be safely ignored';
-  if (httpStatus === 409 && errorType === 'membership_create') return 'Memberships already exist — remove duplicate user-org pairs';
-  if (errorType === 'org_resolution' && lower.includes('not found')) return 'Organization not found — verify org_id/org_external_id values or use --create-org-if-missing';
-  if (lower.includes('invalid email')) return 'Fix email addresses in CSV to match name@domain.com format';
-  if (lower.includes('password_hash') && lower.includes('type')) return 'Add password_hash_type column for rows with password hashes';
+  if (httpStatus && httpStatus >= 500)
+    return 'Wait a few minutes and retry with the generated retry CSV';
+  if (httpStatus === 409 && errorType === 'user_create')
+    return 'Users already exist in WorkOS — these can be safely ignored';
+  if (httpStatus === 409 && errorType === 'membership_create')
+    return 'Memberships already exist — remove duplicate user-org pairs';
+  if (errorType === 'org_resolution' && lower.includes('not found'))
+    return 'Organization not found — verify org_id/org_external_id values or use --create-org-if-missing';
+  if (lower.includes('invalid email'))
+    return 'Fix email addresses in CSV to match name@domain.com format';
+  if (lower.includes('password_hash') && lower.includes('type'))
+    return 'Add password_hash_type column for rows with password hashes';
   if (lower.includes('invalid json')) return 'Fix malformed JSON in metadata column';
-  if (httpStatus === 400 || httpStatus === 422) return 'Validation error — review error details and fix CSV data';
+  if (httpStatus === 400 || httpStatus === 422)
+    return 'Validation error — review error details and fix CSV data';
   return 'Review error details in the examples';
 }
 
@@ -87,12 +100,15 @@ export async function analyzeErrors(errorsPath: string): Promise<AnalysisResult>
   }
 
   // Group by normalized pattern + type + status
-  const groupMap = new Map<string, {
-    pattern: string;
-    errorType: string;
-    httpStatus?: number;
-    errors: ErrorRecord[];
-  }>();
+  const groupMap = new Map<
+    string,
+    {
+      pattern: string;
+      errorType: string;
+      httpStatus?: number;
+      errors: ErrorRecord[];
+    }
+  >();
 
   for (const error of errors) {
     const pattern = normalizeMessage(error.errorMessage);
@@ -100,7 +116,12 @@ export async function analyzeErrors(errorsPath: string): Promise<AnalysisResult>
 
     let group = groupMap.get(key);
     if (!group) {
-      group = { pattern, errorType: error.errorType || 'unknown', httpStatus: error.httpStatus, errors: [] };
+      group = {
+        pattern,
+        errorType: error.errorType || 'unknown',
+        httpStatus: error.httpStatus,
+        errors: [],
+      };
       groupMap.set(key, group);
     }
     group.errors.push(error);

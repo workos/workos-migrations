@@ -94,13 +94,17 @@ export function registerImportCommand(program: Command): void {
           const progress = checkpointManager.getProgress();
 
           if (!opts.quiet) {
-            logger.info(`Resuming job ${jobId}: ${progress.completedChunks}/${progress.totalChunks} chunks complete`);
+            logger.info(
+              `Resuming job ${jobId}: ${progress.completedChunks}/${progress.totalChunks} chunks complete`,
+            );
           }
 
           // Validate CSV hash
           const currentHash = await calculateCsvHash(opts.csv);
           if (currentHash !== state.csvHash) {
-            logger.warn('CSV file has changed since checkpoint was created. Results may be inconsistent.');
+            logger.warn(
+              'CSV file has changed since checkpoint was created. Results may be inconsistent.',
+            );
           }
         } else if (opts.jobId) {
           // New job with checkpointing
@@ -135,7 +139,9 @@ export function registerImportCommand(program: Command): void {
 
           if (!opts.quiet) {
             const totalChunks = Math.ceil(totalRows / chunkSize);
-            logger.info(`Created checkpoint for job ${opts.jobId}: ${totalRows} rows, ${totalChunks} chunks`);
+            logger.info(
+              `Created checkpoint for job ${opts.jobId}: ${totalRows} rows, ${totalChunks} chunks`,
+            );
           }
         }
 

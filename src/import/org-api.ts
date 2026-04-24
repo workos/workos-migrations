@@ -5,8 +5,7 @@ export async function getOrganizationById(workos: WorkOS, orgId: string): Promis
     const org = await (workos as any).organizations.getOrganization(orgId);
     return Boolean(org?.id);
   } catch (err: any) {
-    const status: number | undefined =
-      err?.status ?? err?.httpStatus ?? err?.response?.status;
+    const status: number | undefined = err?.status ?? err?.httpStatus ?? err?.response?.status;
     if (status === 404) return false;
     throw err;
   }
@@ -20,8 +19,7 @@ export async function getOrganizationByExternalId(
     const org = await (workos as any).organizations.getOrganizationByExternalId(externalId);
     return org?.id ?? null;
   } catch (err: any) {
-    const status: number | undefined =
-      err?.status ?? err?.httpStatus ?? err?.response?.status;
+    const status: number | undefined = err?.status ?? err?.httpStatus ?? err?.response?.status;
     if (status === 404) return null;
     throw err;
   }

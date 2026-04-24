@@ -35,11 +35,14 @@ describe('TOTP Parsers', () => {
   describe('parseTotpCsv', () => {
     it('should parse CSV with required columns', async () => {
       const filePath = path.join(tmpDir, 'totp.csv');
-      fs.writeFileSync(filePath, [
-        'email,totp_secret',
-        'alice@example.com,JBSWY3DPEHPK3PXP',
-        'bob@example.com,KRSXG5CTMVRXEZLU',
-      ].join('\n'));
+      fs.writeFileSync(
+        filePath,
+        [
+          'email,totp_secret',
+          'alice@example.com,JBSWY3DPEHPK3PXP',
+          'bob@example.com,KRSXG5CTMVRXEZLU',
+        ].join('\n'),
+      );
 
       const records = await parseTotpCsv(filePath);
 
@@ -54,10 +57,13 @@ describe('TOTP Parsers', () => {
 
     it('should parse optional issuer and user columns', async () => {
       const filePath = path.join(tmpDir, 'totp.csv');
-      fs.writeFileSync(filePath, [
-        'email,totp_secret,totp_issuer,totp_user',
-        'alice@example.com,JBSWY3DPEHPK3PXP,MyApp,alice',
-      ].join('\n'));
+      fs.writeFileSync(
+        filePath,
+        [
+          'email,totp_secret,totp_issuer,totp_user',
+          'alice@example.com,JBSWY3DPEHPK3PXP,MyApp,alice',
+        ].join('\n'),
+      );
 
       const records = await parseTotpCsv(filePath);
 
@@ -68,10 +74,10 @@ describe('TOTP Parsers', () => {
 
     it('should lowercase and trim emails', async () => {
       const filePath = path.join(tmpDir, 'totp.csv');
-      fs.writeFileSync(filePath, [
-        'email,totp_secret',
-        ' Alice@Example.COM ,JBSWY3DPEHPK3PXP',
-      ].join('\n'));
+      fs.writeFileSync(
+        filePath,
+        ['email,totp_secret', ' Alice@Example.COM ,JBSWY3DPEHPK3PXP'].join('\n'),
+      );
 
       const records = await parseTotpCsv(filePath);
 
@@ -80,12 +86,15 @@ describe('TOTP Parsers', () => {
 
     it('should skip rows without email or secret', async () => {
       const filePath = path.join(tmpDir, 'totp.csv');
-      fs.writeFileSync(filePath, [
-        'email,totp_secret',
-        ',JBSWY3DPEHPK3PXP',
-        'alice@example.com,',
-        'bob@example.com,SECRET123',
-      ].join('\n'));
+      fs.writeFileSync(
+        filePath,
+        [
+          'email,totp_secret',
+          ',JBSWY3DPEHPK3PXP',
+          'alice@example.com,',
+          'bob@example.com,SECRET123',
+        ].join('\n'),
+      );
 
       const records = await parseTotpCsv(filePath);
 
@@ -97,10 +106,13 @@ describe('TOTP Parsers', () => {
   describe('parseTotpNdjson', () => {
     it('should parse direct totp_secret field', async () => {
       const filePath = path.join(tmpDir, 'totp.ndjson');
-      fs.writeFileSync(filePath, [
-        '{"email":"alice@example.com","totp_secret":"JBSWY3DPEHPK3PXP"}',
-        '{"email":"bob@example.com","totp_secret":"KRSXG5CTMVRXEZLU"}',
-      ].join('\n'));
+      fs.writeFileSync(
+        filePath,
+        [
+          '{"email":"alice@example.com","totp_secret":"JBSWY3DPEHPK3PXP"}',
+          '{"email":"bob@example.com","totp_secret":"KRSXG5CTMVRXEZLU"}',
+        ].join('\n'),
+      );
 
       const records = await parseTotpNdjson(filePath);
 
@@ -120,13 +132,16 @@ describe('TOTP Parsers', () => {
 
     it('should parse mfa_factors array format', async () => {
       const filePath = path.join(tmpDir, 'totp.ndjson');
-      fs.writeFileSync(filePath, JSON.stringify({
-        email: 'alice@example.com',
-        mfa_factors: [
-          { type: 'sms', secret: 'ignored' },
-          { type: 'totp', secret: 'TOTPSECRET' },
-        ],
-      }));
+      fs.writeFileSync(
+        filePath,
+        JSON.stringify({
+          email: 'alice@example.com',
+          mfa_factors: [
+            { type: 'sms', secret: 'ignored' },
+            { type: 'totp', secret: 'TOTPSECRET' },
+          ],
+        }),
+      );
 
       const records = await parseTotpNdjson(filePath);
 
@@ -154,10 +169,10 @@ describe('TOTP Parsers', () => {
 
     it('should skip invalid JSON lines', async () => {
       const filePath = path.join(tmpDir, 'totp.ndjson');
-      fs.writeFileSync(filePath, [
-        'not json',
-        '{"email":"alice@example.com","totp_secret":"SECRET"}',
-      ].join('\n'));
+      fs.writeFileSync(
+        filePath,
+        ['not json', '{"email":"alice@example.com","totp_secret":"SECRET"}'].join('\n'),
+      );
 
       const records = await parseTotpNdjson(filePath);
 
@@ -166,11 +181,10 @@ describe('TOTP Parsers', () => {
 
     it('should skip empty lines', async () => {
       const filePath = path.join(tmpDir, 'totp.ndjson');
-      fs.writeFileSync(filePath, [
-        '',
-        '{"email":"alice@example.com","totp_secret":"SECRET"}',
-        '',
-      ].join('\n'));
+      fs.writeFileSync(
+        filePath,
+        ['', '{"email":"alice@example.com","totp_secret":"SECRET"}', ''].join('\n'),
+      );
 
       const records = await parseTotpNdjson(filePath);
 
@@ -181,10 +195,7 @@ describe('TOTP Parsers', () => {
   describe('loadTotpRecords', () => {
     it('should auto-detect CSV format', async () => {
       const filePath = path.join(tmpDir, 'totp.csv');
-      fs.writeFileSync(filePath, [
-        'email,totp_secret',
-        'alice@example.com,SECRET',
-      ].join('\n'));
+      fs.writeFileSync(filePath, ['email,totp_secret', 'alice@example.com,SECRET'].join('\n'));
 
       const records = await loadTotpRecords(filePath);
       expect(records).toHaveLength(1);

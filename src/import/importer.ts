@@ -79,7 +79,9 @@ function parseBooleanLike(value: unknown): boolean | undefined {
 }
 
 function isBlank(value: unknown): boolean {
-  return value === undefined || value === null || (typeof value === 'string' && value.trim() === '');
+  return (
+    value === undefined || value === null || (typeof value === 'string' && value.trim() === '')
+  );
 }
 
 function parseRoleSlugsFromCsv(raw: string | undefined): string[] {
@@ -89,12 +91,16 @@ function parseRoleSlugsFromCsv(raw: string | undefined): string[] {
   if (trimmed.startsWith('[')) {
     try {
       const parsed = JSON.parse(trimmed);
-      if (Array.isArray(parsed)) return parsed.map((s: unknown) => String(s).trim()).filter(Boolean);
+      if (Array.isArray(parsed))
+        return parsed.map((s: unknown) => String(s).trim()).filter(Boolean);
     } catch {
       // fall through
     }
   }
-  return trimmed.split(',').map((s) => s.trim()).filter(Boolean);
+  return trimmed
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
 
 interface OrgInfo {
@@ -114,7 +120,8 @@ function buildUserAndOrgFromRow(row: CSVRow): {
 
   const password = typeof row.password === 'string' ? row.password : undefined;
   const passwordHash = typeof row.password_hash === 'string' ? row.password_hash : undefined;
-  const passwordHashType = typeof row.password_hash_type === 'string' ? row.password_hash_type : undefined;
+  const passwordHashType =
+    typeof row.password_hash_type === 'string' ? row.password_hash_type : undefined;
   const firstName = typeof row.first_name === 'string' ? row.first_name : undefined;
   const lastName = typeof row.last_name === 'string' ? row.last_name : undefined;
   const emailVerifiedParsed = parseBooleanLike(row.email_verified);
@@ -147,7 +154,9 @@ function buildUserAndOrgFromRow(row: CSVRow): {
       ? row.org_external_id.trim()
       : undefined;
   const orgName =
-    typeof row.org_name === 'string' && row.org_name.trim() !== '' ? row.org_name.trim() : undefined;
+    typeof row.org_name === 'string' && row.org_name.trim() !== ''
+      ? row.org_name.trim()
+      : undefined;
 
   if (orgId && orgExternalId) {
     return { error: 'Row cannot specify both org_id and org_external_id' };
@@ -198,8 +207,7 @@ async function retryCreateUser(
       const user = await workos.userManagement.createUser(payload as any);
       return (user as any)?.id as string;
     } catch (err: any) {
-      const status: number | undefined =
-        err?.status ?? err?.httpStatus ?? err?.response?.status;
+      const status: number | undefined = err?.status ?? err?.httpStatus ?? err?.response?.status;
       const message: string = err?.message || 'Unknown error';
       const isRateLimited = status === 429 || /rate.?limit/i.test(message);
       attempt += 1;
@@ -251,8 +259,7 @@ async function retryCreateMembership(
       } as any);
       return { rolesAssigned: roleSlugs?.length ?? 0 };
     } catch (err: any) {
-      const status: number | undefined =
-        err?.status ?? err?.httpStatus ?? err?.response?.status;
+      const status: number | undefined = err?.status ?? err?.httpStatus ?? err?.response?.status;
       const message: string = err?.message || 'Unknown error';
       const errorCode: string = err?.code || '';
       const isRateLimited = status === 429 || /rate.?limit/i.test(message);
@@ -284,7 +291,9 @@ async function retryCreateMembership(
               const retryIsRateLimited = retryStatus === 429 || /rate.?limit/i.test(retryMsg);
               retryAttempt += 1;
               if (retryIsRateLimited && retryAttempt <= maxRetries) {
-                await new Promise((r) => setTimeout(r, baseDelayMs * Math.pow(2, retryAttempt - 1)));
+                await new Promise((r) =>
+                  setTimeout(r, baseDelayMs * Math.pow(2, retryAttempt - 1)),
+                );
                 continue;
               }
               throw retryErr;
@@ -812,7 +821,9 @@ async function processChunk(
                   }
                 } catch (membershipErr: any) {
                   const membershipStatus =
-                    membershipErr?.status ?? membershipErr?.httpStatus ?? membershipErr?.response?.status;
+                    membershipErr?.status ??
+                    membershipErr?.httpStatus ??
+                    membershipErr?.response?.status;
                   if (membershipStatus === 409) {
                     duplicateMemberships += 1;
                     createdMemberships.add(membershipKey);
