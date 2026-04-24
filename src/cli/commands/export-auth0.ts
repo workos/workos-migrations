@@ -1,5 +1,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
+import type { Auth0ExportOptions } from '../../shared/types.js';
+import { exportAuth0 } from '../../exporters/auth0/exporter.js';
 
 export function registerExportAuth0Command(program: Command): void {
   program
@@ -19,7 +21,29 @@ export function registerExportAuth0Command(program: Command): void {
     .option('--job-id <id>', 'Job ID for export checkpointing')
     .option('--resume [jobId]', 'Resume from export checkpoint')
     .option('--quiet', 'Suppress progress output')
-    .action(async () => {
-      console.log(chalk.yellow('Export Auth0 command not yet implemented. Coming in Phase 3.'));
+    .action(async (opts) => {
+      try {
+        const options: Auth0ExportOptions = {
+          domain: opts.domain,
+          clientId: opts.clientId,
+          clientSecret: opts.clientSecret,
+          output: opts.output,
+          orgs: opts.orgs,
+          pageSize: parseInt(opts.pageSize, 10),
+          rateLimit: parseInt(opts.rateLimit, 10),
+          userFetchConcurrency: parseInt(opts.userFetchConcurrency, 10),
+          useMetadata: opts.useMetadata ?? false,
+          metadataOrgIdField: opts.metadataOrgIdField,
+          metadataOrgNameField: opts.metadataOrgNameField,
+          jobId: opts.jobId,
+          resume: opts.resume ?? false,
+          quiet: opts.quiet ?? false,
+        };
+
+        await exportAuth0(options);
+      } catch (error: unknown) {
+        console.error(chalk.red(`\nExport failed: ${(error as Error).message}`));
+        process.exit(1);
+      }
     });
 }

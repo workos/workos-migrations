@@ -107,6 +107,58 @@ export interface ExportSummary {
     skippedUsers: number;
     duration: number;
 }
+export interface Auth0User {
+    user_id: string;
+    email?: string;
+    email_verified?: boolean;
+    name?: string;
+    given_name?: string;
+    family_name?: string;
+    nickname?: string;
+    picture?: string;
+    user_metadata?: Record<string, unknown>;
+    app_metadata?: Record<string, unknown>;
+    created_at: string;
+    updated_at: string;
+    last_login?: string;
+    logins_count?: number;
+    identities?: Array<{
+        provider: string;
+        user_id: string;
+        connection: string;
+        isSocial: boolean;
+    }>;
+}
+export interface Auth0Organization {
+    id: string;
+    name: string;
+    display_name?: string;
+    branding?: {
+        logo_url?: string;
+        colors?: Record<string, string>;
+    };
+    metadata?: Record<string, unknown>;
+}
+export interface Auth0PasswordRecord {
+    _id?: {
+        $oid: string;
+    };
+    email: string;
+    email_verified?: boolean;
+    passwordHash: string;
+    password_set_date?: {
+        $date: string;
+    };
+    tenant?: string;
+    connection?: string;
+}
+export interface PasswordLookup {
+    [email: string]: {
+        hash: string;
+        algorithm: string;
+        setDate?: string;
+    };
+}
 export interface CheckpointState {
     jobId: string;
     csvPath: string;

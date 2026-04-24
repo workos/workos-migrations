@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { registerImportCommand } from './commands/import.js';
 import { registerValidateCommand } from './commands/validate.js';
 import { registerExportAuth0Command } from './commands/export-auth0.js';
+import { registerMergePasswordsCommand } from './commands/merge-passwords.js';
 
 const program = new Command();
 
@@ -13,5 +14,6 @@ program
 registerImportCommand(program);
 registerValidateCommand(program);
 registerExportAuth0Command(program);
+registerMergePasswordsCommand(program);
 
 export { program };
