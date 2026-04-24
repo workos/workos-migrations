@@ -24,11 +24,13 @@ export async function runImportStep(state) {
     const confirm = await prompts({
         type: 'confirm',
         name: 'proceed',
-        message: state.dryRun
-            ? 'Start dry-run import?'
-            : 'Start importing users to WorkOS?',
+        message: state.dryRun ? 'Start dry-run import?' : 'Start importing users to WorkOS?',
         initial: true,
-    }, { onCancel: () => { state.cancelled = true; } });
+    }, {
+        onCancel: () => {
+            state.cancelled = true;
+        },
+    });
     if (state.cancelled)
         return state;
     if (!confirm.proceed) {
@@ -36,9 +38,7 @@ export async function runImportStep(state) {
         return state;
     }
     try {
-        const workos = state.dryRun
-            ? createWorkOSClient('dry-run-key')
-            : createWorkOSClient();
+        const workos = state.dryRun ? createWorkOSClient('dry-run-key') : createWorkOSClient();
         // Create checkpoint
         const csvHash = await calculateCsvHash(state.csvFilePath);
         const checkpointManager = await CheckpointManager.create({
@@ -73,7 +73,11 @@ export async function runImportStep(state) {
                 name: 'proceed',
                 message: 'Dry-run complete. Run the actual import now?',
                 initial: true,
-            }, { onCancel: () => { state.cancelled = true; } });
+            }, {
+                onCancel: () => {
+                    state.cancelled = true;
+                },
+            });
             if (state.cancelled)
                 return state;
             if (realRun.proceed) {

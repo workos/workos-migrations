@@ -15,6 +15,9 @@ export async function configureExport(state: WizardState): Promise<WizardState> 
   if (state.provider === 'firebase') {
     return configureFirebaseExport(state);
   }
+  if (state.provider === 'cognito') {
+    return configureCognitoExport(state);
+  }
   if (state.provider === 'csv') {
     return configureCustomCsv(state);
   }
@@ -241,6 +244,44 @@ async function configureFirebaseExport(state: WizardState): Promise<WizardState>
   state.firebaseOrgMapping = response.orgMapping;
   state.firebaseRoleMapping = response.roleMapping;
   state.csvFilePath = response.output;
+  return state;
+}
+
+async function configureCognitoExport(state: WizardState): Promise<WizardState> {
+  console.log(
+    chalk.gray('  Cognito export connects to your user pool(s) via the AWS SDK.\n'),
+  );
+
+  const response = await prompts(
+    [
+      {
+        type: 'multiselect',
+        name: 'entities',
+        message: 'Which entities should be exported?',
+        choices: [
+          { title: 'Connections (SAML + OIDC)', value: 'connections', selected: true },
+          { title: 'Users', value: 'users', selected: true },
+        ],
+        min: 1,
+      },
+      {
+        type: 'text',
+        name: 'outputDir',
+        message: 'Output directory for CSV files',
+        initial: '.',
+      },
+    ],
+    {
+      onCancel: () => {
+        state.cancelled = true;
+      },
+    },
+  );
+
+  if (state.cancelled) return state;
+
+  state.cognitoEntities = response.entities.join(',');
+  state.cognitoOutputDir = response.outputDir;
   return state;
 }
 

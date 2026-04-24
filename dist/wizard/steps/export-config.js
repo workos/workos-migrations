@@ -12,6 +12,9 @@ export async function configureExport(state) {
     if (state.provider === 'firebase') {
         return configureFirebaseExport(state);
     }
+    if (state.provider === 'cognito') {
+        return configureCognitoExport(state);
+    }
     if (state.provider === 'csv') {
         return configureCustomCsv(state);
     }
@@ -39,7 +42,11 @@ async function configureAuth0Export(state) {
             message: 'Output CSV file path',
             initial: 'auth0-export.csv',
         },
-    ], { onCancel: () => { state.cancelled = true; } });
+    ], {
+        onCancel: () => {
+            state.cancelled = true;
+        },
+    });
     if (state.cancelled)
         return state;
     state.auth0RateLimit = response.rateLimit;
@@ -63,7 +70,7 @@ async function configureClerkExport(state) {
             initial: false,
         },
         {
-            type: (prev) => prev ? 'text' : null,
+            type: (prev) => (prev ? 'text' : null),
             name: 'orgMapping',
             message: 'Path to org mapping CSV (clerk_user_id,org_external_id,org_name)',
             validate: (v) => fs.existsSync(v) || 'File not found',
@@ -75,7 +82,7 @@ async function configureClerkExport(state) {
             initial: false,
         },
         {
-            type: (prev) => prev ? 'text' : null,
+            type: (prev) => (prev ? 'text' : null),
             name: 'roleMapping',
             message: 'Path to role mapping CSV (clerk_user_id,role_slug)',
             validate: (v) => fs.existsSync(v) || 'File not found',
@@ -86,7 +93,11 @@ async function configureClerkExport(state) {
             message: 'Output CSV file path',
             initial: 'clerk-transformed.csv',
         },
-    ], { onCancel: () => { state.cancelled = true; } });
+    ], {
+        onCancel: () => {
+            state.cancelled = true;
+        },
+    });
     if (state.cancelled)
         return state;
     state.clerkCsvPath = response.csvPath;
@@ -109,9 +120,21 @@ async function configureFirebaseExport(state) {
             name: 'nameSplit',
             message: 'How should displayName be split?',
             choices: [
-                { title: 'First Space', value: 'first-space', description: '"John Michael Smith" -> first: John, last: Michael Smith' },
-                { title: 'Last Space', value: 'last-space', description: '"John Michael Smith" -> first: John Michael, last: Smith' },
-                { title: 'First Name Only', value: 'first-name-only', description: 'Put full name in first_name' },
+                {
+                    title: 'First Space',
+                    value: 'first-space',
+                    description: '"John Michael Smith" -> first: John, last: Michael Smith',
+                },
+                {
+                    title: 'Last Space',
+                    value: 'last-space',
+                    description: '"John Michael Smith" -> first: John Michael, last: Smith',
+                },
+                {
+                    title: 'First Name Only',
+                    value: 'first-name-only',
+                    description: 'Put full name in first_name',
+                },
             ],
         },
         {
@@ -121,7 +144,7 @@ async function configureFirebaseExport(state) {
             initial: false,
         },
         {
-            type: (prev) => prev ? 'text' : null,
+            type: (prev) => (prev ? 'text' : null),
             name: 'signerKey',
             message: 'Signer key (base64)',
             validate: (v) => v.length > 0 || 'Required',
@@ -157,7 +180,7 @@ async function configureFirebaseExport(state) {
             initial: false,
         },
         {
-            type: (prev) => prev ? 'text' : null,
+            type: (prev) => (prev ? 'text' : null),
             name: 'orgMapping',
             message: 'Path to org mapping CSV (firebase_uid,org_external_id,org_name)',
             validate: (v) => fs.existsSync(v) || 'File not found',
@@ -169,7 +192,7 @@ async function configureFirebaseExport(state) {
             initial: false,
         },
         {
-            type: (prev) => prev ? 'text' : null,
+            type: (prev) => (prev ? 'text' : null),
             name: 'roleMapping',
             message: 'Path to role mapping CSV (firebase_uid,role_slug)',
             validate: (v) => fs.existsSync(v) || 'File not found',
@@ -180,7 +203,11 @@ async function configureFirebaseExport(state) {
             message: 'Output CSV file path',
             initial: 'firebase-transformed.csv',
         },
-    ], { onCancel: () => { state.cancelled = true; } });
+    ], {
+        onCancel: () => {
+            state.cancelled = true;
+        },
+    });
     if (state.cancelled)
         return state;
     state.firebaseJsonPath = response.jsonPath;
@@ -195,6 +222,36 @@ async function configureFirebaseExport(state) {
     state.csvFilePath = response.output;
     return state;
 }
+async function configureCognitoExport(state) {
+    console.log(chalk.gray('  Cognito export connects to your user pool(s) via the AWS SDK.\n'));
+    const response = await prompts([
+        {
+            type: 'multiselect',
+            name: 'entities',
+            message: 'Which entities should be exported?',
+            choices: [
+                { title: 'Connections (SAML + OIDC)', value: 'connections', selected: true },
+                { title: 'Users', value: 'users', selected: true },
+            ],
+            min: 1,
+        },
+        {
+            type: 'text',
+            name: 'outputDir',
+            message: 'Output directory for CSV files',
+            initial: '.',
+        },
+    ], {
+        onCancel: () => {
+            state.cancelled = true;
+        },
+    });
+    if (state.cancelled)
+        return state;
+    state.cognitoEntities = response.entities.join(',');
+    state.cognitoOutputDir = response.outputDir;
+    return state;
+}
 async function configureCustomCsv(state) {
     console.log(chalk.gray('  Provide a CSV already in WorkOS import format.\n'));
     const response = await prompts({
@@ -202,7 +259,11 @@ async function configureCustomCsv(state) {
         name: 'csvPath',
         message: 'Path to your CSV file',
         validate: (v) => fs.existsSync(v) || 'File not found',
-    }, { onCancel: () => { state.cancelled = true; } });
+    }, {
+        onCancel: () => {
+            state.cancelled = true;
+        },
+    });
     if (state.cancelled)
         return state;
     state.customCsvPath = response.csvPath;

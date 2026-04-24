@@ -10,7 +10,7 @@ import { runImportStep } from './steps/import-run.js';
 import { runPostImport } from './steps/post-import.js';
 import { showSummary } from './steps/summary.js';
 
-export type Provider = 'auth0' | 'clerk' | 'firebase' | 'csv';
+export type Provider = 'auth0' | 'clerk' | 'firebase' | 'cognito' | 'csv';
 
 export interface WizardState {
   // Step 1: Provider
@@ -38,6 +38,10 @@ export interface WizardState {
   firebaseRounds?: number;
   firebaseMemCost?: number;
   firebaseIncludeDisabled?: boolean;
+  cognitoRegion?: string;
+  cognitoUserPoolIds?: string;
+  cognitoEntities?: string;
+  cognitoOutputDir?: string;
   customCsvPath?: string;
 
   // Step 4: Export output

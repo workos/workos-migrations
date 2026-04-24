@@ -9,7 +9,11 @@ export async function mergePasswords(state) {
         name: 'hasPasswords',
         message: 'Do you have an Auth0 password hash export (NDJSON)?',
         initial: false,
-    }, { onCancel: () => { state.cancelled = true; } });
+    }, {
+        onCancel: () => {
+            state.cancelled = true;
+        },
+    });
     if (state.cancelled)
         return state;
     if (!response.hasPasswords) {
@@ -23,7 +27,11 @@ export async function mergePasswords(state) {
         name: 'passwordsPath',
         message: 'Path to Auth0 password hash NDJSON file',
         validate: (v) => fs.existsSync(v) || 'File not found',
-    }, { onCancel: () => { state.cancelled = true; } });
+    }, {
+        onCancel: () => {
+            state.cancelled = true;
+        },
+    });
     if (state.cancelled)
         return state;
     state.auth0PasswordsPath = fileResponse.passwordsPath;

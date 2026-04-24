@@ -1,0 +1,12 @@
+{
+  "userPoolId": "us-east-1_AAAPOOL",
+  "username": "SomeSamlIdP_carol@acme.com",
+  "userStatus": "EXTERNAL_PROVIDER",
+  "enabled": true,
+  "attributes": {
+    "sub": "11223344-5566-7788-99aa-bbccddeeff00",
+    "email": "carol@acme.com",
+    "email_verified": "true",
+    "name": "Carol Williams"
+  }
+}

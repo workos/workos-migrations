@@ -1,0 +1,11 @@
+{
+  "userPoolId": "us-east-1_AAAPOOL",
+  "username": "+15551234567",
+  "userStatus": "CONFIRMED",
+  "enabled": true,
+  "attributes": {
+    "sub": "deadbeef-0000-1111-2222-333344445555",
+    "phone_number": "+15551234567",
+    "phone_number_verified": "true"
+  }
+}

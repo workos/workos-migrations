@@ -1,0 +1,12 @@
+{
+  "userPoolId": "us-east-1_AAAPOOL",
+  "username": "multi-word-user",
+  "userStatus": "CONFIRMED",
+  "enabled": true,
+  "attributes": {
+    "sub": "fedcba98-7654-3210-0123-456789abcdef",
+    "email": "multi@example.com",
+    "email_verified": "true",
+    "name": "Mary Ann Jones Smith"
+  }
+}

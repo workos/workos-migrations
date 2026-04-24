@@ -11,7 +11,11 @@ export async function enterCredentials(state) {
             name: 'workosKey',
             message: 'Enter your WorkOS Secret Key (sk_...)',
             validate: (v) => v.startsWith('sk_') || 'Must start with sk_',
-        }, { onCancel: () => { state.cancelled = true; } });
+        }, {
+            onCancel: () => {
+                state.cancelled = true;
+            },
+        });
         if (state.cancelled)
             return state;
         // Set for this process
@@ -45,13 +49,45 @@ export async function enterCredentials(state) {
                 initial: process.env.AUTH0_CLIENT_SECRET || '',
                 validate: (v) => v.length > 0 || 'Required',
             },
-        ], { onCancel: () => { state.cancelled = true; } });
+        ], {
+            onCancel: () => {
+                state.cancelled = true;
+            },
+        });
         if (state.cancelled)
             return state;
         state.auth0Domain = auth0Creds.domain;
         state.auth0ClientId = auth0Creds.clientId;
         state.auth0ClientSecret = auth0Creds.clientSecret;
         console.log(chalk.green('  Auth0 credentials configured.\n'));
+    }
+    if (state.provider === 'cognito') {
+        const cognitoCreds = await prompts([
+            {
+                type: 'text',
+                name: 'region',
+                message: 'AWS Region (e.g. us-east-1)',
+                initial: process.env.AWS_REGION || '',
+                validate: (v) => v.length > 0 || 'Required',
+            },
+            {
+                type: 'text',
+                name: 'userPoolIds',
+                message: 'Cognito User Pool IDs (comma-separated)',
+                initial: process.env.COGNITO_USER_POOL_IDS || '',
+                validate: (v) => v.length > 0 || 'Required',
+            },
+        ], {
+            onCancel: () => {
+                state.cancelled = true;
+            },
+        });
+        if (state.cancelled)
+            return state;
+        state.cognitoRegion = cognitoCreds.region;
+        state.cognitoUserPoolIds = cognitoCreds.userPoolIds;
+        console.log(chalk.green('  AWS Cognito credentials configured.\n'));
+        console.log(chalk.gray('  AWS access keys will be read from the default credential chain (env, profile, IMDS).\n'));
     }
     return state;
 }

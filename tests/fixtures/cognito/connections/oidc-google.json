@@ -1,0 +1,19 @@
+{
+  "userPoolId": "us-east-1_AAAPOOL",
+  "providerName": "google-sso",
+  "providerType": "OIDC",
+  "region": "us-east-1",
+  "providerDetails": {
+    "client_id": "google-workspace-client-id.apps.googleusercontent.com",
+    "client_secret": "google-client-secret-for-testing",
+    "oidc_issuer": "https://accounts.google.com",
+    "authorize_scopes": "openid profile email"
+  },
+  "attributeMapping": {
+    "email": "email",
+    "given_name": "given_name",
+    "family_name": "family_name",
+    "name": "name"
+  },
+  "idpIdentifiers": []
+}

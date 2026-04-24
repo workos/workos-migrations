@@ -365,6 +365,23 @@ export interface EntityType {
   enabled: boolean;
 }
 
+export interface ProviderClient {
+  authenticate(): Promise<void>;
+  getAvailableEntities(): Promise<EntityType[]>;
+  exportEntities(entities: string[]): Promise<ExportResult>;
+  validateCredentials(): Promise<void>;
+  getScopes?(): string[];
+}
+
+export interface ExportResult {
+  timestamp: string;
+  provider: string;
+  entities: Record<string, unknown[]>;
+  summary: {
+    [entityType: string]: number;
+  };
+}
+
 // --- Progress Types ---
 
 export interface ProgressStats {

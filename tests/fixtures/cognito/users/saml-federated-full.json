@@ -1,0 +1,15 @@
+{
+  "userPoolId": "us-east-1_AAAPOOL",
+  "username": "SomeSamlIdP_bob@acme.com",
+  "userStatus": "EXTERNAL_PROVIDER",
+  "enabled": true,
+  "attributes": {
+    "sub": "9f8e7d6c-5432-4321-8765-fedcba098765",
+    "email": "bob@acme.com",
+    "email_verified": "true",
+    "given_name": "Bob",
+    "family_name": "Chen",
+    "custom:department": "Engineering",
+    "identities": "[{\"userId\":\"bob@acme.com\",\"providerName\":\"SomeSamlIdP\",\"providerType\":\"SAML\",\"issuer\":\"https://idp.acme.com/\",\"primary\":true,\"dateCreated\":\"1736190000000\"}]"
+  }
+}
