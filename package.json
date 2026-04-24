@@ -45,7 +45,7 @@
   },
   "devDependencies": {
     "@types/form-data": "^2.5.2",
-    "@types/inquirer": "^8.2.10",
+    "@types/inquirer": "^9.0.9",
     "@types/jest": "^30.0.0",
     "@types/node": "^25.6.0",
     "@typescript-eslint/eslint-plugin": "^7.18.0",
