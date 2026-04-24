@@ -1,14 +1,18 @@
 # WorkOS Migrations
 
-A CLI tool to migrate data from various identity providers to WorkOS.
+A CLI tool for migrating users from identity providers into WorkOS. Supports Auth0, Clerk, Firebase Auth, and custom CSV imports with password hashes, organization memberships, roles, and TOTP MFA factors.
 
-## Features
+## Quick Start
 
-- **Multiple Provider Support**: Auth0, Clerk, Firebase Auth, AWS Cognito
-- **Interactive Mode**: User-friendly prompts to guide you through the process
-- **CLI Arguments**: Automate exports with command-line arguments
-- **Config File Support**: Save credentials for repeated use
-- **Entity Selection**: Choose which data types to export (users, connections, etc.)
+The fastest way to get started is with the interactive wizard:
+
+```bash
+export WORKOS_SECRET_KEY=sk_...
+
+npx workos-migrate wizard
+```
+
+The wizard walks you through provider selection, export/transform, validation, and import step by step.
 
 ## Installation
 
@@ -16,176 +20,375 @@ A CLI tool to migrate data from various identity providers to WorkOS.
 npm install -g workos-migrations
 ```
 
-## Usage
-
-### Interactive Mode
-
-Run the tool without arguments to enter interactive mode:
+Or run directly with npx:
 
 ```bash
-npx workos-migrations
+npx workos-migrate <command>
 ```
 
-### Command Line Mode
+## Commands
 
-#### Auth0 Export
+| Command | Description |
+|---------|-------------|
+| `wizard` | Interactive step-by-step migration wizard |
+| `export-auth0` | Export users from Auth0 via Management API |
+| `merge-passwords` | Merge Auth0 password hashes into the export CSV |
+| `transform-clerk` | Transform a Clerk CSV export to WorkOS format |
+| `transform-firebase` | Transform a Firebase Auth JSON export to WorkOS format |
+| `validate` | Validate a CSV file before import |
+| `import` | Import users from CSV into WorkOS |
+| `analyze` | Analyze import errors and generate retry CSV |
+| `enroll-totp` | Enroll TOTP MFA factors for imported users |
+| `process-role-definitions` | Create roles and assign permissions in WorkOS |
+
+Run `workos-migrate <command> --help` for full option details on any command.
+
+## Prerequisites
+
+- Node.js 18+
+- A WorkOS Secret Key (`WORKOS_SECRET_KEY` environment variable)
+
+## CSV Format
+
+The import CSV uses these columns:
+
+| Column | Required | Description |
+|--------|----------|-------------|
+| `email` | Yes | User email address |
+| `first_name` | No | First name |
+| `last_name` | No | Last name |
+| `email_verified` | No | `true` or `false` |
+| `password_hash` | No | Password hash value |
+| `password_hash_type` | No | `bcrypt`, `firebase-scrypt`, `ssha`, `md5` |
+| `external_id` | No | External identifier from source system |
+| `metadata` | No | JSON string of custom metadata |
+| `org_id` | No | WorkOS organization ID |
+| `org_external_id` | No | External org identifier (looked up or auto-created) |
+| `org_name` | No | Organization name (used with auto-creation) |
+| `role_slugs` | No | Comma-separated role slugs for org membership |
+
+The export and transform commands produce CSVs in this format automatically.
+
+---
+
+## Migrating from Auth0
+
+### 1. Set up Auth0 credentials
+
+Create a Machine-to-Machine application in Auth0, authorize it for the Management API, and grant these scopes:
+
+- `read:users`
+- `read:user_idp_tokens`
+- `read:organizations`
+- `read:organization_members`
+
+### 2. Export users
 
 ```bash
-# Using environment variables
-export AUTH0_CLIENT_ID="your_client_id"
-export AUTH0_CLIENT_SECRET="your_client_secret"
-export AUTH0_DOMAIN="your-tenant.auth0.com"
-
-npx workos-migrations auth0 export
-
-# Using CLI arguments
-npx workos-migrations auth0 export \
-  --client-id "your_client_id" \
-  --client-secret "your_client_secret" \
-  --domain "your-tenant.auth0.com"
-
-# Export specific entities
-npx workos-migrations auth0 export --entities users,connections
+workos-migrate export-auth0 \
+  --domain my-tenant.us.auth0.com \
+  --client-id <M2M_CLIENT_ID> \
+  --client-secret <M2M_CLIENT_SECRET> \
+  --output auth0-export.csv
 ```
 
-#### Other Providers
+Options:
+
+- `--orgs <ids...>` - Filter to specific Auth0 organization IDs
+- `--rate-limit <n>` - API requests per second (default: 50)
+- `--use-metadata` - Use `user_metadata` for org discovery instead of the Organizations API
+- `--job-id <id>` - Enable export checkpointing for large tenants
+- `--resume [jobId]` - Resume a previously checkpointed export
+
+The export maps Auth0 fields to WorkOS CSV format, including `email_verified`, `external_id`, and custom metadata.
+
+### 3. Merge password hashes (optional)
+
+Auth0 does not include password hashes in the Management API export. You need to request a password export from Auth0 support, which provides an NDJSON file. Once you have it:
 
 ```bash
-# These will record feature requests
-npx workos-migrations clerk export
-npx workos-migrations firebase export
-npx workos-migrations cognito export
-
-# CSV Import to WorkOS
-export WORKOS_API_KEY="your_workos_api_key"
-
-# Generate CSV templates
-npx workos-migrations csv generate-template --template users
-npx workos-migrations csv generate-template --template organizations
-npx workos-migrations csv generate-template --template organization_memberships
-npx workos-migrations csv generate-template --template connections
-
-# Validate CSV files
-npx workos-migrations csv validate --template users --file users.csv
-
-# Import CSV files to WorkOS
-npx workos-migrations csv import --template users --file users.csv
-
-# List import jobs
-npx workos-migrations csv list-jobs
+workos-migrate merge-passwords \
+  --csv auth0-export.csv \
+  --passwords auth0-passwords.ndjson \
+  --output auth0-with-passwords.csv
 ```
 
-### Configuration
+This merges bcrypt hashes into the CSV by matching on email. Users without a matching hash are left without a password and will need to reset on first login.
 
-Credentials can be saved to `~/.workos-migrations/config.json`:
+### 4. Validate, import, and post-import
 
-```json
-{
-  "providers": {
-    "auth0": {
-      "clientId": "your_client_id",
-      "clientSecret": "your_client_secret",
-      "domain": "your-tenant.auth0.com"
-    },
-    "csv": {
-      "workosApiKey": "your_workos_api_key"
-    }
-  }
-}
-```
+Continue to [Validation](#validation), [Import](#importing-users), and [Post-Import](#post-import-totp-and-roles) below.
 
-## Supported Providers
+---
 
-- ✅ **Auth0** - Full export support
-- ✅ **CSV Import to WorkOS** - Full import support with templates
-- 🚧 **Clerk** - Coming soon
-- 🚧 **Firebase Auth** - Coming soon
-- 🚧 **AWS Cognito** - Coming soon
+## Migrating from Clerk
 
-## Auth0 Setup
+### 1. Export from Clerk
 
-1. Create a Machine-to-Machine application in Auth0
-2. Authorize it for the Auth0 Management API
-3. Grant the following scopes:
-   - `read:users` (for user export)
-   - `read:connections` (for connection export)
-   - `read:connections_options` (for connection details)
-   - `read:clients` (for application export)
-   - `read:roles` (for role export)
-   - `read:organizations` (for organization export)
+Export your users from the Clerk Dashboard as a CSV file. The export includes columns like `id`, `first_name`, `last_name`, `primary_email_address`, `password_digest`, `password_hasher`, etc.
 
-## CSV Import Templates
-
-The tool supports importing data to WorkOS using predefined CSV templates:
-
-### Users Template (`users.csv`)
-
-- **Required**: `user_id`, `email`
-- **Optional**: `email_verified`, `first_name`, `last_name`, `password_hash`
-
-### Organizations Template (`organizations.csv`)
-
-- **Required**: `organization_id`, `name`
-
-### Organization Memberships Template (`organization_memberships.csv`)
-
-- **Required**: `organization_id`, `user_id`
-
-### Connections Template (`connections.csv`)
-
-- **Required**: `organizationName`, `organizationId`
-- **Optional**: `domains`, `idpEntityId`, `idpUrl`, `x509Cert`, `idpIdAttribute`, `idpMetadataUrl`, `customEntityId`, `customAcsUrl`, `requestSigningCert`
-
-**Field Descriptions:**
-
-- `organizationName`: Name of the organization
-- `organizationId`: Unique identifier for the organization
-- `domains`: Semicolon-separated list of domains (e.g., "acme.com;app.acme.com")
-- `idpEntityId`: Identity Provider Entity ID
-- `idpUrl`: Identity Provider SSO URL
-- `x509Cert`: X.509 certificate for SAML signing
-- `idpIdAttribute`: Attribute mapping for user ID (e.g., "email", "uid")
-- `idpMetadataUrl`: URL to IdP metadata
-- `customEntityId`: Custom Entity ID override
-- `customAcsUrl`: Custom ACS (Assertion Consumer Service) URL
-- `requestSigningCert`: Certificate for signing SAML requests
-
-Generate templates with examples:
+### 2. Transform to WorkOS format
 
 ```bash
-npx workos-migrations csv generate-template --template users --output my-users.csv
+workos-migrate transform-clerk \
+  --input clerk-export.csv \
+  --output clerk-transformed.csv
 ```
+
+Options:
+
+- `--org-mapping <path>` - CSV mapping Clerk user IDs to organizations (`clerk_user_id,org_external_id,org_name`)
+- `--role-mapping <path>` - CSV mapping Clerk user IDs to roles (`clerk_user_id,role_slug`)
+
+The transformer handles:
+- Field mapping (Clerk columns to WorkOS columns)
+- bcrypt password passthrough (other hash types like argon2 are dropped with a warning since WorkOS does not support them)
+- Username, phone number, and TOTP secret preservation in metadata
+- Organization and role sidecar merging into the output CSV
+
+### 3. Validate, import, and post-import
+
+Continue to [Validation](#validation), [Import](#importing-users), and [Post-Import](#post-import-totp-and-roles) below.
+
+---
+
+## Migrating from Firebase Auth
+
+### 1. Export from Firebase
+
+Export your users from the Firebase Console or using the Firebase CLI (`firebase auth:export`). This produces a JSON file with a `users` array.
+
+### 2. Get password hash parameters
+
+If you want to migrate passwords, get the hash parameters from Firebase Console > Authentication > Users > Password Hash Parameters. You need the signer key, salt separator, rounds, and memory cost.
+
+### 3. Transform to WorkOS format
+
+```bash
+workos-migrate transform-firebase \
+  --input firebase-export.json \
+  --output firebase-transformed.csv \
+  --signer-key <BASE64_KEY> \
+  --salt-separator <BASE64_SEP> \
+  --rounds 8 \
+  --memory-cost 14
+```
+
+Options:
+
+- `--name-split <strategy>` - How to split `displayName` into first/last: `first-space` (default), `last-space`, or `first-name-only`
+- `--include-disabled` - Include disabled users (excluded by default)
+- `--skip-passwords` - Skip password hash encoding
+- `--org-mapping <path>` - CSV mapping Firebase UIDs to organizations (`firebase_uid,org_external_id,org_name`)
+- `--role-mapping <path>` - CSV mapping Firebase UIDs to roles (`firebase_uid,role_slug`)
+
+The transformer handles:
+- Firebase scrypt to PHC format encoding (`$firebase-scrypt$hash=...`)
+- `displayName` splitting into `first_name` and `last_name`
+- Phone number, custom claims, and Firebase UID preservation in metadata
+- Skipping users without an email address
+
+### 4. Validate, import, and post-import
+
+Continue to [Validation](#validation), [Import](#importing-users), and [Post-Import](#post-import-totp-and-roles) below.
+
+---
+
+## Custom CSV
+
+If you already have a CSV in WorkOS format (see [CSV Format](#csv-format) above), skip straight to validation:
+
+```bash
+workos-migrate validate --csv my-users.csv
+workos-migrate import --csv my-users.csv
+```
+
+---
+
+## Validation
+
+Validate your CSV before importing to catch problems early:
+
+```bash
+workos-migrate validate --csv users.csv
+```
+
+The validator checks:
+- Required fields (`email` is present and non-empty)
+- Email format
+- Duplicate emails
+- Password hash format (valid bcrypt or firebase-scrypt structure)
+- Organization reference consistency
+
+### Auto-fix
+
+The `--auto-fix` flag corrects common issues automatically:
+
+```bash
+workos-migrate validate --csv users.csv --auto-fix --output users-fixed.csv
+```
+
+Auto-fix handles whitespace trimming, email lowercasing, and empty field cleanup.
+
+---
+
+## Importing Users
+
+### Basic import
+
+```bash
+workos-migrate import --csv users.csv
+```
+
+### Organization modes
+
+**User only** (no org membership):
+```bash
+workos-migrate import --csv users.csv
+```
+
+**Single org** (all users into one organization):
+```bash
+workos-migrate import --csv users.csv --org-id org_01ABC
+```
+
+**Multi-org** (org per row, from CSV columns):
+```bash
+workos-migrate import --csv users.csv --create-org-if-missing
+```
+
+In multi-org mode, the importer reads `org_id`, `org_external_id`, or `org_name` from each row. Organizations are cached in memory to avoid repeated API lookups. If `--create-org-if-missing` is set, organizations referenced by name or external ID that don't exist in WorkOS are created automatically.
+
+### Performance options
+
+```bash
+workos-migrate import \
+  --csv users.csv \
+  --concurrency 20 \
+  --rate-limit 50 \
+  --workers 4 \
+  --chunk-size 5000 \
+  --job-id my-migration
+```
+
+- `--concurrency <n>` - Parallel API requests per worker (default: 10)
+- `--rate-limit <n>` - Max requests per second across all workers (default: 50)
+- `--workers <n>` - Worker threads for CPU distribution (default: 1, requires `--job-id`)
+- `--chunk-size <n>` - Rows per checkpoint chunk (default: 1000)
+
+### Checkpoint and resume
+
+For large migrations, use `--job-id` to enable checkpointing. If the process crashes or is interrupted, resume from where it left off:
+
+```bash
+# Start with checkpointing
+workos-migrate import --csv users.csv --job-id my-migration
+
+# Resume after interruption
+workos-migrate import --csv users.csv --resume my-migration
+```
+
+Checkpoint state is stored in `.workos-checkpoints/<job-id>/`.
+
+### Dry run
+
+Preview what the import would do without making any API calls:
+
+```bash
+workos-migrate import --csv users.csv --dry-run
+```
+
+### Error output
+
+Import errors are written to a JSONL file (default: `errors.jsonl`). Each line contains the email, error type, HTTP status, and message for a single failure.
+
+---
+
+## Error Analysis
+
+After an import, analyze errors to understand what went wrong and generate a retry CSV:
+
+```bash
+workos-migrate analyze \
+  --errors errors.jsonl \
+  --retry-csv retry.csv \
+  --original-csv users.csv
+```
+
+The analyzer groups errors by pattern, classifies them as retryable or non-retryable, and suggests fixes. The retry CSV contains only the rows that failed with retryable errors, so you can re-import just those users.
+
+---
+
+## Post-Import: TOTP and Roles
+
+### TOTP MFA enrollment
+
+If your source system has TOTP secrets (e.g., from Auth0 or Clerk), you can enroll them in WorkOS after import:
+
+```bash
+workos-migrate enroll-totp \
+  --input totp-secrets.csv \
+  --totp-issuer "MyApp"
+```
+
+The input file can be CSV (`email,totp_secret`) or NDJSON (one JSON object per line with `email` and `totp_secret` or `mfa_factors` fields). Format is auto-detected from the file extension.
+
+Options:
+
+- `--format <csv|ndjson>` - Override auto-detection
+- `--concurrency <n>` - Parallel requests (default: 5)
+- `--rate-limit <n>` - Requests per second (default: 10)
+- `--totp-issuer <name>` - Issuer shown in authenticator apps
+- `--dry-run` - Validate without enrolling
+
+### Role definitions and assignment
+
+Create roles and permissions in WorkOS from a CSV, then assign them to users:
+
+```bash
+# Create roles and permissions
+workos-migrate process-role-definitions \
+  --definitions role-definitions.csv
+
+# Create roles and assign to users
+workos-migrate process-role-definitions \
+  --definitions role-definitions.csv \
+  --user-mapping user-roles.csv \
+  --org-id org_01ABC
+```
+
+**Role definitions CSV** (`role_slug,role_name,role_type,permissions[,org_id]`):
+```csv
+role_slug,role_name,role_type,permissions
+admin,Administrator,environment,"read,write,delete"
+viewer,Viewer,environment,read
+org-admin,Org Admin,organization,"read,write",org_01ABC
+```
+
+**User-role mapping CSV** (`email,role_slug`):
+```csv
+email,role_slug
+alice@example.com,admin
+bob@example.com,viewer
+```
+
+---
 
 ## Development
 
 ```bash
-# Install dependencies
 npm install
-
-# Build
 npm run build
-
-# Run in development
-npm run dev
-
-# Run built version
-npm start
-
-# Lint, format check, typecheck, and tests
+npm run dev         # Run with tsx (no build step)
 npm run lint
-npm run format:check
 npm run typecheck
-npm test
+npm test            # 120 tests across 10 suites
 ```
 
 ## Contributing
 
-Contributions are welcome! See [CONTRIBUTING.md](./CONTRIBUTING.md) for
-development setup, coding guidelines, and instructions for adding new
-providers. Security-related issues should be reported privately as described
-in [SECURITY.md](./SECURITY.md).
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for development setup and guidelines. Security issues should be reported privately as described in [SECURITY.md](./SECURITY.md).
 
 ## License
 
-This project is licensed under the MIT License — see the [LICENSE](./LICENSE)
-file for details.
+MIT. See [LICENSE](./LICENSE).
