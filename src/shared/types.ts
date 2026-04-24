@@ -184,6 +184,74 @@ export interface PasswordLookup {
   };
 }
 
+// --- Transformer Types ---
+
+export interface TransformSummary {
+  totalUsers: number;
+  transformedUsers: number;
+  skippedUsers: number;
+  usersWithPasswords: number;
+  usersWithoutPasswords: number;
+  usersWithOrgMapping: number;
+  usersWithoutOrgMapping: number;
+  usersWithRoleMapping: number;
+  skippedReasons: Record<string, number>;
+}
+
+export interface ClerkUserRow {
+  id: string;
+  first_name: string;
+  last_name: string;
+  username: string;
+  primary_email_address: string;
+  primary_phone_number: string;
+  verified_email_addresses: string;
+  unverified_email_addresses: string;
+  verified_phone_numbers: string;
+  unverified_phone_numbers: string;
+  totp_secret: string;
+  password_digest: string;
+  password_hasher: string;
+  [key: string]: string;
+}
+
+export interface FirebaseUserRecord {
+  localId: string;
+  email?: string;
+  emailVerified?: boolean;
+  displayName?: string;
+  photoUrl?: string;
+  phoneNumber?: string;
+  passwordHash?: string;
+  salt?: string;
+  disabled?: boolean;
+  createdAt?: string;
+  lastSignedInAt?: string;
+  customAttributes?: string;
+  providerUserInfo?: Array<{
+    providerId: string;
+    rawId: string;
+    email?: string;
+    displayName?: string;
+    photoUrl?: string;
+  }>;
+  mfaInfo?: Array<{
+    mfaEnrollmentId: string;
+    displayName?: string;
+    phoneInfo?: string;
+    enrolledAt?: string;
+  }>;
+}
+
+export type NameSplitStrategy = 'first-space' | 'last-space' | 'first-name-only';
+
+export interface FirebaseScryptConfig {
+  signerKey: string;
+  saltSeparator: string;
+  rounds: number;
+  memoryCost: number;
+}
+
 // --- Checkpoint Types ---
 
 export interface CheckpointState {

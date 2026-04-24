@@ -3,6 +3,8 @@ import { registerImportCommand } from './commands/import.js';
 import { registerValidateCommand } from './commands/validate.js';
 import { registerExportAuth0Command } from './commands/export-auth0.js';
 import { registerMergePasswordsCommand } from './commands/merge-passwords.js';
+import { registerTransformClerkCommand } from './commands/transform-clerk.js';
+import { registerTransformFirebaseCommand } from './commands/transform-firebase.js';
 
 const program = new Command();
 
@@ -15,5 +17,7 @@ registerImportCommand(program);
 registerValidateCommand(program);
 registerExportAuth0Command(program);
 registerMergePasswordsCommand(program);
+registerTransformClerkCommand(program);
+registerTransformFirebaseCommand(program);
 
 export { program };
