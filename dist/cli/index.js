@@ -5,6 +5,7 @@ import { registerExportAuth0Command } from './commands/export-auth0.js';
 import { registerMergePasswordsCommand } from './commands/merge-passwords.js';
 import { registerTransformClerkCommand } from './commands/transform-clerk.js';
 import { registerTransformFirebaseCommand } from './commands/transform-firebase.js';
+import { registerAnalyzeCommand } from './commands/analyze.js';
 const program = new Command();
 program
     .name('workos-migrate')
@@ -16,4 +17,5 @@ registerExportAuth0Command(program);
 registerMergePasswordsCommand(program);
 registerTransformClerkCommand(program);
 registerTransformFirebaseCommand(program);
+registerAnalyzeCommand(program);
 export { program };
