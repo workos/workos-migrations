@@ -1,4 +1,4 @@
-import { Provider } from '../../types';
+import type { Provider } from '../../shared/types.js';
 
 export const clerkProvider: Provider = {
   name: 'clerk',

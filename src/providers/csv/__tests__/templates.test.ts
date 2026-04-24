@@ -1,4 +1,4 @@
-import { CSV_TEMPLATES } from '../templates';
+import { CSV_TEMPLATES } from '../templates.js';
 
 describe('CSV_TEMPLATES', () => {
   it('exposes the expected templates', () => {

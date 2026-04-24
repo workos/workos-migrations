@@ -1,7 +1,4 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.firebaseProvider = void 0;
-exports.firebaseProvider = {
+export const firebaseProvider = {
     name: 'firebase',
     displayName: 'Firebase Auth',
     credentials: [

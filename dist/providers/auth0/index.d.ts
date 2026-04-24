@@ -1,3 +1,2 @@
-import { Provider } from '../../types';
+import type { Provider } from '../../shared/types.js';
 export declare const auth0Provider: Provider;
-export { Auth0Client } from './client';

@@ -1,10 +1,11 @@
 {
   "name": "workos-migrations",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "CLI tool to migrate data from various identity providers to WorkOS",
+  "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "workos-migrations": "dist/index.js"
+    "workos-migrate": "dist/index.js"
   },
   "files": [
     "dist/**/*",
@@ -15,13 +16,13 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "dev": "ts-node src/index.ts",
+    "dev": "tsx src/index.ts",
     "lint": "eslint \"src/**/*.ts\"",
     "lint:fix": "eslint \"src/**/*.ts\" --fix",
     "format": "prettier --write \"src/**/*.ts\" \"*.md\" \"*.json\"",
     "format:check": "prettier --check \"src/**/*.ts\" \"*.md\" \"*.json\"",
     "typecheck": "tsc --noEmit",
-    "test": "jest",
+    "test": "node --experimental-vm-modules node_modules/.bin/jest",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
@@ -36,25 +37,27 @@
   "author": "WorkOS",
   "license": "MIT",
   "dependencies": {
-    "axios": "^1.15.0",
+    "@workos-inc/node": "^7.73.0",
     "chalk": "^5.6.2",
+    "cli-progress": "^3.12.0",
     "commander": "^14.0.3",
     "csv-parse": "^6.2.1",
-    "form-data": "^4.0.4",
-    "inquirer": "^13.4.2"
+    "csv-stringify": "^6.4.5",
+    "dotenv": "^16.4.5",
+    "prompts": "^2.4.2"
   },
   "devDependencies": {
-    "@types/form-data": "^2.5.2",
-    "@types/inquirer": "^8.2.10",
+    "@types/cli-progress": "^3.11.6",
     "@types/jest": "^30.0.0",
     "@types/node": "^25.6.0",
+    "@types/prompts": "^2.4.9",
     "@typescript-eslint/eslint-plugin": "^7.18.0",
     "@typescript-eslint/parser": "^7.18.0",
     "eslint": "^8.57.0",
     "jest": "^30.3.0",
     "prettier": "^3.3.3",
     "ts-jest": "^29.2.5",
-    "ts-node": "^10.9.0",
+    "tsx": "^4.19.2",
     "typescript": "^5.3.0"
   },
   "repository": {

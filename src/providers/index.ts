@@ -1,9 +1,9 @@
-import { Provider } from '../types';
-import { auth0Provider } from './auth0';
-import { clerkProvider } from './clerk';
-import { firebaseProvider } from './firebase';
-import { cognitoProvider } from './cognito';
-import { csvProvider } from './csv';
+import type { Provider } from '../shared/types.js';
+import { auth0Provider } from './auth0/index.js';
+import { clerkProvider } from './clerk/index.js';
+import { firebaseProvider } from './firebase/index.js';
+import { cognitoProvider } from './cognito/index.js';
+import { csvProvider } from './csv/index.js';
 
 export const PROVIDERS: Record<string, Provider> = {
   auth0: auth0Provider,
