@@ -14,6 +14,13 @@ import { Auth0Client, type Auth0Connection } from '../../../src/providers/auth0/
 import type { ProviderCredentials } from '../../../src/types';
 
 jest.mock('axios');
+// chalk 5.x is ESM-only; stub it so the ts-jest CommonJS transform can load
+// Auth0Client's `import chalk from 'chalk'` in this test runtime. The CLI runs
+// chalk through its own ESM-aware entrypoint, so this stub is test-only.
+jest.mock('chalk', () => {
+  const passthrough = (s: string): string => s;
+  return { __esModule: true, default: new Proxy(passthrough, { get: () => passthrough }) };
+});
 const mockedAxios = axios as jest.Mocked<typeof axios>;
 
 const CREDS: ProviderCredentials = {

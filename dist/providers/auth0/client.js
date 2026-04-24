@@ -248,8 +248,7 @@ class Auth0Client {
         // (oidc, waad, google-apps, okta), and manual-setup (ad, auth0-adldap) —
         // reaches the transform. Out-of-scope connections (social, database,
         // passwordless) are filtered here to keep the raw export dump small.
-        return allConnections.filter((conn) => typeof conn.strategy === 'string' &&
-            transform_1.MIGRATABLE_STRATEGIES.has(conn.strategy.toLowerCase()));
+        return allConnections.filter((conn) => typeof conn.strategy === 'string' && transform_1.MIGRATABLE_STRATEGIES.has(conn.strategy.toLowerCase()));
     }
     async getClients() {
         const response = await this.httpClient.get('/clients', {

@@ -13,12 +13,7 @@ const DEFAULT_ORG_NAME_PREFIX = '[MIGRATED] sso-';
 /** Enterprise SSO strategies that produce SAML rows. */
 exports.ENTERPRISE_SAML_STRATEGIES = new Set(['samlp', 'adfs', 'pingfederate']);
 /** Enterprise SSO strategies that produce OIDC rows. */
-exports.ENTERPRISE_OIDC_STRATEGIES = new Set([
-    'oidc',
-    'waad',
-    'google-apps',
-    'okta',
-]);
+exports.ENTERPRISE_OIDC_STRATEGIES = new Set(['oidc', 'waad', 'google-apps', 'okta']);
 /** Enterprise strategies with no auto-migration path (require manual setup). */
 exports.ENTERPRISE_MANUAL_SETUP_STRATEGIES = new Set(['ad', 'auth0-adldap']);
 /**
