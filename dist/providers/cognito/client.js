@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import chalk from 'chalk';
 import { CognitoIdentityProviderClient, ListIdentityProvidersCommand, DescribeIdentityProviderCommand, ListUserPoolsCommand, ListUsersCommand, } from '@aws-sdk/client-cognito-identity-provider';
-import { isSaml, isOidc, toSamlRow, toOidcRow, toUserRow, toCustomAttrRows, rowsToCsv, SAML_HEADERS, OIDC_HEADERS, CUSTOM_ATTR_HEADERS, USER_HEADERS, DEFAULT_SAML_CUSTOM_ENTITY_ID_TEMPLATE, } from './workos-csv.js';
+import { isSaml, isOidc, isFederatedUser, toSamlRow, toOidcRow, toUserRow, toCustomAttrRows, rowsToCsv, SAML_HEADERS, OIDC_HEADERS, CUSTOM_ATTR_HEADERS, USER_HEADERS, DEFAULT_SAML_CUSTOM_ENTITY_ID_TEMPLATE, } from './workos-csv.js';
 function countDuplicates(values) {
     const seen = new Set();
     let dupes = 0;
@@ -153,12 +153,22 @@ export class CognitoClient {
         if (poolIds.length === 0) {
             throw new Error('no user pool IDs provided — set COGNITO_USER_POOL_IDS, pass --user-pool-ids, or save to config');
         }
-        const all = [];
+        const fetched = [];
         for (const poolId of poolIds) {
             console.log(chalk.gray(`  fetching users from ${poolId}...`));
             const users = await this.fetchUsers(poolId);
             console.log(chalk.gray(`  ${poolId}: ${users.length} user(s)`));
-            all.push(...users);
+            fetched.push(...users);
+        }
+        const skipExternal = this.options.skipExternalProviderUsers ?? false;
+        const federated = fetched.filter(isFederatedUser);
+        const all = skipExternal ? fetched.filter((u) => !isFederatedUser(u)) : fetched;
+        if (skipExternal && federated.length > 0) {
+            console.log(chalk.gray(`  skipping ${federated.length} federated user(s) (EXTERNAL_PROVIDER) — WorkOS will JIT-provision them on first SSO login.`));
+        }
+        else if (!skipExternal && federated.length > 0) {
+            console.log(chalk.yellow(`  [warn] ${federated.length} federated user(s) (EXTERNAL_PROVIDER) included — WorkOS JIT will create these on first SSO login regardless. ` +
+                `Pre-importing preserves the Cognito sub as external_id but the imported record will be shadowed/deduped by JIT. Pass --skip-external-provider-users to omit.`));
         }
         const rows = all.map(toUserRow);
         const outDir = this.options.outDir ?? process.cwd();
@@ -216,9 +226,9 @@ export class CognitoClient {
         if (rows.length > 0) {
             console.log(chalk.yellow(`  [warn] password_hash is blank for all ${rows.length} user(s) — Cognito does not expose hashes. ` +
                 `Affected users will need to reset their password post-migration (or rely on SSO JIT provisioning).`));
-            const dupes = countDuplicates(rows.map((r) => r.user_id).filter(Boolean));
+            const dupes = countDuplicates(rows.map((r) => r.external_id).filter(Boolean));
             if (dupes > 0) {
-                console.log(chalk.yellow(`  [warn] ${dupes} duplicate user_id value(s) detected across pools — consider exporting pools separately or prefixing IDs.`));
+                console.log(chalk.yellow(`  [warn] ${dupes} duplicate external_id value(s) detected across pools — consider exporting pools separately or prefixing IDs.`));
             }
         }
     }

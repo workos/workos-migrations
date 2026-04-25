@@ -31,6 +31,10 @@ export function registerExportCognitoCommand(program: Command): void {
       'Template for SAML custom Entity ID (default: urn:amazon:cognito:sp:{user_pool_id})',
     )
     .option('--oidc-custom-redirect-uri-template <url>', 'Template for OIDC custom redirect URI')
+    .option(
+      '--skip-external-provider-users',
+      'Skip federated Cognito users (userStatus=EXTERNAL_PROVIDER) — they will be JIT-provisioned by WorkOS on first SSO login',
+    )
     .action(async (opts) => {
       try {
         const credentials: ProviderCredentials = {
@@ -49,6 +53,7 @@ export function registerExportCognitoCommand(program: Command): void {
             samlCustomEntityId: opts.samlCustomEntityIdTemplate ?? null,
             oidcCustomRedirectUri: opts.oidcCustomRedirectUriTemplate ?? null,
           },
+          skipExternalProviderUsers: opts.skipExternalProviderUsers ?? false,
         };
 
         const client = new CognitoClient(credentials, clientOptions);

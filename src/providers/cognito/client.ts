@@ -21,6 +21,7 @@ import {
   type CognitoUser,
   isSaml,
   isOidc,
+  isFederatedUser,
   toSamlRow,
   toOidcRow,
   toUserRow,
@@ -51,6 +52,13 @@ export interface CognitoClientOptions {
   outDir?: string;
   /** Proxy URL templates with {provider_name}, {user_pool_id}, {region} placeholders. */
   proxy?: ProxyTemplates;
+  /**
+   * Skip Cognito users whose `userStatus` is `EXTERNAL_PROVIDER` (federated SAML/OIDC/social
+   * identities). WorkOS will JIT-provision them on first SSO login, so importing them
+   * up-front creates a shell record that JIT later shadows or dedupes against. Off by default
+   * — most migrations want the metadata in WorkOS immediately for analytics/lookup.
+   */
+  skipExternalProviderUsers?: boolean;
 }
 
 export class CognitoClient implements ProviderClient {
@@ -230,12 +238,31 @@ export class CognitoClient implements ProviderClient {
       );
     }
 
-    const all: CognitoUser[] = [];
+    const fetched: CognitoUser[] = [];
     for (const poolId of poolIds) {
       console.log(chalk.gray(`  fetching users from ${poolId}...`));
       const users = await this.fetchUsers(poolId);
       console.log(chalk.gray(`  ${poolId}: ${users.length} user(s)`));
-      all.push(...users);
+      fetched.push(...users);
+    }
+
+    const skipExternal = this.options.skipExternalProviderUsers ?? false;
+    const federated = fetched.filter(isFederatedUser);
+    const all = skipExternal ? fetched.filter((u) => !isFederatedUser(u)) : fetched;
+
+    if (skipExternal && federated.length > 0) {
+      console.log(
+        chalk.gray(
+          `  skipping ${federated.length} federated user(s) (EXTERNAL_PROVIDER) — WorkOS will JIT-provision them on first SSO login.`,
+        ),
+      );
+    } else if (!skipExternal && federated.length > 0) {
+      console.log(
+        chalk.yellow(
+          `  [warn] ${federated.length} federated user(s) (EXTERNAL_PROVIDER) included — WorkOS JIT will create these on first SSO login regardless. ` +
+            `Pre-importing preserves the Cognito sub as external_id but the imported record will be shadowed/deduped by JIT. Pass --skip-external-provider-users to omit.`,
+        ),
+      );
     }
 
     const rows = all.map(toUserRow);
@@ -308,11 +335,11 @@ export class CognitoClient implements ProviderClient {
             `Affected users will need to reset their password post-migration (or rely on SSO JIT provisioning).`,
         ),
       );
-      const dupes = countDuplicates(rows.map((r) => r.user_id).filter(Boolean));
+      const dupes = countDuplicates(rows.map((r) => r.external_id).filter(Boolean));
       if (dupes > 0) {
         console.log(
           chalk.yellow(
-            `  [warn] ${dupes} duplicate user_id value(s) detected across pools — consider exporting pools separately or prefixing IDs.`,
+            `  [warn] ${dupes} duplicate external_id value(s) detected across pools — consider exporting pools separately or prefixing IDs.`,
           ),
         );
       }

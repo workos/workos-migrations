@@ -51,10 +51,7 @@ describe('parseSamlMetadata', () => {
   });
 
   it('strips whitespace from the X509Certificate text', () => {
-    const withWhitespace = FULL_METADATA.replace(
-      'MIITESTCERT',
-      '  MII\n  TEST\n  CERT  ',
-    );
+    const withWhitespace = FULL_METADATA.replace('MIITESTCERT', '  MII\n  TEST\n  CERT  ');
     const parsed = parseSamlMetadata(withWhitespace);
     expect(parsed.x509Cert).toBe('MIITESTCERT');
   });

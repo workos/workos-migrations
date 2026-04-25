@@ -5,7 +5,6 @@
  */
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import {
   toSamlRow,
   toOidcRow,
@@ -15,6 +14,7 @@ import {
   renderTemplate,
   isSaml,
   isOidc,
+  isFederatedUser,
   importedId,
   SAML_HEADERS,
   OIDC_HEADERS,
@@ -24,11 +24,10 @@ import {
   type CognitoUser,
 } from '../../../src/providers/cognito/workos-csv';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const USER_FIXTURES = path.join(__dirname, '../../fixtures/cognito/users');
-const CONN_FIXTURES = path.join(__dirname, '../../fixtures/cognito/connections');
+// jest is invoked from the project root, so resolve fixtures relative to cwd
+// rather than using import.meta (which ts-jest doesn't expose).
+const USER_FIXTURES = path.join(process.cwd(), 'tests/fixtures/cognito/users');
+const CONN_FIXTURES = path.join(process.cwd(), 'tests/fixtures/cognito/connections');
 
 function loadUser(name: string): CognitoUser {
   return JSON.parse(fs.readFileSync(path.join(USER_FIXTURES, name), 'utf-8'));
@@ -150,18 +149,14 @@ describe('toOidcRow', () => {
 
   it('leaves an already-normalized discovery URL untouched', () => {
     const row = toOidcRow(loadProvider('oidc-already-discovery-url.json'));
-    expect(row.discoveryEndpoint).toBe(
-      'https://idp.example.com/.well-known/openid-configuration',
-    );
+    expect(row.discoveryEndpoint).toBe('https://idp.example.com/.well-known/openid-configuration');
   });
 
   it('renders customRedirectUri when a template is supplied', () => {
     const row = toOidcRow(loadProvider('oidc-azure.json'), {
       oidcCustomRedirectUri: 'https://sso.example.com/{provider_name}/oidc-callback',
     });
-    expect(row.customRedirectUri).toBe(
-      'https://sso.example.com/azure-oidc/oidc-callback',
-    );
+    expect(row.customRedirectUri).toBe('https://sso.example.com/azure-oidc/oidc-callback');
   });
 });
 
@@ -187,7 +182,7 @@ describe('toUserRow', () => {
   describe('user types', () => {
     it('maps a native database user with given + family names', () => {
       expect(toUserRow(loadUser('native-database.json'))).toEqual({
-        user_id: '5a3b2c1d-0000-4000-8000-abcdef123456',
+        external_id: '5a3b2c1d-0000-4000-8000-abcdef123456',
         email: 'alice@example.com',
         email_verified: 'true',
         first_name: 'Alice',
@@ -198,7 +193,7 @@ describe('toUserRow', () => {
 
     it('maps a SAML-federated user with explicit given + family', () => {
       expect(toUserRow(loadUser('saml-federated-full.json'))).toEqual({
-        user_id: '9f8e7d6c-5432-4321-8765-fedcba098765',
+        external_id: '9f8e7d6c-5432-4321-8765-fedcba098765',
         email: 'bob@acme.com',
         email_verified: 'true',
         first_name: 'Bob',
@@ -211,7 +206,7 @@ describe('toUserRow', () => {
       // When the IdP ships only `fullName` (mapped to Cognito user pool attr `name`),
       // we synthesize first/last by whitespace-splitting the stored `name` value.
       expect(toUserRow(loadUser('saml-federated-name-only.json'))).toEqual({
-        user_id: '11223344-5566-7788-99aa-bbccddeeff00',
+        external_id: '11223344-5566-7788-99aa-bbccddeeff00',
         email: 'carol@acme.com',
         email_verified: 'true',
         first_name: 'Carol',
@@ -225,7 +220,7 @@ describe('toUserRow', () => {
       // row-level custom attrs don't land in users.csv — only in the connection
       // CSV's customAttributes column. But confirm basic shape.
       expect(row).toMatchObject({
-        user_id: 'abc12345-6789-0abc-def1-23456789abcd',
+        external_id: 'abc12345-6789-0abc-def1-23456789abcd',
         email: 'dave@acme.com',
         first_name: 'Dave',
         last_name: 'Wilson',
@@ -234,7 +229,7 @@ describe('toUserRow', () => {
 
     it('maps an OIDC-federated user', () => {
       expect(toUserRow(loadUser('oidc-federated.json'))).toMatchObject({
-        user_id: 'f0e1d2c3-b4a5-9687-7869-5a4b3c2d1e0f',
+        external_id: 'f0e1d2c3-b4a5-9687-7869-5a4b3c2d1e0f',
         email: 'eve@acme.com',
         first_name: 'Eve',
         last_name: 'Parker',
@@ -243,7 +238,7 @@ describe('toUserRow', () => {
 
     it('maps a Google social user', () => {
       expect(toUserRow(loadUser('social-google.json'))).toMatchObject({
-        user_id: '55667788-9900-aabb-ccdd-eeff00112233',
+        external_id: '55667788-9900-aabb-ccdd-eeff00112233',
         email: 'fiona@gmail.com',
         first_name: 'Fiona',
         last_name: 'Brown',
@@ -252,7 +247,7 @@ describe('toUserRow', () => {
 
     it('splits `name` for a Facebook social user that does not provide given/family', () => {
       expect(toUserRow(loadUser('social-facebook.json'))).toEqual({
-        user_id: 'aa000011-2233-4455-6677-8899aabbccdd',
+        external_id: 'aa000011-2233-4455-6677-8899aabbccdd',
         email: 'gabe@example.com',
         email_verified: 'true',
         first_name: 'Gabe',
@@ -265,7 +260,7 @@ describe('toUserRow', () => {
   describe('edge cases', () => {
     it('falls back to username when sub is missing', () => {
       expect(toUserRow(loadUser('edge-missing-sub.json'))).toMatchObject({
-        user_id: 'nosub-user',
+        external_id: 'nosub-user',
         email: 'nosub@example.com',
         first_name: 'Noah',
         last_name: 'Obenauer',
@@ -310,6 +305,55 @@ describe('toUserRow', () => {
     it('returns empty string when not set', () => {
       expect(toUserRow(loadUser('edge-missing-email.json')).email_verified).toBe('');
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isFederatedUser — drives --skip-external-provider-users
+// ---------------------------------------------------------------------------
+
+describe('isFederatedUser', () => {
+  // Centralized expectations keep the fixture set and the predicate honest:
+  // adding a new federated fixture without updating the predicate will fail loudly.
+  const FEDERATED_FIXTURES = [
+    'saml-federated-full.json',
+    'saml-federated-name-only.json',
+    'saml-federated-with-customs.json',
+    'oidc-federated.json',
+    'social-google.json',
+    'social-facebook.json',
+  ];
+  const NATIVE_FIXTURES = [
+    'native-database.json',
+    'edge-missing-email.json',
+    'edge-missing-sub.json',
+    'edge-name-only-no-given.json',
+    'edge-unicode.json',
+    'edge-multi-word-last-name.json',
+  ];
+
+  it.each(FEDERATED_FIXTURES)('treats %s as federated', (name) => {
+    expect(isFederatedUser(loadUser(name))).toBe(true);
+  });
+
+  it.each(NATIVE_FIXTURES)('treats %s as native', (name) => {
+    expect(isFederatedUser(loadUser(name))).toBe(false);
+  });
+
+  it('treats users with missing userStatus as native (defensive default)', () => {
+    const u: CognitoUser = {
+      userPoolId: 'us-east-1_X',
+      username: 'no-status',
+      attributes: { sub: 'abc', email: 'a@b.com' },
+    };
+    expect(isFederatedUser(u)).toBe(false);
+  });
+
+  it('partitions a mixed fixture set so skip drops every federated user', () => {
+    const users = [...FEDERATED_FIXTURES, ...NATIVE_FIXTURES].map(loadUser);
+    const kept = users.filter((u) => !isFederatedUser(u));
+    expect(kept).toHaveLength(NATIVE_FIXTURES.length);
+    expect(kept.every((u) => u.userStatus === 'CONFIRMED')).toBe(true);
   });
 });
 
@@ -401,18 +445,15 @@ describe('renderTemplate', () => {
   };
 
   it('substitutes every supported placeholder', () => {
-    expect(
-      renderTemplate(
-        'https://{provider_name}.{region}.example.com/{user_pool_id}',
-        p,
-      ),
-    ).toBe('https://test-tenant.us-east-1.example.com/us-east-1_TESTPOOL');
+    expect(renderTemplate('https://{provider_name}.{region}.example.com/{user_pool_id}', p)).toBe(
+      'https://test-tenant.us-east-1.example.com/us-east-1_TESTPOOL',
+    );
   });
 
   it('substitutes the same placeholder multiple times', () => {
-    expect(
-      renderTemplate('{provider_name}-{provider_name}-{provider_name}', p),
-    ).toBe('test-tenant-test-tenant-test-tenant');
+    expect(renderTemplate('{provider_name}-{provider_name}-{provider_name}', p)).toBe(
+      'test-tenant-test-tenant-test-tenant',
+    );
   });
 
   it('returns an empty string when template is null/undefined/empty', () => {

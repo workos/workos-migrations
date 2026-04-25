@@ -11,7 +11,12 @@ function mapClerkUser(row, orgMapping) {
     const warnings = [];
     const email = row.primary_email_address?.trim();
     if (!email) {
-        return { csvRow: {}, warnings: [], skipped: true, skipReason: 'Missing primary_email_address' };
+        return {
+            csvRow: {},
+            warnings: [],
+            skipped: true,
+            skipReason: 'Missing primary_email_address',
+        };
     }
     // Password: bcrypt only
     let passwordHash;
@@ -101,7 +106,12 @@ export async function transformClerkExport(options) {
         let headerValidated = false;
         const inputStream = createReadStream(input);
         const outputStream = createWriteStream(output);
-        const parser = parse({ columns: true, skip_empty_lines: true, relax_column_count: true, trim: true });
+        const parser = parse({
+            columns: true,
+            skip_empty_lines: true,
+            relax_column_count: true,
+            trim: true,
+        });
         const stringifier = stringify({ header: true, columns: outputColumns });
         // Pipe must be set up BEFORE writing data
         stringifier

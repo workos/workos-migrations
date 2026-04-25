@@ -7,7 +7,7 @@ export declare const CUSTOM_ATTR_HEADERS: readonly ["importedId", "organizationE
  * email/password in Cognito will need to reset their password after
  * migration (or rely on SSO + JIT provisioning via the migration proxy).
  */
-export declare const USER_HEADERS: readonly ["user_id", "email", "email_verified", "first_name", "last_name", "password_hash"];
+export declare const USER_HEADERS: readonly ["external_id", "email", "email_verified", "first_name", "last_name", "password_hash"];
 export interface CognitoProvider {
     userPoolId: string;
     providerName: string;
@@ -43,10 +43,18 @@ export interface CognitoUser {
     userStatus?: string;
     enabled?: boolean;
 }
+/** Cognito user statuses that indicate a federated (SSO/social) identity. */
+export declare const FEDERATED_USER_STATUSES: ReadonlySet<string>;
+/**
+ * True when the user's `userStatus` marks them as a federated identity that
+ * WorkOS will JIT-provision on first SSO login. Drives the
+ * `--skip-external-provider-users` filter.
+ */
+export declare function isFederatedUser(u: CognitoUser): boolean;
 /**
  * Map a Cognito user into the WorkOS users.csv template.
  *
- *   user_id        → Cognito `sub` attribute (stable unique ID), falls back to username
+ *   external_id    → Cognito `sub` attribute (stable unique ID), falls back to username
  *   email          → Cognito `email` attribute
  *   email_verified → Cognito `email_verified` attribute (Cognito returns 'true'/'false' strings)
  *   first_name     → `given_name`, falling back to the first whitespace-split token of `name`

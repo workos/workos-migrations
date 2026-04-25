@@ -7,6 +7,13 @@ export interface CognitoClientOptions {
     outDir?: string;
     /** Proxy URL templates with {provider_name}, {user_pool_id}, {region} placeholders. */
     proxy?: ProxyTemplates;
+    /**
+     * Skip Cognito users whose `userStatus` is `EXTERNAL_PROVIDER` (federated SAML/OIDC/social
+     * identities). WorkOS will JIT-provision them on first SSO login, so importing them
+     * up-front creates a shell record that JIT later shadows or dedupes against. Off by default
+     * — most migrations want the metadata in WorkOS immediately for analytics/lookup.
+     */
+    skipExternalProviderUsers?: boolean;
 }
 export declare class CognitoClient implements ProviderClient {
     private client?;

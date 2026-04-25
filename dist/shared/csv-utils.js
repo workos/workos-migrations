@@ -99,7 +99,10 @@ export function parseRoleSlugs(value) {
             // Fall through to comma-separated
         }
     }
-    return trimmed.split(',').map((s) => s.trim()).filter(Boolean);
+    return trimmed
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
 }
 /**
  * Convert a CSVRow to a UserRecord (parsed and normalized).

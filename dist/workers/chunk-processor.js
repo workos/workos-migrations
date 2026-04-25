@@ -141,7 +141,9 @@ export async function processChunkInWorker(workos, chunk, options, orgCache, rat
                                     }
                                 }
                                 catch (membershipErr) {
-                                    const membershipStatus = membershipErr?.status ?? membershipErr?.httpStatus ?? membershipErr?.response?.status;
+                                    const membershipStatus = membershipErr?.status ??
+                                        membershipErr?.httpStatus ??
+                                        membershipErr?.response?.status;
                                     if (membershipStatus === 409) {
                                         duplicateMemberships += 1;
                                         createdMemberships.add(membershipKey);

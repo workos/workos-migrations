@@ -52,7 +52,7 @@ export const CUSTOM_ATTR_HEADERS = [
  * migration (or rely on SSO + JIT provisioning via the migration proxy).
  */
 export const USER_HEADERS = [
-    'user_id',
+    'external_id',
     'email',
     'email_verified',
     'first_name',
@@ -102,10 +102,20 @@ export function buildCustomAttributesJson(attrs) {
         return '';
     return JSON.stringify(Object.fromEntries(entries));
 }
+/** Cognito user statuses that indicate a federated (SSO/social) identity. */
+export const FEDERATED_USER_STATUSES = new Set(['EXTERNAL_PROVIDER']);
+/**
+ * True when the user's `userStatus` marks them as a federated identity that
+ * WorkOS will JIT-provision on first SSO login. Drives the
+ * `--skip-external-provider-users` filter.
+ */
+export function isFederatedUser(u) {
+    return FEDERATED_USER_STATUSES.has(u.userStatus ?? '');
+}
 /**
  * Map a Cognito user into the WorkOS users.csv template.
  *
- *   user_id        → Cognito `sub` attribute (stable unique ID), falls back to username
+ *   external_id    → Cognito `sub` attribute (stable unique ID), falls back to username
  *   email          → Cognito `email` attribute
  *   email_verified → Cognito `email_verified` attribute (Cognito returns 'true'/'false' strings)
  *   first_name     → `given_name`, falling back to the first whitespace-split token of `name`
@@ -116,7 +126,7 @@ export function toUserRow(u) {
     const a = u.attributes;
     const { first, last } = splitName(a.name ?? '');
     return {
-        user_id: a.sub ?? u.username,
+        external_id: a.sub ?? u.username,
         email: a.email ?? '',
         email_verified: a.email_verified ?? '',
         first_name: a.given_name ?? first,
