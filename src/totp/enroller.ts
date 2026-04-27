@@ -159,7 +159,7 @@ export async function enrollTotp(
           await withRetry(
             async () => {
               await rateLimiter.acquire();
-              await workos.userManagement.enrollAuthFactor({
+              await workos.multiFactorAuth.createUserAuthFactor({
                 userId: userId!,
                 type: 'totp',
                 totpSecret: record.totpSecret,
@@ -215,7 +215,12 @@ export async function enrollTotp(
   summary.duration = Date.now() - startedAt;
 
   if (errorStream) {
-    errorStream.end();
+    const stream = errorStream;
+    await new Promise<void>((resolve, reject) => {
+      stream.once('finish', () => resolve());
+      stream.once('error', reject);
+      stream.end();
+    });
   }
 
   return { summary, errors };
