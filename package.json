@@ -67,6 +67,6 @@
     "url": "git+https://github.com/workos/workos-migrations.git"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22.11.0"
   }
 }

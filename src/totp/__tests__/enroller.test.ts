@@ -24,11 +24,14 @@ function createMockWorkOS(users: Record<string, string> = {}) {
           data: userId ? [{ id: userId, email }] : [],
         };
       }),
-      enrollAuthFactor: jest.fn(async () => ({
-        authenticationFactor: { id: 'factor_123', type: 'totp' },
-      })),
       listOrganizationMemberships: jest.fn(),
       updateOrganizationMembership: jest.fn(),
+    },
+    multiFactorAuth: {
+      createUserAuthFactor: jest.fn(async () => ({
+        authenticationFactor: { id: 'factor_123', type: 'totp' },
+        authenticationChallenge: { id: 'challenge_123' },
+      })),
     },
   } as any;
 }
@@ -71,7 +74,7 @@ describe('TOTP Enroller', () => {
     expect(summary.total).toBe(2);
     expect(summary.enrolled).toBe(2);
     expect(summary.failures).toBe(0);
-    expect(workos.userManagement.enrollAuthFactor).toHaveBeenCalledTimes(2);
+    expect(workos.multiFactorAuth.createUserAuthFactor).toHaveBeenCalledTimes(2);
   });
 
   it('should handle user not found gracefully', async () => {
@@ -99,7 +102,7 @@ describe('TOTP Enroller', () => {
     fs.writeFileSync(inputPath, ['email,totp_secret', 'alice@example.com,SECRET123'].join('\n'));
 
     const workos = createMockWorkOS({ 'alice@example.com': 'user_alice' });
-    workos.userManagement.enrollAuthFactor.mockRejectedValueOnce(
+    workos.multiFactorAuth.createUserAuthFactor.mockRejectedValueOnce(
       new Error('TOTP factor already enrolled'),
     );
 
@@ -132,7 +135,7 @@ describe('TOTP Enroller', () => {
 
     expect(summary.total).toBe(1);
     expect(summary.enrolled).toBe(1);
-    expect(workos.userManagement.enrollAuthFactor).not.toHaveBeenCalled();
+    expect(workos.multiFactorAuth.createUserAuthFactor).not.toHaveBeenCalled();
   });
 
   it('should handle enrollment API errors', async () => {
@@ -140,7 +143,7 @@ describe('TOTP Enroller', () => {
     fs.writeFileSync(inputPath, ['email,totp_secret', 'alice@example.com,SECRET123'].join('\n'));
 
     const workos = createMockWorkOS({ 'alice@example.com': 'user_alice' });
-    workos.userManagement.enrollAuthFactor.mockRejectedValueOnce(
+    workos.multiFactorAuth.createUserAuthFactor.mockRejectedValueOnce(
       new Error('Internal server error'),
     );
 
@@ -156,7 +159,7 @@ describe('TOTP Enroller', () => {
     expect(summary.failures).toBe(1);
   });
 
-  it('should pass totpIssuer to enrollAuthFactor', async () => {
+  it('should pass totpIssuer to createUserAuthFactor', async () => {
     const inputPath = path.join(tmpDir, 'totp.csv');
     fs.writeFileSync(inputPath, ['email,totp_secret', 'alice@example.com,SECRET123'].join('\n'));
 
@@ -171,7 +174,7 @@ describe('TOTP Enroller', () => {
       quiet: true,
     });
 
-    expect(workos.userManagement.enrollAuthFactor).toHaveBeenCalledWith(
+    expect(workos.multiFactorAuth.createUserAuthFactor).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: 'user_alice',
         type: 'totp',

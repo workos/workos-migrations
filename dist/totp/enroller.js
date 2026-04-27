@@ -132,7 +132,7 @@ export async function enrollTotp(workos, options) {
                 try {
                     await withRetry(async () => {
                         await rateLimiter.acquire();
-                        await workos.userManagement.enrollAuthFactor({
+                        await workos.multiFactorAuth.createUserAuthFactor({
                             userId: userId,
                             type: 'totp',
                             totpSecret: record.totpSecret,
