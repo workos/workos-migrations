@@ -69,7 +69,7 @@ function parseBooleanLike(value) {
     return undefined;
 }
 function isBlank(value) {
-    return value === undefined || value === null || (typeof value === 'string' && value.trim() === '');
+    return (value === undefined || value === null || (typeof value === 'string' && value.trim() === ''));
 }
 function parseRoleSlugsFromCsv(raw) {
     if (!raw || typeof raw !== 'string')
@@ -87,7 +87,10 @@ function parseRoleSlugsFromCsv(raw) {
             // fall through
         }
     }
-    return trimmed.split(',').map((s) => s.trim()).filter(Boolean);
+    return trimmed
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
 }
 function buildUserAndOrgFromRow(row) {
     const email = typeof row.email === 'string' ? row.email.trim() : '';
@@ -125,7 +128,9 @@ function buildUserAndOrgFromRow(row) {
     const orgExternalId = typeof row.org_external_id === 'string' && row.org_external_id.trim() !== ''
         ? row.org_external_id.trim()
         : undefined;
-    const orgName = typeof row.org_name === 'string' && row.org_name.trim() !== '' ? row.org_name.trim() : undefined;
+    const orgName = typeof row.org_name === 'string' && row.org_name.trim() !== ''
+        ? row.org_name.trim()
+        : undefined;
     if (orgId && orgExternalId) {
         return { error: 'Row cannot specify both org_id and org_external_id' };
     }
@@ -679,7 +684,9 @@ async function processChunk(chunk, options, orgCache) {
                                     }
                                 }
                                 catch (membershipErr) {
-                                    const membershipStatus = membershipErr?.status ?? membershipErr?.httpStatus ?? membershipErr?.response?.status;
+                                    const membershipStatus = membershipErr?.status ??
+                                        membershipErr?.httpStatus ??
+                                        membershipErr?.response?.status;
                                     if (membershipStatus === 409) {
                                         duplicateMemberships += 1;
                                         createdMemberships.add(membershipKey);

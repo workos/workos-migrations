@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { registerImportCommand } from './commands/import.js';
 import { registerValidateCommand } from './commands/validate.js';
 import { registerExportAuth0Command } from './commands/export-auth0.js';
+import { registerExportCognitoCommand } from './commands/export-cognito.js';
 import { registerMergePasswordsCommand } from './commands/merge-passwords.js';
 import { registerTransformClerkCommand } from './commands/transform-clerk.js';
 import { registerTransformFirebaseCommand } from './commands/transform-firebase.js';
@@ -17,6 +18,7 @@ program
 registerImportCommand(program);
 registerValidateCommand(program);
 registerExportAuth0Command(program);
+registerExportCognitoCommand(program);
 registerMergePasswordsCommand(program);
 registerTransformClerkCommand(program);
 registerTransformFirebaseCommand(program);

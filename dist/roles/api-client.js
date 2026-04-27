@@ -139,7 +139,9 @@ export async function createPermission(options) {
         });
         if (!response.ok) {
             const errorBody = await response.text();
-            if (response.status === 409 || errorBody.includes('already exists') || errorBody.includes('already been taken')) {
+            if (response.status === 409 ||
+                errorBody.includes('already exists') ||
+                errorBody.includes('already been taken')) {
                 return false;
             }
             const err = new Error(`Failed to create permission "${options.slug}": ${response.status} ${errorBody}`);
@@ -168,7 +170,9 @@ export async function assignPermissionsToRole(options) {
         });
         if (!response.ok) {
             const errorBody = await response.text();
-            const scope = options.organizationId ? `org role in ${options.organizationId}` : 'environment role';
+            const scope = options.organizationId
+                ? `org role in ${options.organizationId}`
+                : 'environment role';
             const err = new Error(`Failed to assign permissions to ${scope} "${options.roleSlug}": ${response.status} ${errorBody}`);
             err.status = response.status;
             throw err;

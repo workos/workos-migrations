@@ -1,4 +1,4 @@
-export type Provider = 'auth0' | 'clerk' | 'firebase' | 'csv';
+export type Provider = 'auth0' | 'clerk' | 'firebase' | 'cognito' | 'csv';
 export interface WizardState {
     provider?: Provider;
     auth0Domain?: string;
@@ -20,6 +20,10 @@ export interface WizardState {
     firebaseRounds?: number;
     firebaseMemCost?: number;
     firebaseIncludeDisabled?: boolean;
+    cognitoRegion?: string;
+    cognitoUserPoolIds?: string;
+    cognitoEntities?: string;
+    cognitoOutputDir?: string;
     customCsvPath?: string;
     csvFilePath?: string;
     auth0PasswordsPath?: string;

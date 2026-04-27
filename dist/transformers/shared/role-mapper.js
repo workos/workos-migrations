@@ -23,8 +23,7 @@ export async function loadRoleMapping(filePath, options) {
             if (!headerValidated) {
                 headerValidated = true;
                 const headers = Object.keys(row);
-                const hasJoinKey = headers.includes(userIdColumn) ||
-                    headers.includes('external_id');
+                const hasJoinKey = headers.includes(userIdColumn) || headers.includes('external_id');
                 if (!hasJoinKey) {
                     reject(new Error(`Role mapping CSV must have a '${userIdColumn}' or 'external_id' column. ` +
                         `Found columns: ${headers.join(', ')}`));

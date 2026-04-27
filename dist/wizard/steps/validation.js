@@ -37,7 +37,11 @@ export async function runValidation(state) {
                 name: 'autoFix',
                 message: 'Validation found errors. Attempt auto-fix?',
                 initial: true,
-            }, { onCancel: () => { state.cancelled = true; } });
+            }, {
+                onCancel: () => {
+                    state.cancelled = true;
+                },
+            });
             if (state.cancelled)
                 return state;
             if (fixResponse.autoFix) {
@@ -70,7 +74,11 @@ export async function runValidation(state) {
                         name: 'proceed',
                         message: 'Continue anyway?',
                         initial: false,
-                    }, { onCancel: () => { state.cancelled = true; } });
+                    }, {
+                        onCancel: () => {
+                            state.cancelled = true;
+                        },
+                    });
                     if (state.cancelled)
                         return state;
                     if (!continueResponse.proceed) {
@@ -86,7 +94,11 @@ export async function runValidation(state) {
                     name: 'proceed',
                     message: 'Continue with invalid CSV?',
                     initial: false,
-                }, { onCancel: () => { state.cancelled = true; } });
+                }, {
+                    onCancel: () => {
+                        state.cancelled = true;
+                    },
+                });
                 if (state.cancelled)
                     return state;
                 if (!continueResponse.proceed) {
@@ -108,7 +120,11 @@ export async function runValidation(state) {
             name: 'proceed',
             message: 'Continue without validation?',
             initial: false,
-        }, { onCancel: () => { state.cancelled = true; } });
+        }, {
+            onCancel: () => {
+                state.cancelled = true;
+            },
+        });
         if (state.cancelled)
             return state;
         if (!continueResponse.proceed) {

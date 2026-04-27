@@ -1,0 +1,12 @@
+{
+  "userPoolId": "us-east-1_AAAPOOL",
+  "username": "nosub-user",
+  "userStatus": "CONFIRMED",
+  "enabled": true,
+  "attributes": {
+    "email": "nosub@example.com",
+    "email_verified": "true",
+    "given_name": "Noah",
+    "family_name": "Obenauer"
+  }
+}

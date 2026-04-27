@@ -62,7 +62,7 @@ export async function parseTotpNdjson(filePath) {
             let secret = record.totp_secret || record.secret;
             // Fall back to mfa_factors array
             if (!secret && record.mfa_factors) {
-                const totpFactor = record.mfa_factors.find(f => f.type === 'totp');
+                const totpFactor = record.mfa_factors.find((f) => f.type === 'totp');
                 secret = totpFactor?.secret || totpFactor?.totp_secret;
             }
             if (secret) {
@@ -83,7 +83,5 @@ export async function parseTotpNdjson(filePath) {
  */
 export async function loadTotpRecords(filePath, format) {
     const resolvedFormat = format ?? detectFormat(filePath);
-    return resolvedFormat === 'ndjson'
-        ? parseTotpNdjson(filePath)
-        : parseTotpCsv(filePath);
+    return resolvedFormat === 'ndjson' ? parseTotpNdjson(filePath) : parseTotpCsv(filePath);
 }

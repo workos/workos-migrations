@@ -22,7 +22,10 @@ export function parsePermissions(raw) {
             // Fall through to comma-split
         }
     }
-    return trimmed.split(',').map(p => p.trim()).filter(Boolean);
+    return trimmed
+        .split(',')
+        .map((p) => p.trim())
+        .filter(Boolean);
 }
 /**
  * Parse role definitions from a CSV file.
@@ -51,7 +54,7 @@ export async function parseRoleDefinitionsCsv(csvPath) {
             if (!headerValidated) {
                 headerValidated = true;
                 const headers = Object.keys(row);
-                const missing = REQUIRED_DEFINITION_COLUMNS.filter(c => !headers.includes(c));
+                const missing = REQUIRED_DEFINITION_COLUMNS.filter((c) => !headers.includes(c));
                 if (missing.length > 0) {
                     reject(new Error(`Role definitions CSV missing required columns: ${missing.join(', ')}. Found: ${headers.join(', ')}`));
                     return;
@@ -107,8 +110,8 @@ export async function parseRoleDefinitionsCsv(csvPath) {
 function comparePermissions(csvPerms, existingPerms) {
     const csvSet = new Set(csvPerms);
     const existingSet = new Set(existingPerms);
-    const missing = csvPerms.filter(p => !existingSet.has(p));
-    const extra = existingPerms.filter(p => !csvSet.has(p));
+    const missing = csvPerms.filter((p) => !existingSet.has(p));
+    const extra = existingPerms.filter((p) => !csvSet.has(p));
     return { match: missing.length === 0 && extra.length === 0, missing, extra };
 }
 // --- Ensure Permissions Exist ---
@@ -132,7 +135,7 @@ async function ensurePermissionsExist(definitions, dryRun) {
         try {
             const name = slug
                 .split(/[:._-]/)
-                .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+                .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
                 .join(' ');
             const wasCreated = await createPermission({ slug, name });
             if (wasCreated)
@@ -151,9 +154,9 @@ async function ensurePermissionsExist(definitions, dryRun) {
  * Process role definitions from CSV: create roles and assign permissions in WorkOS.
  */
 export async function processRoleDefinitions(definitionsPath, options) {
-    const { definitions, warnings: parseWarnings, errors: parseErrors } = await parseRoleDefinitionsCsv(definitionsPath);
-    const envRoles = definitions.filter(d => d.type === 'environment');
-    const orgRoles = definitions.filter(d => d.type === 'organization');
+    const { definitions, warnings: parseWarnings, errors: parseErrors, } = await parseRoleDefinitionsCsv(definitionsPath);
+    const envRoles = definitions.filter((d) => d.type === 'environment');
+    const orgRoles = definitions.filter((d) => d.type === 'organization');
     // Ensure all permissions exist before creating roles
     await ensurePermissionsExist(definitions, options.dryRun);
     const results = [];
@@ -178,10 +181,10 @@ export async function processRoleDefinitions(definitionsPath, options) {
     }
     return {
         total: definitions.length,
-        created: results.filter(r => r.action === 'created').length,
-        alreadyExist: results.filter(r => r.action === 'exists').length,
-        skipped: results.filter(r => r.action === 'skipped').length,
-        errors: results.filter(r => r.action === 'error').length + parseErrors.length,
+        created: results.filter((r) => r.action === 'created').length,
+        alreadyExist: results.filter((r) => r.action === 'exists').length,
+        skipped: results.filter((r) => r.action === 'skipped').length,
+        errors: results.filter((r) => r.action === 'error').length + parseErrors.length,
         warnings: allWarnings,
         results,
     };
@@ -209,7 +212,7 @@ async function processOneRole(def, dryRun, orgRoleCache) {
                     orgRoleCache.set(def.orgId, []);
                 }
             }
-            const existing = orgRoleCache.get(def.orgId).find(r => r.slug === def.slug);
+            const existing = orgRoleCache.get(def.orgId).find((r) => r.slug === def.slug);
             if (existing) {
                 const comparison = comparePermissions(def.permissions, existing.permissions);
                 if (!comparison.match) {
@@ -265,7 +268,9 @@ async function processOneRole(def, dryRun, orgRoleCache) {
                 const message = err?.message || '';
                 const status = err?.status;
                 // If role already exists (409), mark as exists
-                if (status === 409 || message.includes('already exists') || message.includes('already been taken')) {
+                if (status === 409 ||
+                    message.includes('already exists') ||
+                    message.includes('already been taken')) {
                     result.action = 'exists';
                     return result;
                 }

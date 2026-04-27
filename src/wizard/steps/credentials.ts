@@ -74,5 +74,42 @@ export async function enterCredentials(state: WizardState): Promise<WizardState>
     console.log(chalk.green('  Auth0 credentials configured.\n'));
   }
 
+  if (state.provider === 'cognito') {
+    const cognitoCreds = await prompts(
+      [
+        {
+          type: 'text',
+          name: 'region',
+          message: 'AWS Region (e.g. us-east-1)',
+          initial: process.env.AWS_REGION || '',
+          validate: (v: string) => v.length > 0 || 'Required',
+        },
+        {
+          type: 'text',
+          name: 'userPoolIds',
+          message: 'Cognito User Pool IDs (comma-separated)',
+          initial: process.env.COGNITO_USER_POOL_IDS || '',
+          validate: (v: string) => v.length > 0 || 'Required',
+        },
+      ],
+      {
+        onCancel: () => {
+          state.cancelled = true;
+        },
+      },
+    );
+
+    if (state.cancelled) return state;
+
+    state.cognitoRegion = cognitoCreds.region;
+    state.cognitoUserPoolIds = cognitoCreds.userPoolIds;
+    console.log(chalk.green('  AWS Cognito credentials configured.\n'));
+    console.log(
+      chalk.gray(
+        '  AWS access keys will be read from the default credential chain (env, profile, IMDS).\n',
+      ),
+    );
+  }
+
   return state;
 }

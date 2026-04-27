@@ -1,0 +1,15 @@
+{
+  "userPoolId": "us-east-1_AAAPOOL",
+  "providerName": "okta-saml",
+  "providerType": "SAML",
+  "region": "us-east-1",
+  "providerDetails": {
+    "MetadataFile": "<?xml version=\"1.0\"?>\n<md:EntityDescriptor entityID=\"http://www.okta.com/exkabcde1234\"\n    xmlns:md=\"urn:oasis:names:tc:SAML:2.0:metadata\"\n    xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\">\n  <md:IDPSSODescriptor>\n    <md:KeyDescriptor use=\"signing\">\n      <ds:KeyInfo>\n        <ds:X509Data>\n          <ds:X509Certificate>MIIDpDCCAoygAwIBAgIGAYpq7ezXMA0GCSqGSIb3DQEBCwUAMIGSOKTA...</ds:X509Certificate>\n        </ds:X509Data>\n      </ds:KeyInfo>\n    </md:KeyDescriptor>\n    <md:SingleSignOnService\n      Binding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect\"\n      Location=\"https://acme.okta.com/app/exkabcde1234/sso/saml\"/>\n    <md:SingleSignOnService\n      Binding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST\"\n      Location=\"https://acme.okta.com/app/exkabcde1234/sso/saml\"/>\n  </md:IDPSSODescriptor>\n</md:EntityDescriptor>"
+  },
+  "attributeMapping": {
+    "email": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress",
+    "given_name": "firstName",
+    "family_name": "lastName"
+  },
+  "idpIdentifiers": []
+}

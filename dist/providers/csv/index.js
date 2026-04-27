@@ -37,4 +37,4 @@ export const csvProvider = {
         },
     ],
 };
-export { getAllTemplates, getTemplate, generateTemplateExample, validateCSVHeaders } from './templates.js';
+export { getAllTemplates, getTemplate, generateTemplateExample, validateCSVHeaders, } from './templates.js';

@@ -323,6 +323,21 @@ export interface EntityType {
     description: string;
     enabled: boolean;
 }
+export interface ProviderClient {
+    authenticate(): Promise<void>;
+    getAvailableEntities(): Promise<EntityType[]>;
+    exportEntities(entities: string[]): Promise<ExportResult>;
+    validateCredentials(): Promise<void>;
+    getScopes?(): string[];
+}
+export interface ExportResult {
+    timestamp: string;
+    provider: string;
+    entities: Record<string, unknown[]>;
+    summary: {
+        [entityType: string]: number;
+    };
+}
 export interface ProgressStats {
     processed: number;
     total: number;

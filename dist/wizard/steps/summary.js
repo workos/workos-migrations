@@ -6,7 +6,8 @@ export async function showSummary(state) {
     console.log(chalk.bold('  Provider:   ') + (state.provider || 'unknown'));
     console.log(chalk.bold('  CSV:        ') + (state.csvFilePath || 'N/A'));
     if (state.validationPassed !== undefined) {
-        console.log(chalk.bold('  Validation: ') + (state.validationPassed ? chalk.green('passed') : chalk.yellow('passed with warnings')));
+        console.log(chalk.bold('  Validation: ') +
+            (state.validationPassed ? chalk.green('passed') : chalk.yellow('passed with warnings')));
     }
     if (state.fixesApplied && state.fixesApplied > 0) {
         console.log(chalk.bold('  Auto-fixes: ') + state.fixesApplied);

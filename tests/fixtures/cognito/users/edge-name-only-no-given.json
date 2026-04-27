@@ -1,0 +1,12 @@
+{
+  "userPoolId": "us-east-1_AAAPOOL",
+  "username": "onlyname-user",
+  "userStatus": "CONFIRMED",
+  "enabled": true,
+  "attributes": {
+    "sub": "abcdef12-3456-7890-fedc-ba0987654321",
+    "email": "onlyname@example.com",
+    "email_verified": "true",
+    "name": "Olivia Rodriguez"
+  }
+}

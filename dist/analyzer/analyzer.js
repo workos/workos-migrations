@@ -83,7 +83,12 @@ export async function analyzeErrors(errorsPath) {
         const key = `${error.errorType || 'unknown'}:${error.httpStatus || 'none'}:${pattern}`;
         let group = groupMap.get(key);
         if (!group) {
-            group = { pattern, errorType: error.errorType || 'unknown', httpStatus: error.httpStatus, errors: [] };
+            group = {
+                pattern,
+                errorType: error.errorType || 'unknown',
+                httpStatus: error.httpStatus,
+                errors: [],
+            };
             groupMap.set(key, group);
         }
         group.errors.push(error);

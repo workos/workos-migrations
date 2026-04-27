@@ -1,0 +1,11 @@
+{
+  "userPoolId": "us-east-1_AAAPOOL",
+  "providerName": "bare-saml",
+  "providerType": "SAML",
+  "region": "us-east-1",
+  "providerDetails": {},
+  "attributeMapping": {
+    "email": "emailAddress"
+  },
+  "idpIdentifiers": []
+}

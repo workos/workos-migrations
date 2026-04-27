@@ -1,0 +1,12 @@
+{
+  "userPoolId": "us-east-1_AAAPOOL",
+  "username": "Facebook_10163424000000",
+  "userStatus": "EXTERNAL_PROVIDER",
+  "enabled": true,
+  "attributes": {
+    "sub": "aa000011-2233-4455-6677-8899aabbccdd",
+    "email": "gabe@example.com",
+    "email_verified": "true",
+    "name": "Gabe Howard"
+  }
+}

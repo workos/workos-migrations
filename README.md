@@ -32,6 +32,7 @@ npx workos-migrate <command>
 | -------------------------- | ------------------------------------------------------ |
 | `wizard`                   | Interactive step-by-step migration wizard              |
 | `export-auth0`             | Export users from Auth0 via Management API             |
+| `export-cognito`           | Export users + SSO connections from AWS Cognito        |
 | `merge-passwords`          | Merge Auth0 password hashes into the export CSV        |
 | `transform-clerk`          | Transform a Clerk CSV export to WorkOS format          |
 | `transform-firebase`       | Transform a Firebase Auth JSON export to WorkOS format |
@@ -191,6 +192,58 @@ The transformer handles:
 - Skipping users without an email address
 
 ### 4. Validate, import, and post-import
+
+Continue to [Validation](#validation), [Import](#importing-users), and [Post-Import](#post-import-totp-and-roles) below.
+
+---
+
+## Migrating from AWS Cognito
+
+### 1. Set up AWS credentials
+
+Configure your AWS credentials using one of the standard methods:
+
+- Environment variables (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`)
+- AWS credentials file (`~/.aws/credentials`)
+- IAM role (when running on EC2/ECS/Lambda)
+
+The Cognito exporter requires these IAM permissions:
+
+- `cognito-idp:ListUserPools`
+- `cognito-idp:ListIdentityProviders`
+- `cognito-idp:DescribeIdentityProvider`
+- `cognito-idp:ListUsers`
+
+### 2. Export users and connections
+
+```bash
+workos-migrate export-cognito \
+  --region us-east-1 \
+  --user-pool-ids us-east-1_ABC123,us-east-1_DEF456
+```
+
+Options:
+
+- `--entities <list>` - Comma-separated entities to export: `connections`, `users` (default: both)
+- `--output-dir <dir>` - Output directory for CSV files (default: current directory)
+- `--saml-custom-entity-id-template <url>` - Template for SAML custom Entity ID (default: `urn:amazon:cognito:sp:{user_pool_id}`)
+- `--saml-custom-acs-url-template <url>` - Template for SAML custom ACS URL (placeholders: `{provider_name}`, `{user_pool_id}`, `{region}`)
+- `--oidc-custom-redirect-uri-template <url>` - Template for OIDC custom redirect URI
+
+The export produces:
+
+- `workos_saml_connections.csv` - SAML SSO connections
+- `workos_oidc_connections.csv` - OIDC SSO connections
+- `custom_attribute_mappings.csv` - Supplementary attribute mappings
+- `workos_users.csv` - Users in WorkOS import format
+
+**Note:** Cognito does not expose password hashes via its API. The `password_hash` column will be blank for all users. Affected users will need to reset their password post-migration or rely on SSO + JIT provisioning via the migration proxy.
+
+### 3. Migration proxy (optional)
+
+For a seamless cutover where existing IdP configurations continue to work, see the reference proxy implementation in [`proxy-sample-cognito/`](./proxy-sample-cognito/). This Lambda handler routes per-tenant traffic between Cognito and WorkOS during the migration window.
+
+### 4. Validate and import users
 
 Continue to [Validation](#validation), [Import](#importing-users), and [Post-Import](#post-import-totp-and-roles) below.
 

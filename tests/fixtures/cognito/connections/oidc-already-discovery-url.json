@@ -1,0 +1,15 @@
+{
+  "userPoolId": "us-east-1_AAAPOOL",
+  "providerName": "oidc-pre-normalized",
+  "providerType": "OIDC",
+  "region": "us-east-1",
+  "providerDetails": {
+    "client_id": "pre-normalized-client",
+    "client_secret": "pre-normalized-secret",
+    "oidc_issuer": "https://idp.example.com/.well-known/openid-configuration"
+  },
+  "attributeMapping": {
+    "email": "email"
+  },
+  "idpIdentifiers": []
+}

@@ -29,7 +29,7 @@ class Semaphore {
             this.count += 1;
             return;
         }
-        await new Promise(resolve => {
+        await new Promise((resolve) => {
             this.queue.push(() => {
                 this.count += 1;
                 resolve();
@@ -52,7 +52,7 @@ class Semaphore {
  * 3. Skip already-enrolled users (idempotent)
  */
 export async function enrollTotp(workos, options) {
-    const { inputPath, format, concurrency, rateLimit, dryRun, errorsPath, totpIssuer, } = options;
+    const { inputPath, format, concurrency, rateLimit, dryRun, errorsPath, totpIssuer } = options;
     const rateLimiter = new RateLimiter(rateLimit);
     const semaphore = new Semaphore(concurrency);
     const startedAt = Date.now();

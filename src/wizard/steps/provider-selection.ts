@@ -26,6 +26,11 @@ export async function selectProvider(state: WizardState): Promise<WizardState> {
           value: 'firebase',
           description: 'Transform Firebase JSON, scrypt passwords',
         },
+        {
+          title: 'AWS Cognito',
+          value: 'cognito',
+          description: 'Export users + SSO connections from Cognito user pools',
+        },
         { title: 'Custom CSV', value: 'csv', description: 'Already have a WorkOS-formatted CSV' },
       ],
     },

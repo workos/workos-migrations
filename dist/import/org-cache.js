@@ -1,4 +1,4 @@
-import { getOrganizationById, getOrganizationByExternalId, createOrganization, } from './org-api.js';
+import { getOrganizationById, getOrganizationByExternalId, createOrganization } from './org-api.js';
 export class OrgCache {
     cache;
     inFlightRequests;

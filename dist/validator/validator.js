@@ -149,10 +149,7 @@ async function writeFixedCsv(rows, headers, outputPath) {
     return new Promise((resolve, reject) => {
         const outputStream = createWriteStream(outputPath);
         const stringifier = stringify({ header: true, columns: headers });
-        stringifier
-            .pipe(outputStream)
-            .on('finish', resolve)
-            .on('error', reject);
+        stringifier.pipe(outputStream).on('finish', resolve).on('error', reject);
         for (const row of rows) {
             stringifier.write(row);
         }

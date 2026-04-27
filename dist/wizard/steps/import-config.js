@@ -24,13 +24,25 @@ export async function configureImport(state) {
             name: 'orgMode',
             message: 'Organization import mode',
             choices: [
-                { title: 'User only', value: 'user-only', description: 'Import users without org memberships' },
-                { title: 'Single org', value: 'single-org', description: 'Assign all users to one organization' },
-                { title: 'Multi org (from CSV)', value: 'multi-org', description: 'Org mapping columns in CSV' },
+                {
+                    title: 'User only',
+                    value: 'user-only',
+                    description: 'Import users without org memberships',
+                },
+                {
+                    title: 'Single org',
+                    value: 'single-org',
+                    description: 'Assign all users to one organization',
+                },
+                {
+                    title: 'Multi org (from CSV)',
+                    value: 'multi-org',
+                    description: 'Org mapping columns in CSV',
+                },
             ],
         },
         {
-            type: (prev) => prev === 'single-org' ? 'text' : null,
+            type: (prev) => (prev === 'single-org' ? 'text' : null),
             name: 'orgId',
             message: 'WorkOS Organization ID or External ID',
             validate: (v) => v.length > 0 || 'Required',
@@ -47,7 +59,11 @@ export async function configureImport(state) {
             message: 'Run as dry-run first (recommended)?',
             initial: true,
         },
-    ], { onCancel: () => { state.cancelled = true; } });
+    ], {
+        onCancel: () => {
+            state.cancelled = true;
+        },
+    });
     if (state.cancelled)
         return state;
     state.concurrency = response.concurrency;

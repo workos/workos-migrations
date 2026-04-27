@@ -44,7 +44,12 @@ function mapFirebaseUser(user, nameSplitStrategy, scryptConfig, includeDisabled,
     const warnings = [];
     const email = user.email?.trim();
     if (!email) {
-        return { csvRow: {}, warnings: [], skipped: true, skipReason: 'Missing email address' };
+        return {
+            csvRow: {},
+            warnings: [],
+            skipped: true,
+            skipReason: 'Missing email address',
+        };
     }
     if (user.disabled && !includeDisabled) {
         return { csvRow: {}, warnings: [], skipped: true, skipReason: 'User is disabled' };

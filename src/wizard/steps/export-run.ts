@@ -3,6 +3,7 @@ import type { WizardState } from '../wizard.js';
 import { exportAuth0 } from '../../exporters/auth0/exporter.js';
 import { transformClerkExport } from '../../transformers/clerk/transformer.js';
 import { transformFirebaseExport } from '../../transformers/firebase/transformer.js';
+import { CognitoClient } from '../../providers/cognito/index.js';
 import type { FirebaseScryptConfig } from '../../shared/types.js';
 
 export async function runExport(state: WizardState): Promise<WizardState> {
@@ -21,6 +22,9 @@ export async function runExport(state: WizardState): Promise<WizardState> {
   }
   if (state.provider === 'firebase') {
     return runFirebaseTransform(state);
+  }
+  if (state.provider === 'cognito') {
+    return runCognitoExport(state);
   }
 
   return state;
@@ -132,6 +136,53 @@ async function runFirebaseTransform(state: WizardState): Promise<WizardState> {
     }
   } catch (err) {
     console.error(chalk.red(`\n  Firebase transform failed: ${(err as Error).message}`));
+    state.cancelled = true;
+  }
+
+  return state;
+}
+
+async function runCognitoExport(state: WizardState): Promise<WizardState> {
+  console.log(chalk.blue('  Exporting from AWS Cognito...\n'));
+
+  try {
+    const credentials = {
+      region: state.cognitoRegion!,
+      userPoolIds: state.cognitoUserPoolIds!,
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID ?? '',
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY ?? '',
+      sessionToken: process.env.AWS_SESSION_TOKEN ?? '',
+    };
+
+    const client = new CognitoClient(credentials, {
+      userPoolIds: state.cognitoUserPoolIds!.split(',').map((s) => s.trim()),
+      outDir: state.cognitoOutputDir ?? '.',
+    });
+
+    await client.authenticate();
+
+    const entities = (state.cognitoEntities ?? 'connections,users').split(',');
+    const result = await client.exportEntities(entities);
+
+    console.log(chalk.green('\n  Export complete'));
+    for (const [key, count] of Object.entries(result.summary)) {
+      console.log(`    ${key}: ${count}`);
+    }
+
+    // Cognito export produces separate CSVs (connections + users), not a single
+    // import-ready CSV. The user CSV can be passed into the validation + import
+    // pipeline; connections are imported separately.
+    const outputFiles = result.entities.output_files as string[] | undefined;
+    const usersFile = outputFiles?.find((f) => f.includes('workos_users'));
+    if (usersFile) {
+      state.csvFilePath = usersFile;
+      console.log(chalk.gray(`\n  Users CSV for import pipeline: ${usersFile}`));
+    }
+
+    console.log();
+  } catch (err) {
+    console.error(chalk.red(`\n  Cognito export failed: ${(err as Error).message}`));
+    console.log(chalk.gray('  You can retry with: workos-migrate export-cognito\n'));
     state.cancelled = true;
   }
 

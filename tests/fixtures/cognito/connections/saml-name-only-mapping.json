@@ -1,0 +1,19 @@
+{
+  "userPoolId": "us-east-1_AAAPOOL",
+  "providerName": "customer-tenant-01",
+  "providerType": "SAML",
+  "region": "us-east-1",
+  "providerDetails": {
+    "MetadataFile": "<?xml version=\"1.0\"?>\n<md:EntityDescriptor entityID=\"https://idp.customer01.example.com/entity\"\n    xmlns:md=\"urn:oasis:names:tc:SAML:2.0:metadata\"\n    xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\">\n  <md:IDPSSODescriptor>\n    <md:KeyDescriptor use=\"signing\">\n      <ds:KeyInfo><ds:X509Data><ds:X509Certificate>MIICUSTOMER01CERTSAMPLE</ds:X509Certificate></ds:X509Data></ds:KeyInfo>\n    </md:KeyDescriptor>\n    <md:SingleSignOnService\n      Binding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect\"\n      Location=\"https://idp.customer01.example.com/sso\"/>\n  </md:IDPSSODescriptor>\n</md:EntityDescriptor>"
+  },
+  "attributeMapping": {
+    "email": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress",
+    "name": "fullName",
+    "custom:department": "department",
+    "custom:location": "location",
+    "custom:title": "jobTitle",
+    "custom:user_status": "userStatus",
+    "custom:user_type": "userType"
+  },
+  "idpIdentifiers": []
+}

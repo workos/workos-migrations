@@ -21,7 +21,11 @@ async function handleTotp(state) {
         name: 'hasTotp',
         message: 'Do you have TOTP/MFA secrets to migrate?',
         initial: false,
-    }, { onCancel: () => { state.cancelled = true; } });
+    }, {
+        onCancel: () => {
+            state.cancelled = true;
+        },
+    });
     if (state.cancelled || !totpResponse.hasTotp)
         return;
     const fileResponse = await prompts([
@@ -37,7 +41,11 @@ async function handleTotp(state) {
             message: 'TOTP issuer name (shown in authenticator apps)',
             initial: '',
         },
-    ], { onCancel: () => { state.cancelled = true; } });
+    ], {
+        onCancel: () => {
+            state.cancelled = true;
+        },
+    });
     if (state.cancelled)
         return;
     state.totpFilePath = fileResponse.totpPath;
@@ -77,7 +85,11 @@ async function handleRoles(state) {
         name: 'hasRoles',
         message: 'Do you have role definitions to process?',
         initial: false,
-    }, { onCancel: () => { state.cancelled = true; } });
+    }, {
+        onCancel: () => {
+            state.cancelled = true;
+        },
+    });
     if (state.cancelled || !roleResponse.hasRoles)
         return;
     const fileResponse = await prompts([
@@ -94,7 +106,7 @@ async function handleRoles(state) {
             initial: false,
         },
         {
-            type: (prev) => prev ? 'text' : null,
+            type: (prev) => (prev ? 'text' : null),
             name: 'userMappingPath',
             message: 'Path to user-role mapping CSV',
             validate: (v) => fs.existsSync(v) || 'File not found',
@@ -105,7 +117,11 @@ async function handleRoles(state) {
             message: 'Organization ID for role assignments',
             validate: (v) => v.length > 0 || 'Required when using user-role mapping',
         },
-    ], { onCancel: () => { state.cancelled = true; } });
+    ], {
+        onCancel: () => {
+            state.cancelled = true;
+        },
+    });
     if (state.cancelled)
         return;
     state.roleDefinitionsPath = fileResponse.definitionsPath;
@@ -127,7 +143,10 @@ async function handleRoles(state) {
         if (fileResponse.userMappingPath && fileResponse.orgId) {
             console.log(chalk.blue('  Assigning roles to users...\n'));
             const workos = createWorkOSClient();
-            const assignResult = await assignRolesToUsers(fileResponse.userMappingPath, workos, { orgId: fileResponse.orgId, dryRun: false });
+            const assignResult = await assignRolesToUsers(fileResponse.userMappingPath, workos, {
+                orgId: fileResponse.orgId,
+                dryRun: false,
+            });
             console.log(chalk.green('  Role Assignment Summary'));
             console.log(`    Total: ${assignResult.totalMappings}`);
             console.log(`    Assigned: ${assignResult.assigned}`);
