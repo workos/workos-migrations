@@ -2,6 +2,30 @@
 
 A CLI tool for migrating users from identity providers into WorkOS. Supports Auth0, Clerk, Firebase Auth, and custom CSV imports with password hashes, organization memberships, roles, and TOTP MFA factors.
 
+## Installation
+
+This tool is not yet published to npm. Clone the repository and build it locally:
+
+```bash
+git clone https://github.com/workos/workos-migrations.git
+cd workos-migrations
+npm install
+npm run build
+```
+
+From there you can either invoke the CLI directly:
+
+```bash
+node dist/index.js <command>
+```
+
+or link it globally so it's available as `workos-migrate` on your `PATH`:
+
+```bash
+npm link
+workos-migrate <command>
+```
+
 ## Quick Start
 
 The fastest way to get started is with the interactive wizard:
@@ -9,22 +33,10 @@ The fastest way to get started is with the interactive wizard:
 ```bash
 export WORKOS_SECRET_KEY=sk_...
 
-npx workos-migrate wizard
+node dist/index.js wizard
 ```
 
 The wizard walks you through provider selection, export/transform, validation, and import step by step.
-
-## Installation
-
-```bash
-npm install -g workos-migrations
-```
-
-Or run directly with npx:
-
-```bash
-npx workos-migrate <command>
-```
 
 ## Commands
 
@@ -42,11 +54,11 @@ npx workos-migrate <command>
 | `enroll-totp`              | Enroll TOTP MFA factors for imported users             |
 | `process-role-definitions` | Create roles and assign permissions in WorkOS          |
 
-Run `workos-migrate <command> --help` for full option details on any command.
+Run `node dist/index.js <command> --help` (or `workos-migrate <command> --help` if you ran `npm link`) for full option details on any command.
 
 ## Prerequisites
 
-- Node.js 18+
+- Node.js 22.11+
 - A WorkOS Secret Key (`WORKOS_SECRET_KEY` environment variable)
 
 ## CSV Format
