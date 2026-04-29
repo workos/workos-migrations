@@ -89,7 +89,9 @@ export interface Auth0ExportOptions {
     domain: string;
     clientId: string;
     clientSecret: string;
-    output: string;
+    output?: string;
+    package?: boolean;
+    outputDir?: string;
     orgs?: string[];
     pageSize: number;
     rateLimit: number;
@@ -97,6 +99,7 @@ export interface Auth0ExportOptions {
     useMetadata: boolean;
     metadataOrgIdField?: string;
     metadataOrgNameField?: string;
+    includeFederatedUsers?: boolean;
     jobId?: string;
     resume?: boolean;
     quiet: boolean;
@@ -122,6 +125,7 @@ export interface Auth0User {
     updated_at: string;
     last_login?: string;
     logins_count?: number;
+    blocked?: boolean;
     identities?: Array<{
         provider: string;
         user_id: string;

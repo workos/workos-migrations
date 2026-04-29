@@ -99,11 +99,24 @@ workos-migrate export-auth0 \
   --output auth0-export.csv
 ```
 
+To write a migration package with users, organizations, memberships, warnings, and skipped-user
+sidecars:
+
+```bash
+workos-migrate export-auth0 \
+  --domain my-tenant.us.auth0.com \
+  --client-id <M2M_CLIENT_ID> \
+  --client-secret <M2M_CLIENT_SECRET> \
+  --package \
+  --output-dir ./migration-auth0
+```
+
 Options:
 
 - `--orgs <ids...>` - Filter to specific Auth0 organization IDs
 - `--rate-limit <n>` - API requests per second (default: 50)
 - `--use-metadata` - Use `user_metadata` for org discovery instead of the Organizations API
+- `--include-federated-users` - Include federated/JIT users in package mode (skipped by default)
 - `--job-id <id>` - Enable export checkpointing for large tenants
 - `--resume [jobId]` - Resume a previously checkpointed export
 
