@@ -9,3 +9,7 @@ config.json
 
 # Export files
 *-export-*.json
+
+# Local planning and implementation notes
+docs/ideation/
+ideations/
