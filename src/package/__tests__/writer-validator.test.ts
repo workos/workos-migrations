@@ -108,6 +108,47 @@ describe('migration package writer and validator', () => {
     expect(validation.errors.some((issue) => issue.code === 'noncanonical_file_path')).toBe(true);
   });
 
+  it('does not produce spurious errors for roleDefinitions counts', async () => {
+    await createMigrationPackage({
+      rootDir: tempRoot,
+      provider: 'csv',
+      generatedAt: '2026-04-29T00:00:00.000Z',
+      entitiesExported: {
+        roleDefinitions: 2,
+      },
+    });
+
+    await writePackageCsvRows(tempRoot, 'roleDefinitions', [
+      { role_slug: 'admin', role_name: 'Admin', role_type: 'environment' },
+      { role_slug: 'member', role_name: 'Member', role_type: 'environment' },
+    ]);
+
+    const validation = await validateMigrationPackage(tempRoot);
+    const roleErrors = validation.errors.filter((e) => e.file === 'role_definitions.csv');
+    expect(roleErrors).toEqual([]);
+  });
+
+  it('does not produce spurious errors for userRoleAssignments counts', async () => {
+    await createMigrationPackage({
+      rootDir: tempRoot,
+      provider: 'csv',
+      generatedAt: '2026-04-29T00:00:00.000Z',
+      entitiesExported: {
+        userRoleAssignments: 1,
+      },
+    });
+
+    await writePackageCsvRows(tempRoot, 'userRoleAssignments', [
+      { email: 'alice@example.com', role_slug: 'admin' },
+    ]);
+
+    const validation = await validateMigrationPackage(tempRoot);
+    const assignmentErrors = validation.errors.filter(
+      (e) => e.file === 'user_role_assignments.csv',
+    );
+    expect(assignmentErrors).toEqual([]);
+  });
+
   it('rejects CSV files whose headers drift from the contract', async () => {
     await createMigrationPackage({
       rootDir: tempRoot,

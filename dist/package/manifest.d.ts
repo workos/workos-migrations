@@ -45,9 +45,8 @@ export declare const DEFAULT_ENTITY_COUNTS: {
     readonly users: 0;
     readonly organizations: 0;
     readonly memberships: 0;
-    readonly roles: 0;
     readonly roleDefinitions: 0;
-    readonly roleAssignments: 0;
+    readonly userRoleAssignments: 0;
     readonly totpSecrets: 0;
     readonly samlConnections: 0;
     readonly oidcConnections: 0;
