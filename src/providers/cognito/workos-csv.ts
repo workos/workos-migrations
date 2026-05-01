@@ -1,53 +1,24 @@
 /**
  * WorkOS SSO connection import CSV schemas + row builders.
  */
-import { parseSamlMetadata, normalizeDiscoveryEndpoint } from './saml-metadata.js';
-
-export const SAML_HEADERS = [
-  'organizationName',
-  'organizationId',
-  'organizationExternalId',
-  'domains',
-  'idpEntityId',
-  'idpUrl',
-  'x509Cert',
-  'idpMetadataUrl',
-  'customEntityId',
-  'customAcsUrl',
-  'idpIdAttribute',
-  'emailAttribute',
-  'firstNameAttribute',
-  'lastNameAttribute',
-  'name',
-  'customAttributes',
-  'idpInitiatedEnabled',
-  'requestSigningKey',
-  'assertionEncryptionKey',
-  'nameIdEncryptionKey',
-  'importedId',
-] as const;
-
-export const OIDC_HEADERS = [
-  'organizationName',
-  'organizationId',
-  'organizationExternalId',
-  'domains',
-  'clientId',
-  'clientSecret',
-  'discoveryEndpoint',
-  'customRedirectUri',
-  'name',
-  'customAttributes',
-  'importedId',
-] as const;
-
-export const CUSTOM_ATTR_HEADERS = [
-  'importedId',
-  'organizationExternalId',
-  'providerType',
-  'userPoolAttribute',
-  'idpClaim',
-] as const;
+import {
+  createCustomAttributeMappingRow,
+  createOidcConnectionRow,
+  createSamlConnectionRow,
+  type CustomAttrRow,
+  type OidcRow,
+  type SamlRow,
+} from '../../sso/handoff.js';
+export {
+  CUSTOM_ATTR_HEADERS,
+  OIDC_HEADERS,
+  SAML_HEADERS,
+  rowsToCsv,
+  type CustomAttrRow,
+  type OidcRow,
+  type SamlRow,
+} from '../../sso/handoff.js';
+import { normalizeDiscoveryEndpoint, parseSamlMetadata } from '../../sso/saml-metadata.js';
 
 /**
  * WorkOS users import template. `password_hash` is intentionally written
@@ -129,9 +100,6 @@ export function buildCustomAttributesJson(attrs: Record<string, string>): string
   return JSON.stringify(Object.fromEntries(entries));
 }
 
-export type SamlRow = Record<(typeof SAML_HEADERS)[number], string>;
-export type OidcRow = Record<(typeof OIDC_HEADERS)[number], string>;
-export type CustomAttrRow = Record<(typeof CUSTOM_ATTR_HEADERS)[number], string>;
 export type UserRow = Record<(typeof USER_HEADERS)[number], string>;
 
 export interface CognitoUser {
@@ -200,11 +168,9 @@ export function toSamlRow(p: CognitoProvider, proxy: ProxyTemplates = {}): SamlR
   const metadataXml = details.MetadataFile ?? '';
   const parsed = metadataXml ? parseSamlMetadata(metadataXml) : null;
 
-  return {
+  return createSamlConnectionRow({
     organizationName: p.providerName,
-    organizationId: '',
     organizationExternalId: p.providerName,
-    domains: '',
     idpEntityId: parsed?.entityId ?? details.EntityId ?? '',
     idpUrl: parsed?.ssoRedirectUrl ?? details.SSORedirectBindingURI ?? '',
     x509Cert: parsed?.x509Cert ?? '',
@@ -222,18 +188,16 @@ export function toSamlRow(p: CognitoProvider, proxy: ProxyTemplates = {}): SamlR
     assertionEncryptionKey: '',
     nameIdEncryptionKey: '',
     importedId: importedId(p),
-  };
+  });
 }
 
 export function toOidcRow(p: CognitoProvider, proxy: ProxyTemplates = {}): OidcRow {
   const details = p.providerDetails;
   const attrs = p.attributeMapping;
 
-  return {
+  return createOidcConnectionRow({
     organizationName: p.providerName,
-    organizationId: '',
     organizationExternalId: p.providerName,
-    domains: '',
     clientId: details.client_id ?? '',
     clientSecret: details.client_secret ?? '',
     discoveryEndpoint: normalizeDiscoveryEndpoint(details.oidc_issuer) ?? '',
@@ -241,36 +205,22 @@ export function toOidcRow(p: CognitoProvider, proxy: ProxyTemplates = {}): OidcR
     name: attrs[UP_NAME] ?? '',
     customAttributes: buildCustomAttributesJson(attrs),
     importedId: importedId(p),
-  };
+  });
 }
 
 export function toCustomAttrRows(p: CognitoProvider): CustomAttrRow[] {
   const rows: CustomAttrRow[] = [];
   for (const [attr, claim] of Object.entries(p.attributeMapping)) {
     if (!SUPPLEMENTARY_ATTR_KEYS.has(attr)) continue;
-    rows.push({
-      importedId: importedId(p),
-      organizationExternalId: p.providerName,
-      providerType: p.providerType,
-      userPoolAttribute: attr,
-      idpClaim: claim,
-    });
+    rows.push(
+      createCustomAttributeMappingRow({
+        importedId: importedId(p),
+        organizationExternalId: p.providerName,
+        providerType: p.providerType,
+        userPoolAttribute: attr,
+        idpClaim: claim,
+      }),
+    );
   }
   return rows;
-}
-
-/** Produce a CSV string from headers + rows. Handles commas, quotes, and newlines. */
-export function rowsToCsv(headers: readonly string[], rows: Record<string, string>[]): string {
-  const escape = (v: unknown): string => {
-    const s = v == null ? '' : String(v);
-    if (/[",\n\r]/.test(s)) {
-      return `"${s.replace(/"/g, '""')}"`;
-    }
-    return s;
-  };
-  const lines = [headers.join(',')];
-  for (const row of rows) {
-    lines.push(headers.map((h) => escape(row[h])).join(','));
-  }
-  return lines.join('\n') + '\n';
 }

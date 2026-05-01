@@ -1,50 +1,9 @@
 /**
  * WorkOS SSO connection import CSV schemas + row builders.
  */
-import { parseSamlMetadata, normalizeDiscoveryEndpoint } from './saml-metadata.js';
-export const SAML_HEADERS = [
-    'organizationName',
-    'organizationId',
-    'organizationExternalId',
-    'domains',
-    'idpEntityId',
-    'idpUrl',
-    'x509Cert',
-    'idpMetadataUrl',
-    'customEntityId',
-    'customAcsUrl',
-    'idpIdAttribute',
-    'emailAttribute',
-    'firstNameAttribute',
-    'lastNameAttribute',
-    'name',
-    'customAttributes',
-    'idpInitiatedEnabled',
-    'requestSigningKey',
-    'assertionEncryptionKey',
-    'nameIdEncryptionKey',
-    'importedId',
-];
-export const OIDC_HEADERS = [
-    'organizationName',
-    'organizationId',
-    'organizationExternalId',
-    'domains',
-    'clientId',
-    'clientSecret',
-    'discoveryEndpoint',
-    'customRedirectUri',
-    'name',
-    'customAttributes',
-    'importedId',
-];
-export const CUSTOM_ATTR_HEADERS = [
-    'importedId',
-    'organizationExternalId',
-    'providerType',
-    'userPoolAttribute',
-    'idpClaim',
-];
+import { createCustomAttributeMappingRow, createOidcConnectionRow, createSamlConnectionRow, } from '../../sso/handoff.js';
+export { CUSTOM_ATTR_HEADERS, OIDC_HEADERS, SAML_HEADERS, rowsToCsv, } from '../../sso/handoff.js';
+import { normalizeDiscoveryEndpoint, parseSamlMetadata } from '../../sso/saml-metadata.js';
 /**
  * WorkOS users import template. `password_hash` is intentionally written
  * blank — Cognito does not expose password hashes. Users that relied on
@@ -153,11 +112,9 @@ export function toSamlRow(p, proxy = {}) {
     const metadataUrl = details.MetadataURL ?? '';
     const metadataXml = details.MetadataFile ?? '';
     const parsed = metadataXml ? parseSamlMetadata(metadataXml) : null;
-    return {
+    return createSamlConnectionRow({
         organizationName: p.providerName,
-        organizationId: '',
         organizationExternalId: p.providerName,
-        domains: '',
         idpEntityId: parsed?.entityId ?? details.EntityId ?? '',
         idpUrl: parsed?.ssoRedirectUrl ?? details.SSORedirectBindingURI ?? '',
         x509Cert: parsed?.x509Cert ?? '',
@@ -175,16 +132,14 @@ export function toSamlRow(p, proxy = {}) {
         assertionEncryptionKey: '',
         nameIdEncryptionKey: '',
         importedId: importedId(p),
-    };
+    });
 }
 export function toOidcRow(p, proxy = {}) {
     const details = p.providerDetails;
     const attrs = p.attributeMapping;
-    return {
+    return createOidcConnectionRow({
         organizationName: p.providerName,
-        organizationId: '',
         organizationExternalId: p.providerName,
-        domains: '',
         clientId: details.client_id ?? '',
         clientSecret: details.client_secret ?? '',
         discoveryEndpoint: normalizeDiscoveryEndpoint(details.oidc_issuer) ?? '',
@@ -192,35 +147,20 @@ export function toOidcRow(p, proxy = {}) {
         name: attrs[UP_NAME] ?? '',
         customAttributes: buildCustomAttributesJson(attrs),
         importedId: importedId(p),
-    };
+    });
 }
 export function toCustomAttrRows(p) {
     const rows = [];
     for (const [attr, claim] of Object.entries(p.attributeMapping)) {
         if (!SUPPLEMENTARY_ATTR_KEYS.has(attr))
             continue;
-        rows.push({
+        rows.push(createCustomAttributeMappingRow({
             importedId: importedId(p),
             organizationExternalId: p.providerName,
             providerType: p.providerType,
             userPoolAttribute: attr,
             idpClaim: claim,
-        });
+        }));
     }
     return rows;
-}
-/** Produce a CSV string from headers + rows. Handles commas, quotes, and newlines. */
-export function rowsToCsv(headers, rows) {
-    const escape = (v) => {
-        const s = v == null ? '' : String(v);
-        if (/[",\n\r]/.test(s)) {
-            return `"${s.replace(/"/g, '""')}"`;
-        }
-        return s;
-    };
-    const lines = [headers.join(',')];
-    for (const row of rows) {
-        lines.push(headers.map((h) => escape(row[h])).join(','));
-    }
-    return lines.join('\n') + '\n';
 }
