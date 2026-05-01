@@ -2,7 +2,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { streamCSV } from '../../../shared/csv-utils';
-import type { Auth0Organization, Auth0User } from '../../../shared/types';
+import type {
+  Auth0Connection,
+  Auth0Organization,
+  Auth0OrganizationConnection,
+  Auth0User,
+} from '../../../shared/types';
 import { validateMigrationPackage } from '../../../package/validator';
 import { exportAuth0PackageWithClient, type Auth0ExportClient } from '../package-exporter';
 
@@ -11,10 +16,32 @@ class FakeAuth0Client implements Auth0ExportClient {
     private readonly organizations: Auth0Organization[],
     private readonly membersByOrg: Record<string, Array<{ user_id: string }>>,
     private readonly usersById: Record<string, Auth0User>,
+    private readonly connections: Auth0Connection[] = [],
+    private readonly organizationConnectionsByOrg: Record<
+      string,
+      Auth0OrganizationConnection[]
+    > = {},
   ) {}
+
+  async getConnections(page = 0): Promise<Auth0Connection[]> {
+    return page === 0 ? this.connections : [];
+  }
+
+  async getConnection(connectionId: string): Promise<Auth0Connection> {
+    const connection = this.connections.find((item) => item.id === connectionId);
+    if (!connection) throw new Error(`Unknown connection ${connectionId}`);
+    return connection;
+  }
 
   async getOrganizations(page = 0): Promise<Auth0Organization[]> {
     return page === 0 ? this.organizations : [];
+  }
+
+  async getOrganizationConnections(
+    orgId: string,
+    page = 0,
+  ): Promise<Auth0OrganizationConnection[]> {
+    return page === 0 ? (this.organizationConnectionsByOrg[orgId] ?? []) : [];
   }
 
   async getOrganizationMembers(orgId: string, page = 0): Promise<Array<{ user_id: string }>> {
@@ -293,6 +320,197 @@ describe('exportAuth0PackageWithClient', () => {
         reason: 'no_org_in_metadata',
       },
     ]);
+  });
+
+  it('writes SSO-only handoff package files with warnings and redacted raw snapshots', async () => {
+    const samlConnection: Auth0Connection = {
+      id: 'con_saml',
+      name: 'okta',
+      strategy: 'samlp',
+      options: {
+        entityId: 'https://idp.example.com/entity',
+        signInEndpoint: 'https://idp.example.com/sso',
+        signingCert: 'CERTDATA',
+        fieldsMap: {
+          email: 'mail',
+          department: 'department',
+        },
+      },
+    };
+    const oidcConnection: Auth0Connection = {
+      id: 'con_oidc',
+      name: 'oidc-idp',
+      strategy: 'oidc',
+      options: {
+        client_id: 'client_123',
+        client_secret: 'oidc-secret',
+        issuer: 'https://issuer.example.com',
+        mapping: {
+          title: 'title',
+        },
+      },
+    };
+    const unsupportedConnection: Auth0Connection = {
+      id: 'con_db',
+      name: 'Username-Password-Authentication',
+      strategy: 'auth0',
+    };
+    const incompleteConnection: Auth0Connection = {
+      id: 'con_incomplete',
+      name: 'incomplete-saml',
+      strategy: 'samlp',
+      options: {
+        signInEndpoint: 'https://idp.example.com/sso',
+      },
+    };
+    const client = new FakeAuth0Client(
+      [org],
+      {},
+      {},
+      [samlConnection, oidcConnection, unsupportedConnection, incompleteConnection],
+      {
+        [org.id]: [{ connection_id: 'con_saml' }, { connection_id: 'con_oidc' }],
+      },
+    );
+
+    const summary = await exportAuth0PackageWithClient(client, {
+      domain: 'example.us.auth0.com',
+      clientId: 'client_123',
+      clientSecret: 'secret',
+      package: true,
+      outputDir: tempRoot,
+      entities: ['sso'],
+      pageSize: 100,
+      rateLimit: 50,
+      userFetchConcurrency: 2,
+      useMetadata: false,
+      quiet: true,
+    });
+
+    expect(summary).toMatchObject({
+      totalUsers: 0,
+      totalOrgs: 0,
+      skippedUsers: 0,
+    });
+
+    const validation = await validateMigrationPackage(tempRoot);
+    expect(validation.valid).toBe(true);
+    expect(validation.manifest?.entitiesRequested).toEqual(['sso']);
+    expect(validation.manifest?.entitiesExported).toMatchObject({
+      users: 0,
+      organizations: 0,
+      memberships: 0,
+      samlConnections: 1,
+      oidcConnections: 1,
+      customAttributeMappings: 2,
+      proxyRoutes: 2,
+      warnings: 3,
+      skippedUsers: 0,
+    });
+    expect(validation.manifest?.secretRedaction).toMatchObject({
+      mode: 'redacted',
+      redacted: true,
+    });
+
+    expect(await readCsv(path.join(tempRoot, 'sso', 'saml_connections.csv'))).toMatchObject([
+      {
+        organizationName: 'Acme',
+        organizationExternalId: 'org_abc123',
+        domains: 'acme.com,login.acme.com',
+        idpEntityId: 'https://idp.example.com/entity',
+        idpUrl: 'https://idp.example.com/sso',
+        x509Cert: 'CERTDATA',
+        emailAttribute: 'mail',
+        importedId: 'auth0:con_saml',
+      },
+    ]);
+
+    expect(await readCsv(path.join(tempRoot, 'sso', 'oidc_connections.csv'))).toMatchObject([
+      {
+        organizationExternalId: 'org_abc123',
+        clientId: 'client_123',
+        clientSecret: '',
+        discoveryEndpoint: 'https://issuer.example.com/.well-known/openid-configuration',
+        importedId: 'auth0:con_oidc',
+      },
+    ]);
+
+    expect(
+      await readCsv(path.join(tempRoot, 'sso', 'custom_attribute_mappings.csv')),
+    ).toMatchObject([
+      {
+        importedId: 'auth0:con_saml',
+        userPoolAttribute: 'department',
+        idpClaim: 'department',
+      },
+      {
+        importedId: 'auth0:con_oidc',
+        userPoolAttribute: 'title',
+        idpClaim: 'title',
+      },
+    ]);
+    expect(await readCsv(path.join(tempRoot, 'sso', 'proxy_routes.csv'))).toHaveLength(2);
+
+    const warnings = readJsonl(path.join(tempRoot, 'warnings.jsonl'));
+    expect(warnings.map((warning) => warning.code).sort()).toEqual([
+      'incomplete_connection_configuration',
+      'secrets_redacted',
+      'unsupported_connection_protocol',
+    ]);
+
+    const raw = fs.readFileSync(path.join(tempRoot, 'raw', 'auth0-connections.jsonl'), 'utf-8');
+    expect(raw).toContain('"client_secret":"[REDACTED]"');
+    expect(raw).not.toContain('oidc-secret');
+  });
+
+  it('includes SSO secrets when explicitly requested', async () => {
+    const oidcConnection: Auth0Connection = {
+      id: 'con_oidc',
+      name: 'oidc-idp',
+      strategy: 'oidc',
+      options: {
+        client_id: 'client_123',
+        client_secret: 'oidc-secret',
+        issuer: 'https://issuer.example.com',
+      },
+    };
+    const client = new FakeAuth0Client([org], {}, {}, [oidcConnection], {
+      [org.id]: [{ connection_id: 'con_oidc' }],
+    });
+
+    await exportAuth0PackageWithClient(client, {
+      domain: 'example.us.auth0.com',
+      clientId: 'client_123',
+      clientSecret: 'secret',
+      package: true,
+      outputDir: tempRoot,
+      entities: ['sso'],
+      includeSecrets: true,
+      pageSize: 100,
+      rateLimit: 50,
+      userFetchConcurrency: 2,
+      useMetadata: false,
+      quiet: true,
+    });
+
+    const validation = await validateMigrationPackage(tempRoot);
+    expect(validation.valid).toBe(true);
+    expect(validation.manifest?.secretRedaction).toMatchObject({
+      mode: 'included',
+      redacted: false,
+    });
+    expect(validation.manifest?.secretsRedacted).toBe(false);
+
+    expect(await readCsv(path.join(tempRoot, 'sso', 'oidc_connections.csv'))).toMatchObject([
+      {
+        clientId: 'client_123',
+        clientSecret: 'oidc-secret',
+      },
+    ]);
+    expect(
+      fs.readFileSync(path.join(tempRoot, 'raw', 'auth0-connections.jsonl'), 'utf-8'),
+    ).toContain('oidc-secret');
+    expect(readJsonl(path.join(tempRoot, 'warnings.jsonl'))).toEqual([]);
   });
 });
 

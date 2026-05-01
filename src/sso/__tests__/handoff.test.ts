@@ -10,6 +10,7 @@ import {
   createOidcConnectionRow,
   createProxyRouteRow,
   createSamlConnectionRow,
+  incompleteConnectionConfigurationWarning,
   missingDomainsWarning,
   multiOrgConnectionConsolidationWarning,
   redactedSecretsWarning,
@@ -196,6 +197,22 @@ describe('SSO handoff warning helpers', () => {
       code: 'unsupported_connection_protocol',
       details: {
         strategy: 'google-oauth2',
+      },
+    });
+
+    expect(
+      incompleteConnectionConfigurationWarning({
+        provider: 'auth0',
+        protocol: 'saml',
+        importedId: 'auth0:con_incomplete',
+        strategy: 'samlp',
+        missingFields: ['idpEntityId', 'x509Cert'],
+      }),
+    ).toMatchObject({
+      code: 'incomplete_connection_configuration',
+      details: {
+        strategy: 'samlp',
+        missingFields: ['idpEntityId', 'x509Cert'],
       },
     });
   });

@@ -107,6 +107,20 @@ export function unsupportedConnectionProtocolWarning(input) {
         },
     };
 }
+export function incompleteConnectionConfigurationWarning(input) {
+    return {
+        code: 'incomplete_connection_configuration',
+        provider: input.provider,
+        protocol: input.protocol,
+        importedId: input.importedId,
+        message: `${input.provider} ${input.protocol} connection${input.importedId ? ` ${input.importedId}` : ''} was skipped because required handoff configuration was not available.`,
+        details: {
+            strategy: input.strategy,
+            missingFields: input.missingFields,
+            reason: input.reason,
+        },
+    };
+}
 function createRow(headers, input) {
     const row = {};
     for (const header of headers) {
