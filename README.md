@@ -119,16 +119,33 @@ workos-migrate export-auth0 \
   --output-dir ./migration-auth0
 ```
 
+To write only SSO handoff files:
+
+```bash
+workos-migrate export-auth0 \
+  --domain my-tenant.us.auth0.com \
+  --client-id <M2M_CLIENT_ID> \
+  --client-secret <M2M_CLIENT_SECRET> \
+  --package \
+  --entities sso \
+  --output-dir ./migration-auth0-sso
+```
+
 Options:
 
 - `--orgs <ids...>` - Filter to specific Auth0 organization IDs
+- `--entities <entities>` - Comma-separated package entities to export (`users,organizations,memberships,sso`)
 - `--rate-limit <n>` - API requests per second (default: 50)
 - `--use-metadata` - Use `user_metadata` for org discovery instead of the Organizations API
 - `--include-federated-users` - Include federated/JIT users in package mode (skipped by default)
+- `--include-secrets` - Include SSO connection secrets in package handoff files (redacted by default)
 - `--job-id <id>` - Enable export checkpointing for large tenants
 - `--resume [jobId]` - Resume a previously checkpointed export
 
 The export maps Auth0 fields to WorkOS CSV format, including `email_verified`, `external_id`, and custom metadata.
+Auth0 package SSO export is handoff-only: it emits only SAML and OIDC enterprise connections with enough configuration for WorkOS handoff. Database, passwordless, social, generic OAuth, and incomplete connections are skipped with warnings.
+
+For a callback proxy reference implementation during Auth0 enterprise-connection cutover, see [`proxy-sample-auth0`](proxy-sample-auth0/README.md). The repo also includes [`proxy-sample-cognito`](proxy-sample-cognito/README.md) for Cognito migrations.
 
 ### 3. Merge password hashes (optional)
 

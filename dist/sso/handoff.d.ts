@@ -21,7 +21,7 @@ export declare function writeProxyRoutesCsv(filePath: string, rows: ProxyRouteRo
 export declare function writeCsvRows(filePath: string, headers: readonly string[], rows: Record<string, unknown>[]): Promise<number>;
 /** Produce a CSV string from headers + rows. Handles commas, quotes, and newlines. */
 export declare function rowsToCsv(headers: readonly string[], rows: Record<string, unknown>[]): string;
-export type SsoWarningCode = 'missing_domains' | 'secrets_redacted' | 'multi_org_connection_consolidated' | 'unsupported_connection_protocol';
+export type SsoWarningCode = 'missing_domains' | 'secrets_redacted' | 'multi_org_connection_consolidated' | 'unsupported_connection_protocol' | 'incomplete_connection_configuration';
 export interface SsoHandoffWarning {
     code: SsoWarningCode;
     message: string;
@@ -58,5 +58,13 @@ export declare function unsupportedConnectionProtocolWarning(input: {
     protocol: string;
     importedId?: string;
     strategy?: string;
+    reason?: string;
+}): SsoHandoffWarning;
+export declare function incompleteConnectionConfigurationWarning(input: {
+    provider: string;
+    protocol: string;
+    importedId?: string;
+    strategy?: string;
+    missingFields: string[];
     reason?: string;
 }): SsoHandoffWarning;
