@@ -143,6 +143,52 @@ export interface Auth0Organization {
     };
     metadata?: Record<string, unknown>;
 }
+export interface Auth0Connection {
+    id: string;
+    name: string;
+    strategy: string;
+    display_name?: string;
+    is_domain_connection?: boolean;
+    enabled_clients?: string[];
+    realms?: string[];
+    options?: Record<string, unknown>;
+    metadata?: Record<string, unknown>;
+    [key: string]: unknown;
+}
+export interface Auth0OrganizationConnection {
+    connection_id: string;
+    assign_membership_on_login?: boolean;
+    is_signup_enabled?: boolean;
+    show_as_button?: boolean;
+    connection?: Auth0Connection;
+    [key: string]: unknown;
+}
+export interface Auth0Role {
+    id: string;
+    name: string;
+    description?: string;
+    [key: string]: unknown;
+}
+export interface Auth0Job {
+    id: string;
+    type: string;
+    status: 'pending' | 'processing' | 'completed' | 'failed' | string;
+    created_at?: string;
+    connection_id?: string;
+    location?: string;
+    error?: string;
+    [key: string]: unknown;
+}
+export interface Auth0UserExportField {
+    name: string;
+    export_as?: string;
+}
+export interface Auth0UserExportJobOptions {
+    connectionId?: string;
+    format?: 'json' | 'csv';
+    limit?: number;
+    fields?: Auth0UserExportField[];
+}
 export interface Auth0PasswordRecord {
     _id?: {
         $oid: string;
