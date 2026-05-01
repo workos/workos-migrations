@@ -1,4 +1,9 @@
-import { mapAuth0UserToWorkOS, validateMappedRow, extractOrgFromMetadata } from '../mapper.js';
+import {
+  extractOrgFromMetadata,
+  isFederatedAuth0User,
+  mapAuth0UserToWorkOS,
+  validateMappedRow,
+} from '../mapper.js';
 import type { Auth0User, Auth0Organization } from '../../../shared/types.js';
 
 describe('Auth0 Mapper', () => {
@@ -83,6 +88,94 @@ describe('Auth0 Mapper', () => {
 
       expect(metadata.auth0_org_id).toBe('conflict_value');
       expect(metadata.normal_field).toBe('ok');
+    });
+
+    it('should export blocked users as metadata-only rows without credentials', () => {
+      const row = mapAuth0UserToWorkOS(
+        {
+          ...testUser,
+          blocked: true,
+        },
+        testOrg,
+        {
+          hash: '$2a$10$someHashValue',
+          algorithm: 'bcrypt',
+        },
+      );
+      const metadata = JSON.parse(row.metadata as string);
+
+      expect(row.password_hash).toBeUndefined();
+      expect(row.password_hash_type).toBeUndefined();
+      expect(metadata.auth0_blocked).toBe('true');
+      expect(metadata.auth0_metadata_only).toBe('true');
+    });
+  });
+
+  describe('isFederatedAuth0User', () => {
+    it('should treat pure enterprise/social identities as federated', () => {
+      expect(
+        isFederatedAuth0User({
+          ...testUser,
+          identities: [
+            {
+              provider: 'samlp',
+              user_id: 'alice@example.com',
+              connection: 'okta',
+              isSocial: false,
+            },
+          ],
+        }),
+      ).toBe(true);
+
+      expect(
+        isFederatedAuth0User({
+          ...testUser,
+          identities: [
+            {
+              provider: 'google-oauth2',
+              user_id: 'alice@gmail.com',
+              connection: 'google',
+              isSocial: true,
+            },
+          ],
+        }),
+      ).toBe(true);
+    });
+
+    it('should keep database users and linked database users importable', () => {
+      expect(
+        isFederatedAuth0User({
+          ...testUser,
+          identities: [
+            {
+              provider: 'auth0',
+              user_id: '123456',
+              connection: 'Username-Password-Authentication',
+              isSocial: false,
+            },
+          ],
+        }),
+      ).toBe(false);
+
+      expect(
+        isFederatedAuth0User({
+          ...testUser,
+          identities: [
+            {
+              provider: 'auth0',
+              user_id: '123456',
+              connection: 'Username-Password-Authentication',
+              isSocial: false,
+            },
+            {
+              provider: 'google-oauth2',
+              user_id: 'alice@gmail.com',
+              connection: 'google',
+              isSocial: true,
+            },
+          ],
+        }),
+      ).toBe(false);
     });
   });
 

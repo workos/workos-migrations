@@ -1,6 +1,7 @@
 import { createWriteStream } from 'node:fs';
 import { Auth0Client } from './client.js';
 import { mapAuth0UserToWorkOS, validateMappedRow, extractOrgFromMetadata } from './mapper.js';
+import { exportAuth0Package } from './package-exporter.js';
 import * as logger from '../../shared/logger.js';
 const CSV_COLUMNS = [
     'email',
@@ -13,11 +14,12 @@ const CSV_COLUMNS = [
     'metadata',
 ];
 export async function exportAuth0(options) {
-    const startTime = Date.now();
-    const warnings = [];
-    let totalUsers = 0;
-    let totalOrgs = 0;
-    let skippedUsers = 0;
+    if (options.package) {
+        return exportAuth0Package(options);
+    }
+    if (!options.output) {
+        throw new Error('--output is required unless --package is set');
+    }
     const client = new Auth0Client({
         domain: options.domain,
         clientId: options.clientId,
@@ -35,9 +37,21 @@ export async function exportAuth0(options) {
     if (!options.quiet) {
         logger.success('Connected to Auth0');
     }
+    return exportAuth0CsvWithClient(client, options);
+}
+export async function exportAuth0CsvWithClient(client, options) {
+    if (!options.output) {
+        throw new Error('--output is required unless --package is set');
+    }
+    const startTime = Date.now();
+    const warnings = [];
+    let totalUsers = 0;
+    let totalOrgs = 0;
+    let skippedUsers = 0;
     // Open output streams
-    const writeStream = createWriteStream(options.output, { encoding: 'utf-8' });
-    const skippedPath = options.output.replace('.csv', '-skipped.jsonl');
+    const output = options.output;
+    const writeStream = createWriteStream(output, { encoding: 'utf-8' });
+    const skippedPath = output.replace('.csv', '-skipped.jsonl');
     const skippedStream = createWriteStream(skippedPath, { encoding: 'utf-8' });
     try {
         // Write CSV header
@@ -65,7 +79,7 @@ export async function exportAuth0(options) {
                 logger.warn(`  Users skipped: ${skippedUsers} (see ${skippedPath})`);
             }
             logger.info(`  Duration: ${(duration / 1000).toFixed(1)}s`);
-            logger.info(`  Output: ${options.output}`);
+            logger.info(`  Output: ${output}`);
         }
         return { totalUsers, totalOrgs, skippedUsers, duration };
     }

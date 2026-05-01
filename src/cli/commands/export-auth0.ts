@@ -10,7 +10,9 @@ export function registerExportAuth0Command(program: Command): void {
     .requiredOption('--domain <domain>', 'Auth0 tenant domain')
     .requiredOption('--client-id <id>', 'M2M application Client ID')
     .requiredOption('--client-secret <secret>', 'M2M application Client Secret')
-    .requiredOption('--output <path>', 'Output CSV file path')
+    .option('--output <path>', 'Output CSV file path')
+    .option('--package', 'Write a provider-neutral migration package')
+    .option('--output-dir <dir>', 'Output directory for package mode')
     .option('--orgs <ids...>', 'Filter to specific Auth0 org IDs')
     .option('--page-size <n>', 'API pagination size (max 100)', '100')
     .option('--rate-limit <n>', 'API requests per second', '50')
@@ -18,16 +20,29 @@ export function registerExportAuth0Command(program: Command): void {
     .option('--use-metadata', 'Use user_metadata for org discovery instead of Organizations API')
     .option('--metadata-org-id-field <field>', 'Custom metadata field for org ID')
     .option('--metadata-org-name-field <field>', 'Custom metadata field for org name')
+    .option(
+      '--include-federated-users',
+      'Include federated/JIT users in package mode (skipped by default)',
+    )
     .option('--job-id <id>', 'Job ID for export checkpointing')
     .option('--resume [jobId]', 'Resume from export checkpoint')
     .option('--quiet', 'Suppress progress output')
     .action(async (opts) => {
       try {
+        if (!opts.package && !opts.output) {
+          throw new Error('--output is required unless --package is set');
+        }
+        if (opts.package && !opts.outputDir) {
+          throw new Error('--output-dir is required when using --package');
+        }
+
         const options: Auth0ExportOptions = {
           domain: opts.domain,
           clientId: opts.clientId,
           clientSecret: opts.clientSecret,
           output: opts.output,
+          package: opts.package ?? false,
+          outputDir: opts.outputDir,
           orgs: opts.orgs,
           pageSize: parseInt(opts.pageSize, 10),
           rateLimit: parseInt(opts.rateLimit, 10),
@@ -35,6 +50,7 @@ export function registerExportAuth0Command(program: Command): void {
           useMetadata: opts.useMetadata ?? false,
           metadataOrgIdField: opts.metadataOrgIdField,
           metadataOrgNameField: opts.metadataOrgNameField,
+          includeFederatedUsers: opts.includeFederatedUsers ?? false,
           jobId: opts.jobId,
           resume: opts.resume ?? false,
           quiet: opts.quiet ?? false,

@@ -56,7 +56,12 @@ export function mapAuth0UserToWorkOS(user, org, passwordHash) {
     if (user.logins_count !== undefined) {
         rawMetadata.auth0_logins_count = user.logins_count;
     }
+    if (user.blocked === true) {
+        rawMetadata.auth0_blocked = true;
+        rawMetadata.auth0_metadata_only = true;
+    }
     const metadata = sanitizeMetadataForWorkOS(rawMetadata);
+    const includeCredentials = user.blocked !== true;
     const csvRow = {
         email: user.email,
         first_name: firstName,
@@ -66,12 +71,17 @@ export function mapAuth0UserToWorkOS(user, org, passwordHash) {
         metadata: Object.keys(metadata).length > 0 ? JSON.stringify(metadata) : undefined,
         org_external_id: org.id,
         org_name: org.display_name || org.name,
-        password_hash: passwordHash?.hash,
-        password_hash_type: passwordHash?.algorithm
+        password_hash: includeCredentials ? passwordHash?.hash : undefined,
+        password_hash_type: includeCredentials && passwordHash?.algorithm
             ? mapAuth0PasswordAlgorithm(passwordHash.algorithm)
             : undefined,
     };
     return csvRow;
+}
+export function isFederatedAuth0User(user) {
+    if (!user.identities || user.identities.length === 0)
+        return false;
+    return !user.identities.some((identity) => identity.provider === 'auth0' && identity.isSocial === false);
 }
 function mapAuth0PasswordAlgorithm(algorithm) {
     const lower = algorithm.toLowerCase();

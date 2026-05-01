@@ -8,6 +8,7 @@ import type {
 } from '../../shared/types.js';
 import { Auth0Client } from './client.js';
 import { mapAuth0UserToWorkOS, validateMappedRow, extractOrgFromMetadata } from './mapper.js';
+import { exportAuth0Package, type Auth0ExportClient } from './package-exporter.js';
 import * as logger from '../../shared/logger.js';
 
 const CSV_COLUMNS = [
@@ -22,11 +23,13 @@ const CSV_COLUMNS = [
 ];
 
 export async function exportAuth0(options: Auth0ExportOptions): Promise<ExportSummary> {
-  const startTime = Date.now();
-  const warnings: string[] = [];
-  let totalUsers = 0;
-  let totalOrgs = 0;
-  let skippedUsers = 0;
+  if (options.package) {
+    return exportAuth0Package(options);
+  }
+
+  if (!options.output) {
+    throw new Error('--output is required unless --package is set');
+  }
 
   const client = new Auth0Client({
     domain: options.domain,
@@ -49,9 +52,27 @@ export async function exportAuth0(options: Auth0ExportOptions): Promise<ExportSu
     logger.success('Connected to Auth0');
   }
 
+  return exportAuth0CsvWithClient(client, options);
+}
+
+export async function exportAuth0CsvWithClient(
+  client: Auth0ExportClient,
+  options: Auth0ExportOptions,
+): Promise<ExportSummary> {
+  if (!options.output) {
+    throw new Error('--output is required unless --package is set');
+  }
+
+  const startTime = Date.now();
+  const warnings: string[] = [];
+  let totalUsers = 0;
+  let totalOrgs = 0;
+  let skippedUsers = 0;
+
   // Open output streams
-  const writeStream = createWriteStream(options.output, { encoding: 'utf-8' });
-  const skippedPath = options.output.replace('.csv', '-skipped.jsonl');
+  const output = options.output;
+  const writeStream = createWriteStream(output, { encoding: 'utf-8' });
+  const skippedPath = output.replace('.csv', '-skipped.jsonl');
   const skippedStream = createWriteStream(skippedPath, { encoding: 'utf-8' });
 
   try {
@@ -95,7 +116,7 @@ export async function exportAuth0(options: Auth0ExportOptions): Promise<ExportSu
         logger.warn(`  Users skipped: ${skippedUsers} (see ${skippedPath})`);
       }
       logger.info(`  Duration: ${(duration / 1000).toFixed(1)}s`);
-      logger.info(`  Output: ${options.output}`);
+      logger.info(`  Output: ${output}`);
     }
 
     return { totalUsers, totalOrgs, skippedUsers, duration };
@@ -107,7 +128,7 @@ export async function exportAuth0(options: Auth0ExportOptions): Promise<ExportSu
 }
 
 async function exportOrganizations(
-  client: Auth0Client,
+  client: Auth0ExportClient,
   writeStream: WriteStream,
   skippedStream: WriteStream,
   options: Auth0ExportOptions,
@@ -222,7 +243,7 @@ async function exportOrganizations(
 }
 
 async function exportUsersWithMetadata(
-  client: Auth0Client,
+  client: Auth0ExportClient,
   writeStream: WriteStream,
   skippedStream: WriteStream,
   options: Auth0ExportOptions,
@@ -307,7 +328,7 @@ async function exportUsersWithMetadata(
 }
 
 async function fetchAllOrganizations(
-  client: Auth0Client,
+  client: Auth0ExportClient,
   pageSize: number,
 ): Promise<Auth0Organization[]> {
   const allOrgs: Auth0Organization[] = [];
