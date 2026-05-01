@@ -1,4 +1,25 @@
 import { RateLimiter } from '../../shared/rate-limiter.js';
+export class Auth0ApiError extends Error {
+    statusCode;
+    body;
+    path;
+    constructor(statusCode, body, path) {
+        super(`Auth0 API error (${statusCode}): ${body}`);
+        this.name = 'Auth0ApiError';
+        this.statusCode = statusCode;
+        this.body = body;
+        this.path = path;
+    }
+}
+export function isMissingConnectionOptionsScopeError(error) {
+    if (!(error instanceof Auth0ApiError))
+        return false;
+    if (error.statusCode !== 403)
+        return false;
+    const body = error.body.toLowerCase();
+    return (body.includes('read:connections_options') ||
+        (body.includes('connection') && body.includes('option') && body.includes('scope')));
+}
 export class Auth0Client {
     domain;
     clientId;
@@ -41,12 +62,14 @@ export class Auth0Client {
         this.tokenExpiry = Date.now() + (expiresIn - 300) * 1000;
         return this.accessToken;
     }
-    async apiCall(path) {
+    async apiCall(path, init = {}) {
         return this.retryWithRateLimit(async () => {
             const token = await this.getAccessToken();
             const url = `https://${this.domain}${path}`;
             const response = await fetch(url, {
+                ...init,
                 headers: {
+                    ...init.headers,
                     Authorization: `Bearer ${token}`,
                     'Content-Type': 'application/json',
                 },
@@ -62,7 +85,7 @@ export class Auth0Client {
             }
             if (!response.ok) {
                 const body = await response.text();
-                throw new Error(`Auth0 API error (${response.status}): ${body}`);
+                throw new Auth0ApiError(response.status, body, path);
             }
             return (await response.json());
         });
@@ -98,6 +121,28 @@ export class Auth0Client {
             metadata: org.metadata,
         }));
     }
+    async getConnections(page = 0, perPage = 100, strategy) {
+        const params = new URLSearchParams({
+            page: String(page),
+            per_page: String(perPage),
+            include_totals: 'false',
+        });
+        if (strategy) {
+            const strategies = Array.isArray(strategy) ? strategy : [strategy];
+            for (const value of strategies) {
+                params.append('strategy', value);
+            }
+        }
+        const data = await this.apiCall(`/api/v2/connections?${params.toString()}`);
+        return Array.isArray(data) ? data : (data.connections ?? []);
+    }
+    async getConnection(connectionId) {
+        return this.apiCall(`/api/v2/connections/${encodeURIComponent(connectionId)}`);
+    }
+    async getOrganizationConnections(orgId, page = 0, perPage = 100) {
+        const data = await this.apiCall(`/api/v2/organizations/${encodeURIComponent(orgId)}/enabled_connections?page=${page}&per_page=${perPage}`);
+        return Array.isArray(data) ? data : (data.enabled_connections ?? []);
+    }
     async getOrganizationMembers(orgId, page = 0, perPage = 100) {
         const data = await this.apiCall(`/api/v2/organizations/${orgId}/members?page=${page}&per_page=${perPage}`);
         return Array.isArray(data) ? data : (data.members ?? []);
@@ -107,8 +152,7 @@ export class Auth0Client {
             return await this.apiCall(`/api/v2/users/${encodeURIComponent(userId)}`);
         }
         catch (error) {
-            const err = error;
-            if (err.message?.includes('404'))
+            if (error instanceof Auth0ApiError && error.statusCode === 404)
                 return null;
             throw error;
         }
@@ -116,6 +160,50 @@ export class Auth0Client {
     async getUsers(page = 0, perPage = 100) {
         const data = await this.apiCall(`/api/v2/users?page=${page}&per_page=${perPage}&include_totals=false`);
         return Array.isArray(data) ? data : (data.users ?? []);
+    }
+    async getMemberRoles(orgId, userId, page = 0, perPage = 100) {
+        const data = await this.apiCall(`/api/v2/organizations/${encodeURIComponent(orgId)}/members/${encodeURIComponent(userId)}/roles?page=${page}&per_page=${perPage}`);
+        return Array.isArray(data) ? data : (data.roles ?? []);
+    }
+    async getRoles(page = 0, perPage = 100) {
+        const data = await this.apiCall(`/api/v2/roles?page=${page}&per_page=${perPage}`);
+        return Array.isArray(data) ? data : (data.roles ?? []);
+    }
+    async createUserExportJob(options = {}) {
+        const body = {
+            format: options.format ?? 'json',
+        };
+        if (options.connectionId)
+            body.connection_id = options.connectionId;
+        if (options.limit !== undefined)
+            body.limit = options.limit;
+        if (options.fields)
+            body.fields = options.fields;
+        return this.apiCall('/api/v2/jobs/users-exports', {
+            method: 'POST',
+            body: JSON.stringify(body),
+        });
+    }
+    async getJob(jobId) {
+        return this.apiCall(`/api/v2/jobs/${encodeURIComponent(jobId)}`);
+    }
+    async downloadJobLocation(location) {
+        return this.retryWithRateLimit(async () => {
+            const response = await fetch(location);
+            if (response.status === 429) {
+                const retryAfter = response.headers.get('Retry-After');
+                const error = new Error('Rate limit exceeded');
+                error.statusCode = 429;
+                if (retryAfter) {
+                    error.retryAfterMs = parseFloat(retryAfter) * 1000;
+                }
+                throw error;
+            }
+            if (!response.ok) {
+                throw new Error(`Failed to download Auth0 job output (${response.status})`);
+            }
+            return response.text();
+        });
     }
     async testConnection() {
         try {

@@ -88,6 +88,14 @@ Create a Machine-to-Machine application in Auth0, authorize it for the Managemen
 - `read:user_idp_tokens`
 - `read:organizations`
 - `read:organization_members`
+- `read:organization_member_roles`
+- `read:roles`
+- `read:connections`
+- `read:connections_options`
+
+`read:connections_options` is required for complete SAML/OIDC handoff exports because Auth0 stores
+connection configuration inside the `options` object. If this scope is missing, later package phases
+will warn and omit fields that cannot be read.
 
 ### 2. Export users
 
