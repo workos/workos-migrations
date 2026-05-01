@@ -143,7 +143,7 @@ Options:
 - `--resume [jobId]` - Resume a previously checkpointed export
 
 The export maps Auth0 fields to WorkOS CSV format, including `email_verified`, `external_id`, and custom metadata.
-Auth0 package SSO export is handoff-only: it emits only SAML and OIDC enterprise connections with enough configuration for WorkOS handoff. Database, passwordless, social, generic OAuth, and incomplete connections are skipped with warnings.
+Auth0 package SSO export is handoff-only: it inspects Auth0 enterprise strategies for SAML/OIDC configuration and emits only connections with enough reliable handoff data. Database, passwordless, social, generic OAuth, non-SAML/OIDC enterprise, and incomplete connections are skipped with warnings.
 
 For a callback proxy reference implementation during Auth0 enterprise-connection cutover, see [`proxy-sample-auth0`](proxy-sample-auth0/README.md). The repo also includes [`proxy-sample-cognito`](proxy-sample-cognito/README.md) for Cognito migrations.
 

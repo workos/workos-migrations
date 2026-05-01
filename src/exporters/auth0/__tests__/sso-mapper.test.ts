@@ -1,5 +1,6 @@
 import type { Auth0Connection, Auth0Organization } from '../../../shared/types';
 import {
+  AUTH0_ENTERPRISE_SSO_STRATEGIES,
   classifyAuth0ConnectionProtocol,
   mapAuth0ConnectionToSsoHandoff,
   redactAuth0ConnectionSecrets,
@@ -15,6 +16,22 @@ const org: Auth0Organization = {
 };
 
 describe('Auth0 SSO handoff mapper', () => {
+  it('tracks Auth0 enterprise strategy values as SSO candidates', () => {
+    expect(AUTH0_ENTERPRISE_SSO_STRATEGIES).toEqual(
+      expect.arrayContaining([
+        'ad',
+        'adfs',
+        'auth0-adldap',
+        'google-apps',
+        'oidc',
+        'okta',
+        'pingfederate',
+        'samlp',
+        'waad',
+      ]),
+    );
+  });
+
   it('maps complete SAML enterprise connections into handoff rows', () => {
     const connection: Auth0Connection = {
       id: 'con_saml',
@@ -117,6 +134,97 @@ describe('Auth0 SSO handoff mapper', () => {
     ]);
   });
 
+  it('maps SAML-capable enterprise strategies when SAML options are present', () => {
+    const connection: Auth0Connection = {
+      id: 'con_okta_saml',
+      name: 'okta-saml',
+      strategy: 'okta',
+      options: {
+        metadataUrl: 'https://okta.example.com/app/metadata',
+        entityId: 'https://okta.example.com/entity',
+        signInEndpoint: 'https://okta.example.com/sso/saml',
+        signingCert: 'CERTDATA',
+      },
+    };
+
+    expect(classifyAuth0ConnectionProtocol(connection)).toBe('saml');
+
+    const result = mapAuth0ConnectionToSsoHandoff({
+      connection,
+      domain: 'tenant.auth0.com',
+      orgBindings: [{ organization: org }],
+    });
+
+    expect(result.status).toBe('mapped');
+    if (result.status !== 'mapped') return;
+    expect(result.protocol).toBe('saml');
+    expect(result.samlRow).toMatchObject({
+      idpMetadataUrl: 'https://okta.example.com/app/metadata',
+      idpEntityId: 'https://okta.example.com/entity',
+      idpUrl: 'https://okta.example.com/sso/saml',
+      x509Cert: 'CERTDATA',
+      importedId: 'auth0:con_okta_saml',
+    });
+  });
+
+  it('maps Azure AD enterprise strategy to OIDC when tenant and client data are present', () => {
+    const connection: Auth0Connection = {
+      id: 'con_waad',
+      name: 'azure-ad',
+      strategy: 'waad',
+      options: {
+        client_id: 'azure-client',
+        client_secret: 'azure-secret',
+        tenant_domain: 'contoso.onmicrosoft.com',
+      },
+    };
+
+    expect(classifyAuth0ConnectionProtocol(connection)).toBe('oidc');
+
+    const result = mapAuth0ConnectionToSsoHandoff({
+      connection,
+      domain: 'tenant.auth0.com',
+      orgBindings: [{ organization: org }],
+    });
+
+    expect(result.status).toBe('mapped');
+    if (result.status !== 'mapped') return;
+    expect(result.oidcRow).toMatchObject({
+      clientId: 'azure-client',
+      discoveryEndpoint:
+        'https://login.microsoftonline.com/contoso.onmicrosoft.com/v2.0/.well-known/openid-configuration',
+      importedId: 'auth0:con_waad',
+    });
+  });
+
+  it('maps Google Workspace enterprise strategy to OIDC when client data is present', () => {
+    const connection: Auth0Connection = {
+      id: 'con_google_apps',
+      name: 'google-workspace',
+      strategy: 'google-apps',
+      options: {
+        client_id: 'google-client',
+        client_secret: 'google-secret',
+      },
+    };
+
+    expect(classifyAuth0ConnectionProtocol(connection)).toBe('oidc');
+
+    const result = mapAuth0ConnectionToSsoHandoff({
+      connection,
+      domain: 'tenant.auth0.com',
+      orgBindings: [{ organization: org }],
+    });
+
+    expect(result.status).toBe('mapped');
+    if (result.status !== 'mapped') return;
+    expect(result.oidcRow).toMatchObject({
+      clientId: 'google-client',
+      discoveryEndpoint: 'https://accounts.google.com/.well-known/openid-configuration',
+      importedId: 'auth0:con_google_apps',
+    });
+  });
+
   it('skips unsupported Auth0 connection strategies', () => {
     const connection: Auth0Connection = {
       id: 'con_db',
@@ -139,6 +247,40 @@ describe('Auth0 SSO handoff mapper', () => {
         {
           code: 'unsupported_connection_protocol',
           importedId: 'auth0:con_db',
+        },
+      ],
+    });
+  });
+
+  it('skips enterprise strategies when SAML/OIDC handoff data is absent', () => {
+    const connection: Auth0Connection = {
+      id: 'con_adldap',
+      name: 'corp-ad',
+      strategy: 'auth0-adldap',
+      options: {
+        domain: 'corp.example.com',
+      },
+    };
+
+    expect(classifyAuth0ConnectionProtocol(connection)).toBe('unsupported');
+
+    const result = mapAuth0ConnectionToSsoHandoff({
+      connection,
+      domain: 'tenant.auth0.com',
+    });
+
+    expect(result).toMatchObject({
+      status: 'skipped',
+      protocol: 'unsupported',
+      reason: 'unsupported_connection_protocol',
+      warnings: [
+        {
+          code: 'unsupported_connection_protocol',
+          importedId: 'auth0:con_adldap',
+          details: {
+            reason:
+              'Auth0 enterprise strategy did not expose enough SAML or OIDC handoff configuration.',
+          },
         },
       ],
     });

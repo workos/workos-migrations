@@ -14,6 +14,20 @@ export const AUTH0_REDACTED_SECRET_FIELDS = [
     'refresh_token',
     'id_token',
 ];
+export const AUTH0_ENTERPRISE_SSO_STRATEGIES = [
+    'ad',
+    'adfs',
+    'auth0-adldap',
+    'google-apps',
+    'ip',
+    'office365',
+    'oidc',
+    'okta',
+    'pingfederate',
+    'samlp',
+    'sharepoint',
+    'waad',
+];
 const SAML_XML_OPTION_KEYS = [
     'metadataXml',
     'metadataXML',
@@ -23,6 +37,9 @@ const SAML_XML_OPTION_KEYS = [
     'idp_metadata_xml',
 ];
 const SAML_METADATA_URL_KEYS = [
+    'federationMetadataUrl',
+    'federation_metadata_url',
+    'FederationMetadataUrl',
     'metadataUrl',
     'metadataURL',
     'metadata_url',
@@ -90,6 +107,20 @@ const OIDC_DISCOVERY_KEYS = [
     'issuerUrl',
     'issuer_url',
 ];
+const OIDC_ISSUER_DOMAIN_KEYS = [
+    'domain',
+    'issuerDomain',
+    'issuer_domain',
+    'oktaDomain',
+    'okta_domain',
+];
+const AZURE_TENANT_KEYS = [
+    'tenant_domain',
+    'tenantDomain',
+    'tenant_id',
+    'tenantId',
+    'domain',
+];
 const OIDC_REDIRECT_URI_KEYS = [
     'redirectUri',
     'redirect_uri',
@@ -120,12 +151,21 @@ const COMMON_PROFILE_ATTRIBUTES = new Set([
     'sub',
 ]);
 const REDACTED_VALUE = '[REDACTED]';
+const ENTERPRISE_SSO_STRATEGIES = new Set(AUTH0_ENTERPRISE_SSO_STRATEGIES);
+const AZURE_OIDC_STRATEGIES = new Set(['waad', 'office365']);
 export function classifyAuth0ConnectionProtocol(connection) {
     const strategy = connection.strategy.toLowerCase();
     if (strategy === 'samlp')
         return 'saml';
     if (strategy === 'oidc')
         return 'oidc';
+    if (!ENTERPRISE_SSO_STRATEGIES.has(strategy))
+        return 'unsupported';
+    const options = recordValue(connection.options);
+    if (hasOidcConnectionData(strategy, options))
+        return 'oidc';
+    if (hasSamlConnectionData(options))
+        return 'saml';
     return 'unsupported';
 }
 export function buildAuth0ConnectionImportedId(connection) {
@@ -136,12 +176,16 @@ export function mapAuth0ConnectionToSsoHandoff(input) {
     const importedId = buildAuth0ConnectionImportedId(connection);
     const protocol = classifyAuth0ConnectionProtocol(connection);
     if (protocol === 'unsupported') {
+        const strategy = connection.strategy.toLowerCase();
+        const reason = ENTERPRISE_SSO_STRATEGIES.has(strategy)
+            ? 'Auth0 enterprise strategy did not expose enough SAML or OIDC handoff configuration.'
+            : 'Only Auth0 enterprise connections with SAML or OIDC configuration are supported for WorkOS SSO handoff.';
         const warning = unsupportedConnectionProtocolWarning({
             provider: 'auth0',
             protocol: connection.strategy || 'unknown',
             importedId,
             strategy: connection.strategy,
-            reason: 'Only Auth0 samlp and oidc enterprise connections are supported for WorkOS SSO handoff.',
+            reason,
         });
         return {
             status: 'skipped',
@@ -268,7 +312,7 @@ function mapOidcConnection(input, importedId) {
     const options = recordValue(connection.options);
     const clientId = getFirstString(options, OIDC_CLIENT_ID_KEYS);
     const clientSecret = getFirstString(options, OIDC_CLIENT_SECRET_KEYS);
-    const discoveryEndpoint = normalizeDiscoveryEndpoint(getFirstString(options, OIDC_DISCOVERY_KEYS));
+    const discoveryEndpoint = buildOidcDiscoveryEndpoint(connection.strategy, options, clientId);
     const missingFields = ['clientId', 'discoveryEndpoint'].filter((field) => {
         if (field === 'clientId')
             return !clientId;
@@ -350,6 +394,43 @@ function missingSamlFields(input) {
     if (!input.x509Cert)
         missing.push('x509Cert');
     return missing;
+}
+function hasOidcConnectionData(strategy, options) {
+    const clientId = getFirstString(options, OIDC_CLIENT_ID_KEYS);
+    return Boolean(clientId && buildOidcDiscoveryEndpoint(strategy, options, clientId));
+}
+function buildOidcDiscoveryEndpoint(strategy, options, clientId) {
+    const direct = normalizeDiscoveryEndpoint(getFirstString(options, OIDC_DISCOVERY_KEYS));
+    if (direct)
+        return direct;
+    const normalizedStrategy = strategy.toLowerCase();
+    if (normalizedStrategy === 'google-apps' && clientId) {
+        return 'https://accounts.google.com/.well-known/openid-configuration';
+    }
+    if (AZURE_OIDC_STRATEGIES.has(normalizedStrategy) && clientId) {
+        const tenant = getFirstString(options, AZURE_TENANT_KEYS);
+        if (tenant) {
+            return `https://login.microsoftonline.com/${encodeURIComponent(tenant)}/v2.0/.well-known/openid-configuration`;
+        }
+    }
+    if (normalizedStrategy === 'okta' && clientId) {
+        const domain = getFirstString(options, OIDC_ISSUER_DOMAIN_KEYS);
+        if (domain) {
+            return normalizeDiscoveryEndpoint(ensureHttps(domain));
+        }
+    }
+    return null;
+}
+function hasSamlConnectionData(options) {
+    const metadataXml = getFirstString(options, SAML_XML_OPTION_KEYS);
+    const parsedMetadata = parseSamlMetadata(metadataXml);
+    return Boolean(parsedMetadata.entityId ||
+        parsedMetadata.ssoRedirectUrl ||
+        parsedMetadata.x509Cert ||
+        getFirstString(options, SAML_METADATA_URL_KEYS) ||
+        getFirstString(options, SAML_IDP_ENTITY_ID_KEYS) ||
+        getFirstString(options, SAML_IDP_URL_KEYS) ||
+        getFirstString(options, SAML_CERT_KEYS));
 }
 function buildOrganizationContext(connection, orgBindings, protocol, importedId) {
     const warnings = [];
@@ -538,6 +619,11 @@ function boolishString(value) {
     if (typeof value === 'boolean')
         return value ? 'TRUE' : 'FALSE';
     return stringValue(value);
+}
+function ensureHttps(value) {
+    if (/^https?:\/\//i.test(value))
+        return value;
+    return `https://${value}`;
 }
 function buildAuth0CallbackUrl(domain, connectionName) {
     return `https://${domain}/login/callback?connection=${encodeURIComponent(connectionName)}`;
