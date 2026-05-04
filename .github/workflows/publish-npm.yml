@@ -1,0 +1,50 @@
+name: Publish to npm
+
+on:
+  release:
+    types:
+      - published
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish package
+    runs-on: ubuntu-latest
+    environment: npm
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check release tag matches package version
+        run: |
+          package_version="$(node -p "require('./package.json').version")"
+          tag_version="${GITHUB_REF_NAME#v}"
+
+          if [[ "${package_version}" != "${tag_version}" ]]; then
+            echo "Release tag ${GITHUB_REF_NAME} does not match package.json version ${package_version}."
+            echo "Use a tag like v${package_version}."
+            exit 1
+          fi
+
+      - name: Verify package
+        run: npm run check
+
+      - name: Inspect package contents
+        run: npm run package:dry-run
+
+      - name: Publish to npm
+        run: npm publish --access public --provenance

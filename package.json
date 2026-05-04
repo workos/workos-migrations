@@ -5,7 +5,8 @@
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "workos-migrate": "dist/index.js"
+    "workos-migrate": "dist/index.js",
+    "workos-migrations": "dist/index.js"
   },
   "files": [
     "dist/**/*",
@@ -14,16 +15,22 @@
     "package.json"
   ],
   "scripts": {
-    "build": "tsc",
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build": "npm run clean && tsc",
+    "postbuild": "node -e \"require('node:fs').chmodSync('dist/index.js', 0o755)\"",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
+    "check": "npm run lint && npm run format:check && npm run typecheck && npm test && npm run build",
     "lint": "eslint \"src/**/*.ts\"",
     "lint:fix": "eslint \"src/**/*.ts\" --fix",
     "format": "prettier --write \"src/**/*.ts\" \"*.md\" \"*.json\"",
     "format:check": "prettier --check \"src/**/*.ts\" \"*.md\" \"*.json\"",
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-vm-modules node_modules/.bin/jest",
-    "prepublishOnly": "npm run build"
+    "smoke:bin": "node dist/index.js --help",
+    "package:dry-run": "npm pack --dry-run",
+    "prepack": "npm run build",
+    "prepublishOnly": "npm run check"
   },
   "keywords": [
     "workos",
@@ -36,6 +43,10 @@
   ],
   "author": "WorkOS",
   "license": "MIT",
+  "homepage": "https://github.com/workos/workos-migrations#readme",
+  "bugs": {
+    "url": "https://github.com/workos/workos-migrations/issues"
+  },
   "dependencies": {
     "@aws-sdk/client-cognito-identity-provider": "^3.1037.0",
     "@workos-inc/node": "^9.1.1",
@@ -65,6 +76,10 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/workos/workos-migrations.git"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   },
   "engines": {
     "node": ">=22.11.0"
