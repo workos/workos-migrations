@@ -19,20 +19,19 @@ npm run build
 npm start
 ```
 
-Node.js `>=18` is required (see `engines` in `package.json`).
+Node.js `>=22.11.0` is required (see `engines` in `package.json`).
 
 ## Checks
 
 Please run the following before opening a pull request:
 
 ```bash
-npm run lint
-npm run typecheck
-npm run build
-npm test
+npm run check
 ```
 
-CI will run the same checks on every pull request.
+This runs lint, format check, typecheck, tests, and build. CI runs the same
+`npm run check` on every pull request and additionally runs `npm run smoke:bin`
+(CLI `--help` smoke test) and `npm run package:dry-run` (`npm pack --dry-run`).
 
 ## Adding a new provider
 
