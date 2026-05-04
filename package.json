@@ -29,6 +29,7 @@
     "test": "node --experimental-vm-modules node_modules/.bin/jest",
     "smoke:bin": "node dist/index.js --help",
     "package:dry-run": "npm pack --dry-run",
+    "prepare": "npm run build",
     "prepack": "npm run build",
     "prepublishOnly": "npm run check"
   },
