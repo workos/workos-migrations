@@ -10,6 +10,8 @@ export function registerExportAuth0Command(program) {
         .option('--output <path>', 'Output CSV file path')
         .option('--package', 'Write a provider-neutral migration package')
         .option('--output-dir <dir>', 'Output directory for package mode')
+        .option('--entities <entities>', 'Comma-separated package entities to export (users,organizations,memberships,sso)', 'users,organizations,memberships')
+        .option('--include-secrets', 'Include Auth0 SSO connection secrets in package handoff files')
         .option('--orgs <ids...>', 'Filter to specific Auth0 org IDs')
         .option('--page-size <n>', 'API pagination size (max 100)', '100')
         .option('--rate-limit <n>', 'API requests per second', '50')
@@ -36,6 +38,8 @@ export function registerExportAuth0Command(program) {
                 output: opts.output,
                 package: opts.package ?? false,
                 outputDir: opts.outputDir,
+                entities: parseEntities(opts.entities),
+                includeSecrets: opts.includeSecrets ?? false,
                 orgs: opts.orgs,
                 pageSize: parseInt(opts.pageSize, 10),
                 rateLimit: parseInt(opts.rateLimit, 10),
@@ -55,4 +59,12 @@ export function registerExportAuth0Command(program) {
             process.exit(1);
         }
     });
+}
+function parseEntities(value) {
+    if (!value)
+        return undefined;
+    return value
+        .split(',')
+        .map((entity) => entity.trim())
+        .filter(Boolean);
 }

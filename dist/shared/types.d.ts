@@ -92,6 +92,8 @@ export interface Auth0ExportOptions {
     output?: string;
     package?: boolean;
     outputDir?: string;
+    entities?: string[];
+    includeSecrets?: boolean;
     orgs?: string[];
     pageSize: number;
     rateLimit: number;

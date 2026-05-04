@@ -118,7 +118,8 @@ export type SsoWarningCode =
   | 'missing_domains'
   | 'secrets_redacted'
   | 'multi_org_connection_consolidated'
-  | 'unsupported_connection_protocol';
+  | 'unsupported_connection_protocol'
+  | 'incomplete_connection_configuration';
 
 export interface SsoHandoffWarning {
   code: SsoWarningCode;
@@ -207,6 +208,28 @@ export function unsupportedConnectionProtocolWarning(input: {
     message: `${input.provider} ${input.protocol} connection${input.importedId ? ` ${input.importedId}` : ''} was skipped because it is outside the WorkOS SSO handoff scope.`,
     details: {
       strategy: input.strategy,
+      reason: input.reason,
+    },
+  };
+}
+
+export function incompleteConnectionConfigurationWarning(input: {
+  provider: string;
+  protocol: string;
+  importedId?: string;
+  strategy?: string;
+  missingFields: string[];
+  reason?: string;
+}): SsoHandoffWarning {
+  return {
+    code: 'incomplete_connection_configuration',
+    provider: input.provider,
+    protocol: input.protocol,
+    importedId: input.importedId,
+    message: `${input.provider} ${input.protocol} connection${input.importedId ? ` ${input.importedId}` : ''} was skipped because required handoff configuration was not available.`,
+    details: {
+      strategy: input.strategy,
+      missingFields: input.missingFields,
       reason: input.reason,
     },
   };
