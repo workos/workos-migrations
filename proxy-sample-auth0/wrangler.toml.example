@@ -1,0 +1,16 @@
+name = "auth0-workos-sso-proxy"
+main = "worker.js"
+compatibility_date = "2026-05-01"
+
+# Replace with your Cloudflare account ID.
+account_id = "00000000000000000000000000000000"
+
+# Scope the Worker to the Auth0 callback path only.
+routes = [
+  { pattern = "auth0.example.com/login/callback*", zone_name = "example.com" }
+]
+
+[vars]
+WORKOS_CUSTOM_DOMAIN = "workos.example.com"
+WORKOS_CLIENT_ID = "client_000000000000000000000000"
+AUTH0_FALLBACK_ORIGIN = "https://my-tenant.us.auth0.com"
