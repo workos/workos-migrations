@@ -27,7 +27,6 @@ export async function listRolesForOrganization(organizationId: string): Promise<
   const roles: Role[] = [];
   let after: string | undefined;
 
-  // eslint-disable-next-line no-constant-condition
   while (true) {
     const params = new URLSearchParams({ limit: '100' });
     if (after) params.set('after', after);
