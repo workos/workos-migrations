@@ -44,7 +44,7 @@
     "commander": "^14.0.3",
     "csv-parse": "^6.2.1",
     "csv-stringify": "^6.4.5",
-    "dotenv": "^16.4.5",
+    "dotenv": "^17.4.2",
     "fast-xml-parser": "^5.7.2",
     "prompts": "^2.4.2"
   },
