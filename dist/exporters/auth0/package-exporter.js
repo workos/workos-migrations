@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { MIGRATION_PACKAGE_CSV_HEADERS, createMigrationPackageManifest, } from '../../package/manifest.js';
 import { createEmptyPackageFiles, getPackageFilePath, writeMigrationPackageManifest, writePackageJsonlRecords, } from '../../package/writer.js';
+import { packageMembershipToUploadMembershipRow, packageOrganizationToUploadOrganizationRow, packageUserToUploadUserRow, } from '../../package/upload.js';
 import { createCSVWriter } from '../../shared/csv-utils.js';
 import { writeCustomAttributeMappingsCsv, writeOidcConnectionsCsv, writeProxyRoutesCsv, writeSamlConnectionsCsv, } from '../../sso/handoff.js';
 import * as logger from '../../shared/logger.js';
@@ -11,6 +12,9 @@ import { AUTH0_REDACTED_SECRET_FIELDS, classifyAuth0ConnectionProtocol, mapAuth0
 const USER_HEADERS = MIGRATION_PACKAGE_CSV_HEADERS.users;
 const ORG_HEADERS = MIGRATION_PACKAGE_CSV_HEADERS.organizations;
 const MEMBERSHIP_HEADERS = MIGRATION_PACKAGE_CSV_HEADERS.memberships;
+const UPLOAD_USER_HEADERS = MIGRATION_PACKAGE_CSV_HEADERS.uploadUsers;
+const UPLOAD_ORG_HEADERS = MIGRATION_PACKAGE_CSV_HEADERS.uploadOrganizations;
+const UPLOAD_MEMBERSHIP_HEADERS = MIGRATION_PACKAGE_CSV_HEADERS.uploadMemberships;
 const DEFAULT_PACKAGE_ENTITIES = ['users', 'organizations', 'memberships'];
 const SUPPORTED_PACKAGE_ENTITIES = new Set([...DEFAULT_PACKAGE_ENTITIES, 'sso']);
 export async function exportAuth0Package(options) {
@@ -75,6 +79,9 @@ export async function exportAuth0PackageWithClient(client, options) {
             oidcConnections: stats.oidcConnections,
             customAttributeMappings: stats.customAttributeMappings,
             proxyRoutes: stats.proxyRoutes,
+            uploadUsers: stats.uploadUsers,
+            uploadOrganizations: stats.uploadOrganizations,
+            uploadMemberships: stats.uploadMemberships,
             warnings: stats.warnings.length,
             skippedUsers: stats.skipped.length,
         },
@@ -125,20 +132,42 @@ async function exportPackageOrganizations(client, outputDir, options) {
     const membershipWriter = createCSVWriter(getPackageFilePath(outputDir, 'memberships'), [
         ...MEMBERSHIP_HEADERS,
     ]);
+    const uploadUserWriter = createCSVWriter(getPackageFilePath(outputDir, 'uploadUsers'), [
+        ...UPLOAD_USER_HEADERS,
+    ]);
+    const uploadOrganizationWriter = createCSVWriter(getPackageFilePath(outputDir, 'uploadOrganizations'), [...UPLOAD_ORG_HEADERS]);
+    const uploadMembershipWriter = createCSVWriter(getPackageFilePath(outputDir, 'uploadMemberships'), [...UPLOAD_MEMBERSHIP_HEADERS]);
+    const uploadWriters = {
+        userWriter: uploadUserWriter,
+        organizationWriter: uploadOrganizationWriter,
+        membershipWriter: uploadMembershipWriter,
+        seenUserIds: new Set(),
+        seenOrganizationIds: new Set(),
+        seenMembershipIds: new Set(),
+    };
     const stats = createEmptyPackageStats();
     stats.totalOrgs = organizations.length;
     try {
         for (const org of organizations) {
-            orgWriter.write(toOrganizationRow(org));
-            await exportOneOrganizationMembers(client, org, userWriter, membershipWriter, options, stats);
+            const organizationRow = toOrganizationRow(org);
+            orgWriter.write(organizationRow);
+            writeUploadOrganization(organizationRow, uploadWriters, stats);
+            await exportOneOrganizationMembers(client, org, userWriter, membershipWriter, uploadWriters, options, stats);
         }
     }
     finally {
-        await Promise.all([orgWriter.end(), userWriter.end(), membershipWriter.end()]);
+        await Promise.all([
+            orgWriter.end(),
+            userWriter.end(),
+            membershipWriter.end(),
+            uploadUserWriter.end(),
+            uploadOrganizationWriter.end(),
+            uploadMembershipWriter.end(),
+        ]);
     }
     return stats;
 }
-async function exportOneOrganizationMembers(client, org, userWriter, membershipWriter, options, stats) {
+async function exportOneOrganizationMembers(client, org, userWriter, membershipWriter, uploadWriters, options, stats) {
     let orgUserCount = 0;
     let orgSkippedCount = 0;
     let page = 0;
@@ -163,7 +192,7 @@ async function exportOneOrganizationMembers(client, org, userWriter, membershipW
                         continue;
                     }
                     const user = result.value;
-                    const exportResult = writePackageUserAndMembership(user, org, userWriter, membershipWriter, options, stats);
+                    const exportResult = writePackageUserAndMembership(user, org, userWriter, membershipWriter, uploadWriters, options, stats);
                     if (exportResult === 'exported') {
                         orgUserCount++;
                     }
@@ -191,8 +220,21 @@ async function exportPackageUsersWithMetadata(client, outputDir, options) {
     const membershipWriter = createCSVWriter(getPackageFilePath(outputDir, 'memberships'), [
         ...MEMBERSHIP_HEADERS,
     ]);
+    const uploadUserWriter = createCSVWriter(getPackageFilePath(outputDir, 'uploadUsers'), [
+        ...UPLOAD_USER_HEADERS,
+    ]);
+    const uploadOrganizationWriter = createCSVWriter(getPackageFilePath(outputDir, 'uploadOrganizations'), [...UPLOAD_ORG_HEADERS]);
+    const uploadMembershipWriter = createCSVWriter(getPackageFilePath(outputDir, 'uploadMemberships'), [...UPLOAD_MEMBERSHIP_HEADERS]);
     const stats = createEmptyPackageStats();
     const seenOrgs = new Set();
+    const uploadWriters = {
+        userWriter: uploadUserWriter,
+        organizationWriter: uploadOrganizationWriter,
+        membershipWriter: uploadMembershipWriter,
+        seenUserIds: new Set(),
+        seenOrganizationIds: new Set(),
+        seenMembershipIds: new Set(),
+    };
     if (!options.quiet) {
         logger.info('Using metadata-based org discovery');
     }
@@ -219,10 +261,12 @@ async function exportPackageUsersWithMetadata(client, outputDir, options) {
                 };
                 if (!seenOrgs.has(org.id)) {
                     seenOrgs.add(org.id);
-                    orgWriter.write(toOrganizationRow(org));
+                    const organizationRow = toOrganizationRow(org);
+                    orgWriter.write(organizationRow);
+                    writeUploadOrganization(organizationRow, uploadWriters, stats);
                     stats.totalOrgs++;
                 }
-                writePackageUserAndMembership(user, org, userWriter, membershipWriter, options, stats);
+                writePackageUserAndMembership(user, org, userWriter, membershipWriter, uploadWriters, options, stats);
             }
             hasMore = users.length >= options.pageSize;
             page++;
@@ -232,7 +276,14 @@ async function exportPackageUsersWithMetadata(client, outputDir, options) {
         }
     }
     finally {
-        await Promise.all([orgWriter.end(), userWriter.end(), membershipWriter.end()]);
+        await Promise.all([
+            orgWriter.end(),
+            userWriter.end(),
+            membershipWriter.end(),
+            uploadUserWriter.end(),
+            uploadOrganizationWriter.end(),
+            uploadMembershipWriter.end(),
+        ]);
     }
     return stats;
 }
@@ -295,7 +346,7 @@ async function exportPackageSso(client, outputDir, options) {
     }
     return stats;
 }
-function writePackageUserAndMembership(user, org, userWriter, membershipWriter, options, stats) {
+function writePackageUserAndMembership(user, org, userWriter, membershipWriter, uploadWriters, options, stats) {
     if (!user || !user.email) {
         addSkipped(stats, user?.user_id, user?.email, org, 'no_email');
         return 'skipped';
@@ -309,14 +360,43 @@ function writePackageUserAndMembership(user, org, userWriter, membershipWriter, 
         return 'skipped';
     }
     const row = mapAuth0UserToWorkOS(user, org);
+    const membershipRow = toMembershipRow(user, org, row);
     userWriter.write(normalizeCsvRow(row, USER_HEADERS));
-    membershipWriter.write(toMembershipRow(user, org, row));
+    membershipWriter.write(membershipRow);
+    writeUploadUserAndMembership(row, membershipRow, uploadWriters, stats);
     stats.totalUsers++;
     stats.totalMemberships++;
     if (user.blocked === true) {
         addWarning(stats, 'blocked_user_metadata_only', `Blocked Auth0 user ${user.user_id} was exported without credentials.`, org, user.user_id);
     }
     return 'exported';
+}
+function writeUploadOrganization(organizationRow, uploadWriters, stats) {
+    const uploadOrganization = packageOrganizationToUploadOrganizationRow(organizationRow);
+    if (!uploadOrganization)
+        return;
+    if (uploadWriters.seenOrganizationIds.has(uploadOrganization.organization_id))
+        return;
+    uploadWriters.seenOrganizationIds.add(uploadOrganization.organization_id);
+    uploadWriters.organizationWriter.write(uploadOrganization);
+    stats.uploadOrganizations++;
+}
+function writeUploadUserAndMembership(userRow, membershipRow, uploadWriters, stats) {
+    const uploadUser = packageUserToUploadUserRow(userRow);
+    if (uploadUser && !uploadWriters.seenUserIds.has(uploadUser.user_id)) {
+        uploadWriters.seenUserIds.add(uploadUser.user_id);
+        uploadWriters.userWriter.write(uploadUser);
+        stats.uploadUsers++;
+    }
+    const uploadMembership = packageMembershipToUploadMembershipRow(membershipRow);
+    if (!uploadMembership)
+        return;
+    const membershipKey = `${uploadMembership.organization_id}:${uploadMembership.user_id}`;
+    if (uploadWriters.seenMembershipIds.has(membershipKey))
+        return;
+    uploadWriters.seenMembershipIds.add(membershipKey);
+    uploadWriters.membershipWriter.write(uploadMembership);
+    stats.uploadMemberships++;
 }
 async function fetchAllOrganizations(client, pageSize) {
     const allOrgs = [];
@@ -473,6 +553,9 @@ function createEmptyPackageStats() {
         oidcConnections: 0,
         customAttributeMappings: 0,
         proxyRoutes: 0,
+        uploadUsers: 0,
+        uploadOrganizations: 0,
+        uploadMemberships: 0,
         skippedUsers: 0,
         warnings: [],
         skipped: [],
@@ -486,6 +569,9 @@ function mergePackageStats(target, source) {
     target.oidcConnections += source.oidcConnections;
     target.customAttributeMappings += source.customAttributeMappings;
     target.proxyRoutes += source.proxyRoutes;
+    target.uploadUsers += source.uploadUsers;
+    target.uploadOrganizations += source.uploadOrganizations;
+    target.uploadMemberships += source.uploadMemberships;
     target.skippedUsers += source.skippedUsers;
     target.warnings.push(...source.warnings);
     target.skipped.push(...source.skipped);

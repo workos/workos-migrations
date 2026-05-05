@@ -14,6 +14,9 @@ const COUNTABLE_FILES = {
     oidcConnections: { fileKey: 'oidcConnections', kind: 'csv' },
     customAttributeMappings: { fileKey: 'customAttributeMappings', kind: 'csv' },
     proxyRoutes: { fileKey: 'proxyRoutes', kind: 'csv' },
+    uploadUsers: { fileKey: 'uploadUsers', kind: 'csv' },
+    uploadOrganizations: { fileKey: 'uploadOrganizations', kind: 'csv' },
+    uploadMemberships: { fileKey: 'uploadMemberships', kind: 'csv' },
     warnings: { fileKey: 'warnings', kind: 'jsonl' },
     skippedUsers: { fileKey: 'skippedUsers', kind: 'jsonl' },
 };

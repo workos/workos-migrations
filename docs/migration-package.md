@@ -25,9 +25,15 @@ migration-<provider>-<timestamp>/
     custom_attribute_mappings.csv
     proxy_routes.csv
     handoff_notes.md
+  workos_upload/
+    users.csv
+    organizations.csv
+    organization_memberships.csv
 ```
 
 `raw/` is reserved for provider-specific files and is not required by the base validator.
+
+`workos_upload/` contains a narrow compatibility projection for WorkOS's existing user, organization, and membership upload templates. SSO connections stay in `sso/` because they are handoff-only and cannot be automatically imported.
 
 ## Manifest
 
@@ -51,6 +57,9 @@ migration-<provider>-<timestamp>/
     "oidcConnections": 2,
     "customAttributeMappings": 24,
     "proxyRoutes": 20,
+    "uploadUsers": 1234,
+    "uploadOrganizations": 42,
+    "uploadMemberships": 1400,
     "warnings": 3,
     "skippedUsers": 12
   },
@@ -68,7 +77,10 @@ migration-<provider>-<timestamp>/
     "oidcConnections": "sso/oidc_connections.csv",
     "customAttributeMappings": "sso/custom_attribute_mappings.csv",
     "proxyRoutes": "sso/proxy_routes.csv",
-    "handoffNotes": "sso/handoff_notes.md"
+    "handoffNotes": "sso/handoff_notes.md",
+    "uploadUsers": "workos_upload/users.csv",
+    "uploadOrganizations": "workos_upload/organizations.csv",
+    "uploadMemberships": "workos_upload/organization_memberships.csv"
   },
   "importability": {
     "users": "automatic",
@@ -172,6 +184,30 @@ importedId,organizationExternalId,provider,protocol,sourceAcsUrl,sourceEntityId,
 ```
 
 `cutoverState` values are `legacy`, `workos`, or `manual`.
+
+## WorkOS Upload Compatibility
+
+Package exporters should also write upload-compatible files for the existing WorkOS upload flow:
+
+```text
+workos_upload/users.csv
+workos_upload/organizations.csv
+workos_upload/organization_memberships.csv
+```
+
+These files intentionally omit provider metadata and package-only fields. They must use the existing upload headers:
+
+```csv
+user_id,email,email_verified,first_name,last_name,password_hash
+organization_id,name
+organization_id,user_id
+```
+
+`user_id` should be the same stable source identifier used as package `external_id`. `organization_id` should be the same source organization identifier used as package `org_external_id`.
+
+Providers should only write membership rows when the source provider exposes a reliable user-to-organization relationship or the customer supplied an explicit mapping. If a provider cannot infer organizations or memberships, it should write header-only compatibility files and add a warning instead of inventing relationships.
+
+Roles are not represented in `workos_upload/` because the current upload templates cover only users, organizations, and memberships.
 
 ## JSONL Files
 

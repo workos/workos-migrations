@@ -162,6 +162,9 @@ describe('exportAuth0PackageWithClient', () => {
       users: 2,
       organizations: 1,
       memberships: 2,
+      uploadUsers: 2,
+      uploadOrganizations: 1,
+      uploadMemberships: 2,
       warnings: 1,
       skippedUsers: 1,
     });
@@ -188,6 +191,43 @@ describe('exportAuth0PackageWithClient', () => {
       external_id: 'auth0|db',
       org_external_id: 'org_abc123',
     });
+
+    expect(await readCsv(path.join(tempRoot, 'workos_upload', 'users.csv'))).toMatchObject([
+      {
+        user_id: 'auth0|db',
+        email: 'db@example.com',
+        email_verified: 'true',
+        first_name: 'Database',
+        last_name: 'User',
+        password_hash: '',
+      },
+      {
+        user_id: 'auth0|blocked',
+        email: 'blocked@example.com',
+        email_verified: 'true',
+        first_name: 'Blocked',
+        last_name: 'User',
+        password_hash: '',
+      },
+    ]);
+    expect(await readCsv(path.join(tempRoot, 'workos_upload', 'organizations.csv'))).toEqual([
+      {
+        organization_id: 'org_abc123',
+        name: 'Acme',
+      },
+    ]);
+    expect(
+      await readCsv(path.join(tempRoot, 'workos_upload', 'organization_memberships.csv')),
+    ).toEqual([
+      {
+        organization_id: 'org_abc123',
+        user_id: 'auth0|db',
+      },
+      {
+        organization_id: 'org_abc123',
+        user_id: 'auth0|blocked',
+      },
+    ]);
 
     const skipped = readJsonl(path.join(tempRoot, 'skipped_users.jsonl'));
     expect(skipped).toMatchObject([
@@ -291,6 +331,9 @@ describe('exportAuth0PackageWithClient', () => {
       users: 1,
       organizations: 1,
       memberships: 1,
+      uploadUsers: 1,
+      uploadOrganizations: 1,
+      uploadMemberships: 1,
       skippedUsers: 1,
     });
 
@@ -312,6 +355,26 @@ describe('exportAuth0PackageWithClient', () => {
         email: 'metadata@example.com',
         external_id: 'auth0|metadata',
         org_external_id: 'org_metadata',
+      },
+    ]);
+    expect(await readCsv(path.join(tempRoot, 'workos_upload', 'users.csv'))).toMatchObject([
+      {
+        user_id: 'auth0|metadata',
+        email: 'metadata@example.com',
+      },
+    ]);
+    expect(await readCsv(path.join(tempRoot, 'workos_upload', 'organizations.csv'))).toEqual([
+      {
+        organization_id: 'org_metadata',
+        name: 'Metadata Org',
+      },
+    ]);
+    expect(
+      await readCsv(path.join(tempRoot, 'workos_upload', 'organization_memberships.csv')),
+    ).toEqual([
+      {
+        organization_id: 'org_metadata',
+        user_id: 'auth0|metadata',
       },
     ]);
     expect(readJsonl(path.join(tempRoot, 'skipped_users.jsonl'))).toMatchObject([
@@ -404,6 +467,9 @@ describe('exportAuth0PackageWithClient', () => {
       oidcConnections: 1,
       customAttributeMappings: 2,
       proxyRoutes: 2,
+      uploadUsers: 0,
+      uploadOrganizations: 0,
+      uploadMemberships: 0,
       warnings: 3,
       skippedUsers: 0,
     });
@@ -450,6 +516,11 @@ describe('exportAuth0PackageWithClient', () => {
       },
     ]);
     expect(await readCsv(path.join(tempRoot, 'sso', 'proxy_routes.csv'))).toHaveLength(2);
+    expect(await readCsv(path.join(tempRoot, 'workos_upload', 'users.csv'))).toEqual([]);
+    expect(await readCsv(path.join(tempRoot, 'workos_upload', 'organizations.csv'))).toEqual([]);
+    expect(
+      await readCsv(path.join(tempRoot, 'workos_upload', 'organization_memberships.csv')),
+    ).toEqual([]);
 
     const warnings = readJsonl(path.join(tempRoot, 'warnings.jsonl'));
     expect(warnings.map((warning) => warning.code).sort()).toEqual([

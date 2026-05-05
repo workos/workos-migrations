@@ -149,6 +149,44 @@ describe('migration package writer and validator', () => {
     expect(assignmentErrors).toEqual([]);
   });
 
+  it('validates upload-compatible files and counts', async () => {
+    await createMigrationPackage({
+      rootDir: tempRoot,
+      provider: 'csv',
+      generatedAt: '2026-04-29T00:00:00.000Z',
+      entitiesExported: {
+        uploadUsers: 1,
+        uploadOrganizations: 1,
+        uploadMemberships: 1,
+      },
+    });
+
+    await writePackageCsvRows(tempRoot, 'uploadUsers', [
+      {
+        user_id: 'auth0|alice',
+        email: 'alice@example.com',
+        email_verified: true,
+        first_name: 'Alice',
+        last_name: 'Example',
+      },
+    ]);
+    await writePackageCsvRows(tempRoot, 'uploadOrganizations', [
+      {
+        organization_id: 'org_abc123',
+        name: 'Acme',
+      },
+    ]);
+    await writePackageCsvRows(tempRoot, 'uploadMemberships', [
+      {
+        organization_id: 'org_abc123',
+        user_id: 'auth0|alice',
+      },
+    ]);
+
+    const validation = await validateMigrationPackage(tempRoot);
+    expect(validation.valid).toBe(true);
+  });
+
   it('rejects CSV files whose headers drift from the contract', async () => {
     await createMigrationPackage({
       rootDir: tempRoot,

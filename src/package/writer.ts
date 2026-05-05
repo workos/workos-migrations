@@ -33,6 +33,7 @@ export async function createMigrationPackage(
   const manifest = createMigrationPackageManifest(options);
   await fs.mkdir(options.rootDir, { recursive: true });
   await fs.mkdir(path.join(options.rootDir, 'sso'), { recursive: true });
+  await fs.mkdir(path.join(options.rootDir, 'workos_upload'), { recursive: true });
 
   if (options.createEmptyFiles ?? true) {
     await createEmptyPackageFiles(options.rootDir, options.handoffNotes);
