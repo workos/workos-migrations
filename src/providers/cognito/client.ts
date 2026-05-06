@@ -34,6 +34,11 @@ import {
   USER_HEADERS,
   DEFAULT_SAML_CUSTOM_ENTITY_ID_TEMPLATE,
 } from './workos-csv.js';
+import {
+  exportCognitoPackage,
+  type CognitoOrgStrategy,
+  type ExportCognitoPackageResult,
+} from './package-exporter.js';
 
 function countDuplicates(values: string[]): number {
   const seen = new Set<string>();
@@ -118,6 +123,65 @@ export class CognitoClient implements ProviderClient {
         enabled: true,
       },
     ];
+  }
+
+  async exportPackage(
+    options: {
+      entities?: string[];
+      outputDir?: string;
+      orgStrategy?: CognitoOrgStrategy;
+      quiet?: boolean;
+    } = {},
+  ): Promise<ExportCognitoPackageResult> {
+    if (!this.client) throw new Error('call authenticate() before exportPackage()');
+
+    const requested = options.entities ?? ['users', 'organizations', 'memberships'];
+    const wantUsers = requested.includes('users');
+    const wantSso = requested.includes('sso');
+    const poolIds = this.resolvePoolIds();
+    if (poolIds.length === 0) {
+      throw new Error(
+        'no user pool IDs provided — set COGNITO_USER_POOL_IDS, pass --user-pool-ids, or save to config',
+      );
+    }
+
+    const providers: CognitoProvider[] = [];
+    const users: CognitoUser[] = [];
+    for (const poolId of poolIds) {
+      if (wantSso || requested.includes('organizations') || requested.includes('memberships')) {
+        const fetched = await this.fetchProviders(poolId);
+        providers.push(...fetched);
+      }
+      if (wantUsers || requested.includes('memberships') || requested.includes('organizations')) {
+        const fetched = await this.fetchUsers(poolId);
+        users.push(...fetched);
+      }
+    }
+
+    return exportCognitoPackage(
+      { providers, users },
+      {
+        outputDir: options.outputDir ?? this.options.outDir ?? process.cwd(),
+        entities: requested,
+        orgStrategy: options.orgStrategy ?? 'user-pool',
+        skipExternalProviderUsers: this.options.skipExternalProviderUsers ?? true,
+        proxy: {
+          samlCustomEntityId:
+            this.options.proxy?.samlCustomEntityId ??
+            process.env.SAML_CUSTOM_ENTITY_ID_TEMPLATE ??
+            DEFAULT_SAML_CUSTOM_ENTITY_ID_TEMPLATE,
+          samlCustomAcsUrl:
+            this.options.proxy?.samlCustomAcsUrl ??
+            process.env.SAML_CUSTOM_ACS_URL_TEMPLATE ??
+            null,
+          oidcCustomRedirectUri:
+            this.options.proxy?.oidcCustomRedirectUri ??
+            process.env.OIDC_CUSTOM_REDIRECT_URI_TEMPLATE ??
+            null,
+        },
+        quiet: options.quiet,
+      },
+    );
   }
 
   async exportEntities(entityTypes: string[]): Promise<ExportResult> {
