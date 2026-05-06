@@ -6,22 +6,40 @@ import type {
   Auth0Connection,
   Auth0Organization,
   Auth0OrganizationConnection,
+  Auth0Role,
   Auth0User,
 } from '../../../shared/types';
 import { validateMigrationPackage } from '../../../package/validator';
 import { exportAuth0PackageWithClient, type Auth0ExportClient } from '../package-exporter';
 
+interface FakeAuth0ClientOptions {
+  organizations?: Auth0Organization[];
+  membersByOrg?: Record<string, Array<{ user_id: string }>>;
+  usersById?: Record<string, Auth0User>;
+  connections?: Auth0Connection[];
+  organizationConnectionsByOrg?: Record<string, Auth0OrganizationConnection[]>;
+  roles?: Auth0Role[];
+  rolesByMember?: Record<string, Auth0Role[]>;
+}
+
 class FakeAuth0Client implements Auth0ExportClient {
-  constructor(
-    private readonly organizations: Auth0Organization[],
-    private readonly membersByOrg: Record<string, Array<{ user_id: string }>>,
-    private readonly usersById: Record<string, Auth0User>,
-    private readonly connections: Auth0Connection[] = [],
-    private readonly organizationConnectionsByOrg: Record<
-      string,
-      Auth0OrganizationConnection[]
-    > = {},
-  ) {}
+  private readonly organizations: Auth0Organization[];
+  private readonly membersByOrg: Record<string, Array<{ user_id: string }>>;
+  private readonly usersById: Record<string, Auth0User>;
+  private readonly connections: Auth0Connection[];
+  private readonly organizationConnectionsByOrg: Record<string, Auth0OrganizationConnection[]>;
+  private readonly roles: Auth0Role[];
+  private readonly rolesByMember: Record<string, Auth0Role[]>;
+
+  constructor(options: FakeAuth0ClientOptions = {}) {
+    this.organizations = options.organizations ?? [];
+    this.membersByOrg = options.membersByOrg ?? {};
+    this.usersById = options.usersById ?? {};
+    this.connections = options.connections ?? [];
+    this.organizationConnectionsByOrg = options.organizationConnectionsByOrg ?? {};
+    this.roles = options.roles ?? [];
+    this.rolesByMember = options.rolesByMember ?? {};
+  }
 
   async getConnections(page = 0): Promise<Auth0Connection[]> {
     return page === 0 ? this.connections : [];
@@ -54,6 +72,15 @@ class FakeAuth0Client implements Auth0ExportClient {
 
   async getUsers(page = 0): Promise<Auth0User[]> {
     return page === 0 ? Object.values(this.usersById) : [];
+  }
+
+  async getRoles(page = 0): Promise<Auth0Role[]> {
+    return page === 0 ? this.roles : [];
+  }
+
+  async getMemberRoles(orgId: string, userId: string, page = 0): Promise<Auth0Role[]> {
+    if (page !== 0) return [];
+    return this.rolesByMember[`${orgId}:${userId}`] ?? [];
   }
 }
 
@@ -119,21 +146,21 @@ describe('exportAuth0PackageWithClient', () => {
   });
 
   it('writes a valid package with users, organizations, memberships, warnings, and skips', async () => {
-    const client = new FakeAuth0Client(
-      [org],
-      {
+    const client = new FakeAuth0Client({
+      organizations: [org],
+      membersByOrg: {
         [org.id]: [
           { user_id: databaseUser.user_id },
           { user_id: blockedUser.user_id },
           { user_id: federatedUser.user_id },
         ],
       },
-      {
+      usersById: {
         [databaseUser.user_id]: databaseUser,
         [blockedUser.user_id]: blockedUser,
         [federatedUser.user_id]: federatedUser,
       },
-    );
+    });
 
     const summary = await exportAuth0PackageWithClient(client, {
       domain: 'example.us.auth0.com',
@@ -248,15 +275,15 @@ describe('exportAuth0PackageWithClient', () => {
   });
 
   it('can include federated users when explicitly requested', async () => {
-    const client = new FakeAuth0Client(
-      [org],
-      {
+    const client = new FakeAuth0Client({
+      organizations: [org],
+      membersByOrg: {
         [org.id]: [{ user_id: federatedUser.user_id }],
       },
-      {
+      usersById: {
         [federatedUser.user_id]: federatedUser,
       },
-    );
+    });
 
     const summary = await exportAuth0PackageWithClient(client, {
       domain: 'example.us.auth0.com',
@@ -297,14 +324,14 @@ describe('exportAuth0PackageWithClient', () => {
       user_metadata: {},
       app_metadata: {},
     };
-    const client = new FakeAuth0Client(
-      [],
-      {},
-      {
+    const client = new FakeAuth0Client({
+      organizations: [],
+      membersByOrg: {},
+      usersById: {
         [metadataUser.user_id]: metadataUser,
         [skippedUser.user_id]: skippedUser,
       },
-    );
+    });
 
     const summary = await exportAuth0PackageWithClient(client, {
       domain: 'example.us.auth0.com',
@@ -426,15 +453,13 @@ describe('exportAuth0PackageWithClient', () => {
         signInEndpoint: 'https://idp.example.com/sso',
       },
     };
-    const client = new FakeAuth0Client(
-      [org],
-      {},
-      {},
-      [samlConnection, oidcConnection, unsupportedConnection, incompleteConnection],
-      {
+    const client = new FakeAuth0Client({
+      organizations: [org],
+      connections: [samlConnection, oidcConnection, unsupportedConnection, incompleteConnection],
+      organizationConnectionsByOrg: {
         [org.id]: [{ connection_id: 'con_saml' }, { connection_id: 'con_oidc' }],
       },
-    );
+    });
 
     const summary = await exportAuth0PackageWithClient(client, {
       domain: 'example.us.auth0.com',
@@ -545,8 +570,12 @@ describe('exportAuth0PackageWithClient', () => {
         issuer: 'https://issuer.example.com',
       },
     };
-    const client = new FakeAuth0Client([org], {}, {}, [oidcConnection], {
-      [org.id]: [{ connection_id: 'con_oidc' }],
+    const client = new FakeAuth0Client({
+      organizations: [org],
+      connections: [oidcConnection],
+      organizationConnectionsByOrg: {
+        [org.id]: [{ connection_id: 'con_oidc' }],
+      },
     });
 
     await exportAuth0PackageWithClient(client, {
@@ -582,6 +611,171 @@ describe('exportAuth0PackageWithClient', () => {
       fs.readFileSync(path.join(tempRoot, 'raw', 'auth0-connections.jsonl'), 'utf-8'),
     ).toContain('oidc-secret');
     expect(readJsonl(path.join(tempRoot, 'warnings.jsonl'))).toEqual([]);
+  });
+
+  it('exports role definitions and per-org user role assignments when roles entity is requested', async () => {
+    const adminRole: Auth0Role = { id: 'rol_admin', name: 'Admin' };
+    const memberRole: Auth0Role = { id: 'rol_member', name: 'Member' };
+    const duplicateRole: Auth0Role = { id: 'rol_admin_dup', name: 'admin' };
+    const emptyRole: Auth0Role = { id: 'rol_blank', name: '' };
+    const multiRoleUser: Auth0User = {
+      ...databaseUser,
+      user_id: 'auth0|multi',
+      email: 'multi@example.com',
+    };
+
+    const client = new FakeAuth0Client({
+      organizations: [org],
+      membersByOrg: {
+        [org.id]: [
+          { user_id: databaseUser.user_id },
+          { user_id: multiRoleUser.user_id },
+        ],
+      },
+      usersById: {
+        [databaseUser.user_id]: databaseUser,
+        [multiRoleUser.user_id]: multiRoleUser,
+      },
+      roles: [adminRole, memberRole, duplicateRole, emptyRole],
+      rolesByMember: {
+        [`${org.id}:${databaseUser.user_id}`]: [adminRole, adminRole],
+        [`${org.id}:${multiRoleUser.user_id}`]: [adminRole, memberRole],
+      },
+    });
+
+    const summary = await exportAuth0PackageWithClient(client, {
+      domain: 'example.us.auth0.com',
+      clientId: 'client_123',
+      clientSecret: 'secret',
+      package: true,
+      outputDir: tempRoot,
+      entities: ['users', 'organizations', 'memberships', 'roles'],
+      pageSize: 100,
+      rateLimit: 50,
+      userFetchConcurrency: 2,
+      useMetadata: false,
+      quiet: true,
+    });
+
+    expect(summary).toMatchObject({
+      totalUsers: 2,
+      totalOrgs: 1,
+      skippedUsers: 0,
+    });
+
+    const validation = await validateMigrationPackage(tempRoot);
+    expect(validation.valid).toBe(true);
+    expect(validation.manifest?.entitiesExported).toMatchObject({
+      users: 2,
+      organizations: 1,
+      memberships: 2,
+      roleDefinitions: 4,
+      userRoleAssignments: 3,
+    });
+
+    const roleDefinitions = await readCsv(path.join(tempRoot, 'role_definitions.csv'));
+    expect(roleDefinitions).toMatchObject([
+      { role_slug: 'admin-role', role_name: 'Admin', role_type: 'environment' },
+      { role_slug: 'member-role', role_name: 'Member' },
+      { role_slug: 'admin-role-2', role_name: 'admin' },
+      { role_slug: expect.stringMatching(/^auth0-role-/) },
+    ]);
+
+    const assignments = await readCsv(path.join(tempRoot, 'user_role_assignments.csv'));
+    expect(assignments).toEqual([
+      {
+        email: 'db@example.com',
+        user_id: '',
+        external_id: 'auth0|db',
+        role_slug: 'admin-role',
+        org_id: '',
+        org_external_id: 'org_abc123',
+      },
+      {
+        email: 'multi@example.com',
+        user_id: '',
+        external_id: 'auth0|multi',
+        role_slug: 'admin-role',
+        org_id: '',
+        org_external_id: 'org_abc123',
+      },
+      {
+        email: 'multi@example.com',
+        user_id: '',
+        external_id: 'auth0|multi',
+        role_slug: 'member-role',
+        org_id: '',
+        org_external_id: 'org_abc123',
+      },
+    ]);
+
+    const users = await readCsv(path.join(tempRoot, 'users.csv'));
+    expect(users.find((row) => row.external_id === 'auth0|db')?.role_slugs).toBe('admin-role');
+    expect(users.find((row) => row.external_id === 'auth0|multi')?.role_slugs).toBe(
+      'admin-role,member-role',
+    );
+
+    const memberships = await readCsv(
+      path.join(tempRoot, 'organization_memberships.csv'),
+    );
+    expect(memberships.find((row) => row.external_id === 'auth0|multi')?.role_slugs).toBe(
+      'admin-role,member-role',
+    );
+
+    const warnings = readJsonl(path.join(tempRoot, 'warnings.jsonl'));
+    const codes = warnings.map((warning) => warning.code).sort();
+    expect(codes).toContain('duplicate_role_slug');
+    expect(codes).toContain('unmappable_role_name');
+
+    expect(await readCsv(path.join(tempRoot, 'workos_upload', 'users.csv'))).toHaveLength(2);
+  });
+
+  it('skips role assignments and warns when using metadata-based org discovery', async () => {
+    const metadataUser: Auth0User = {
+      ...databaseUser,
+      user_id: 'auth0|metadata-roles',
+      email: 'metadata@example.com',
+      user_metadata: {
+        organization_id: 'org_metadata',
+        organization_name: 'Metadata Org',
+      },
+    };
+    const adminRole: Auth0Role = { id: 'rol_admin', name: 'Admin' };
+
+    const client = new FakeAuth0Client({
+      organizations: [],
+      membersByOrg: {},
+      usersById: {
+        [metadataUser.user_id]: metadataUser,
+      },
+      roles: [adminRole],
+    });
+
+    await exportAuth0PackageWithClient(client, {
+      domain: 'example.us.auth0.com',
+      clientId: 'client_123',
+      clientSecret: 'secret',
+      package: true,
+      outputDir: tempRoot,
+      entities: ['users', 'organizations', 'memberships', 'roles'],
+      pageSize: 100,
+      rateLimit: 50,
+      userFetchConcurrency: 2,
+      useMetadata: true,
+      quiet: true,
+    });
+
+    const validation = await validateMigrationPackage(tempRoot);
+    expect(validation.valid).toBe(true);
+    expect(validation.manifest?.entitiesExported).toMatchObject({
+      users: 1,
+      roleDefinitions: 1,
+      userRoleAssignments: 0,
+    });
+    const warnings = readJsonl(path.join(tempRoot, 'warnings.jsonl'));
+    expect(warnings.map((warning) => warning.code)).toContain(
+      'role_assignments_unavailable_metadata_mode',
+    );
   });
 });
 

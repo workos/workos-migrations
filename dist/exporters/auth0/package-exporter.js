@@ -8,15 +8,18 @@ import { writeCustomAttributeMappingsCsv, writeOidcConnectionsCsv, writeProxyRou
 import * as logger from '../../shared/logger.js';
 import { Auth0Client, isMissingConnectionOptionsScopeError } from './client.js';
 import { extractOrgFromMetadata, isFederatedAuth0User, mapAuth0UserToWorkOS } from './mapper.js';
+import { buildRoleAssignmentRows, normalizeAuth0Roles, } from './role-mapper.js';
 import { AUTH0_REDACTED_SECRET_FIELDS, classifyAuth0ConnectionProtocol, mapAuth0ConnectionToSsoHandoff, redactAuth0ConnectionSecrets, } from './sso-mapper.js';
 const USER_HEADERS = MIGRATION_PACKAGE_CSV_HEADERS.users;
 const ORG_HEADERS = MIGRATION_PACKAGE_CSV_HEADERS.organizations;
 const MEMBERSHIP_HEADERS = MIGRATION_PACKAGE_CSV_HEADERS.memberships;
+const ROLE_DEFINITION_HEADERS = MIGRATION_PACKAGE_CSV_HEADERS.roleDefinitions;
+const USER_ROLE_ASSIGNMENT_HEADERS = MIGRATION_PACKAGE_CSV_HEADERS.userRoleAssignments;
 const UPLOAD_USER_HEADERS = MIGRATION_PACKAGE_CSV_HEADERS.uploadUsers;
 const UPLOAD_ORG_HEADERS = MIGRATION_PACKAGE_CSV_HEADERS.uploadOrganizations;
 const UPLOAD_MEMBERSHIP_HEADERS = MIGRATION_PACKAGE_CSV_HEADERS.uploadMemberships;
 const DEFAULT_PACKAGE_ENTITIES = ['users', 'organizations', 'memberships'];
-const SUPPORTED_PACKAGE_ENTITIES = new Set([...DEFAULT_PACKAGE_ENTITIES, 'sso']);
+const SUPPORTED_PACKAGE_ENTITIES = new Set([...DEFAULT_PACKAGE_ENTITIES, 'roles', 'sso']);
 export async function exportAuth0Package(options) {
     const client = new Auth0Client({
         domain: options.domain,
@@ -45,6 +48,7 @@ export async function exportAuth0PackageWithClient(client, options) {
     const resolvedOutputDir = path.resolve(outputDir);
     const requestedEntities = normalizeRequestedEntities(options.entities);
     const shouldExportIdentityEntities = requestedEntities.some((entity) => DEFAULT_PACKAGE_ENTITIES.includes(entity));
+    const shouldExportRoles = requestedEntities.includes('roles');
     const shouldExportSso = requestedEntities.includes('sso');
     await createEmptyPackageFiles(resolvedOutputDir, buildHandoffNotes({
         includeSso: shouldExportSso,
@@ -54,15 +58,22 @@ export async function exportAuth0PackageWithClient(client, options) {
         logger.info(`Writing Auth0 migration package to ${resolvedOutputDir}`);
     }
     const stats = createEmptyPackageStats();
+    const roleContext = shouldExportRoles
+        ? await loadRoleCatalogIfRequested(client, resolvedOutputDir, options, stats)
+        : undefined;
     if (shouldExportIdentityEntities) {
         const identityStats = options.useMetadata
-            ? await exportPackageUsersWithMetadata(client, resolvedOutputDir, options)
-            : await exportPackageOrganizations(client, resolvedOutputDir, options);
+            ? await exportPackageUsersWithMetadata(client, resolvedOutputDir, options, roleContext)
+            : await exportPackageOrganizations(client, resolvedOutputDir, options, roleContext);
         mergePackageStats(stats, identityStats);
     }
     if (shouldExportSso) {
         const ssoStats = await exportPackageSso(client, resolvedOutputDir, options);
         mergePackageStats(stats, ssoStats);
+    }
+    if (roleContext?.assignmentWriter) {
+        await roleContext.assignmentWriter.end();
+        stats.userRoleAssignments += roleContext.assignmentCount;
     }
     await writePackageJsonlRecords(resolvedOutputDir, 'warnings', stats.warnings);
     await writePackageJsonlRecords(resolvedOutputDir, 'skippedUsers', stats.skipped);
@@ -75,6 +86,8 @@ export async function exportAuth0PackageWithClient(client, options) {
             users: stats.totalUsers,
             organizations: stats.totalOrgs,
             memberships: stats.totalMemberships,
+            roleDefinitions: stats.roleDefinitions,
+            userRoleAssignments: stats.userRoleAssignments,
             samlConnections: stats.samlConnections,
             oidcConnections: stats.oidcConnections,
             customAttributeMappings: stats.customAttributeMappings,
@@ -96,6 +109,10 @@ export async function exportAuth0PackageWithClient(client, options) {
         logger.info(`  Organizations: ${stats.totalOrgs}`);
         logger.info(`  Memberships: ${stats.totalMemberships}`);
         logger.info(`  User rows exported: ${stats.totalUsers}`);
+        if (shouldExportRoles) {
+            logger.info(`  Role definitions: ${stats.roleDefinitions}`);
+            logger.info(`  User-role assignments: ${stats.userRoleAssignments}`);
+        }
         if (shouldExportSso) {
             logger.info(`  SAML connections: ${stats.samlConnections}`);
             logger.info(`  OIDC connections: ${stats.oidcConnections}`);
@@ -117,7 +134,7 @@ export async function exportAuth0PackageWithClient(client, options) {
         duration,
     };
 }
-async function exportPackageOrganizations(client, outputDir, options) {
+async function exportPackageOrganizations(client, outputDir, options, roleContext) {
     const fetchedOrganizations = await fetchAllOrganizations(client, options.pageSize);
     const organizations = options.orgs
         ? fetchedOrganizations.filter((org) => options.orgs?.includes(org.id))
@@ -152,7 +169,7 @@ async function exportPackageOrganizations(client, outputDir, options) {
             const organizationRow = toOrganizationRow(org);
             orgWriter.write(organizationRow);
             writeUploadOrganization(organizationRow, uploadWriters, stats);
-            await exportOneOrganizationMembers(client, org, userWriter, membershipWriter, uploadWriters, options, stats);
+            await exportOneOrganizationMembers(client, org, userWriter, membershipWriter, uploadWriters, options, stats, roleContext);
         }
     }
     finally {
@@ -167,7 +184,7 @@ async function exportPackageOrganizations(client, outputDir, options) {
     }
     return stats;
 }
-async function exportOneOrganizationMembers(client, org, userWriter, membershipWriter, uploadWriters, options, stats) {
+async function exportOneOrganizationMembers(client, org, userWriter, membershipWriter, uploadWriters, options, stats, roleContext) {
     let orgUserCount = 0;
     let orgSkippedCount = 0;
     let page = 0;
@@ -183,7 +200,11 @@ async function exportOneOrganizationMembers(client, org, userWriter, membershipW
                 const results = await Promise.allSettled(batch.map(async (member) => {
                     if (!member.user_id)
                         return null;
-                    return client.getUser(member.user_id);
+                    const user = await client.getUser(member.user_id);
+                    const memberRoles = roleContext
+                        ? await fetchMemberRolesSafely(client, org.id, member.user_id, roleContext)
+                        : [];
+                    return { user, memberRoles };
                 }));
                 for (const result of results) {
                     if (result.status === 'rejected') {
@@ -191,8 +212,8 @@ async function exportOneOrganizationMembers(client, org, userWriter, membershipW
                         orgSkippedCount++;
                         continue;
                     }
-                    const user = result.value;
-                    const exportResult = writePackageUserAndMembership(user, org, userWriter, membershipWriter, uploadWriters, options, stats);
+                    const { user, memberRoles } = result.value ?? { user: null, memberRoles: [] };
+                    const exportResult = writePackageUserAndMembership(user, org, userWriter, membershipWriter, uploadWriters, options, stats, { memberRoles, roleContext });
                     if (exportResult === 'exported') {
                         orgUserCount++;
                     }
@@ -212,7 +233,11 @@ async function exportOneOrganizationMembers(client, org, userWriter, membershipW
         logger.info(`  ${org.display_name || org.name}: ${orgUserCount} user row(s)${orgSkippedCount > 0 ? ` (${orgSkippedCount} skipped)` : ''}`);
     }
 }
-async function exportPackageUsersWithMetadata(client, outputDir, options) {
+async function exportPackageUsersWithMetadata(client, outputDir, options, roleContext) {
+    if (roleContext && !roleContext.metadataModeWarned) {
+        roleContext.metadataModeWarned = true;
+        addWarning(roleContext.stats, 'role_assignments_unavailable_metadata_mode', 'Auth0 metadata-based org discovery cannot fetch per-org role assignments; only the role catalog was exported.');
+    }
     const orgWriter = createCSVWriter(getPackageFilePath(outputDir, 'organizations'), [
         ...ORG_HEADERS,
     ]);
@@ -266,7 +291,7 @@ async function exportPackageUsersWithMetadata(client, outputDir, options) {
                     writeUploadOrganization(organizationRow, uploadWriters, stats);
                     stats.totalOrgs++;
                 }
-                writePackageUserAndMembership(user, org, userWriter, membershipWriter, uploadWriters, options, stats);
+                writePackageUserAndMembership(user, org, userWriter, membershipWriter, uploadWriters, options, stats, { memberRoles: [], roleContext });
             }
             hasMore = users.length >= options.pageSize;
             page++;
@@ -346,7 +371,7 @@ async function exportPackageSso(client, outputDir, options) {
     }
     return stats;
 }
-function writePackageUserAndMembership(user, org, userWriter, membershipWriter, uploadWriters, options, stats) {
+function writePackageUserAndMembership(user, org, userWriter, membershipWriter, uploadWriters, options, stats, roleInput = { memberRoles: [], roleContext: undefined }) {
     if (!user || !user.email) {
         addSkipped(stats, user?.user_id, user?.email, org, 'no_email');
         return 'skipped';
@@ -360,6 +385,33 @@ function writePackageUserAndMembership(user, org, userWriter, membershipWriter, 
         return 'skipped';
     }
     const row = mapAuth0UserToWorkOS(user, org);
+    let roleSlugs = [];
+    if (roleInput.roleContext && roleInput.memberRoles.length > 0) {
+        const built = buildRoleAssignmentRows({
+            email: user.email,
+            externalId: user.user_id,
+            orgExternalId: org.id,
+            roles: roleInput.memberRoles,
+        }, roleInput.roleContext.slugByRoleId);
+        roleSlugs = built.slugs;
+        for (const assignment of built.rows) {
+            roleInput.roleContext.assignmentWriter.write({
+                email: assignment.email,
+                user_id: assignment.user_id,
+                external_id: assignment.external_id,
+                role_slug: assignment.role_slug,
+                org_id: assignment.org_id,
+                org_external_id: assignment.org_external_id,
+            });
+            roleInput.roleContext.assignmentCount++;
+        }
+        for (const warning of built.warnings) {
+            addRoleWarning(stats, warning, org, user.user_id);
+        }
+    }
+    if (roleSlugs.length > 0) {
+        row.role_slugs = roleSlugs.join(',');
+    }
     const membershipRow = toMembershipRow(user, org, row);
     userWriter.write(normalizeCsvRow(row, USER_HEADERS));
     membershipWriter.write(membershipRow);
@@ -544,6 +596,104 @@ async function writeRawAuth0Connections(outputDir, connections, includeSecrets) 
     const contents = records.map((record) => JSON.stringify(record)).join('\n');
     await fs.writeFile(path.join(rawDir, 'auth0-connections.jsonl'), contents ? `${contents}\n` : '', 'utf-8');
 }
+async function loadRoleCatalogIfRequested(client, outputDir, options, stats) {
+    if (!client.getRoles) {
+        addWarning(stats, 'roles_unavailable', 'Auth0 client does not support role export; roles entity skipped.');
+        return undefined;
+    }
+    let rawRoles;
+    try {
+        rawRoles = await fetchAllRoles(client, options.pageSize);
+    }
+    catch (error) {
+        addWarning(stats, 'role_catalog_fetch_failed', `Failed to fetch Auth0 roles catalog: ${error.message}`);
+        return undefined;
+    }
+    const { roles, warnings, slugByRoleId } = normalizeAuth0Roles(rawRoles);
+    for (const warning of warnings) {
+        addRoleWarning(stats, warning);
+    }
+    await writeRoleDefinitionsCsv(outputDir, roles);
+    stats.roleDefinitions = roles.length;
+    if (!options.quiet) {
+        logger.info(`  Role definitions: ${roles.length}`);
+    }
+    const assignmentWriter = createCSVWriter(getPackageFilePath(outputDir, 'userRoleAssignments'), [
+        ...USER_ROLE_ASSIGNMENT_HEADERS,
+    ]);
+    return {
+        normalized: roles,
+        slugByRoleId,
+        assignmentWriter,
+        assignmentCount: 0,
+        stats,
+    };
+}
+async function fetchAllRoles(client, pageSize) {
+    if (!client.getRoles)
+        return [];
+    const collected = [];
+    let page = 0;
+    let hasMore = true;
+    while (hasMore) {
+        const batch = await client.getRoles(page, pageSize);
+        if (batch.length === 0)
+            break;
+        collected.push(...batch);
+        hasMore = batch.length >= pageSize;
+        page++;
+    }
+    return collected;
+}
+async function writeRoleDefinitionsCsv(outputDir, roles) {
+    const writer = createCSVWriter(getPackageFilePath(outputDir, 'roleDefinitions'), [
+        ...ROLE_DEFINITION_HEADERS,
+    ]);
+    try {
+        for (const role of roles) {
+            writer.write({
+                role_slug: role.slug,
+                role_name: role.name,
+                role_type: 'environment',
+                permissions: '',
+                org_id: '',
+                org_external_id: '',
+            });
+        }
+    }
+    finally {
+        await writer.end();
+    }
+}
+async function fetchMemberRolesSafely(client, orgId, userId, roleContext) {
+    if (!client.getMemberRoles)
+        return [];
+    try {
+        return await client.getMemberRoles(orgId, userId);
+    }
+    catch (error) {
+        addWarning(roleContext.stats, 'member_role_fetch_failed', `Failed to fetch Auth0 roles for ${userId} in org ${orgId}: ${error.message}`, undefined, userId);
+        return [];
+    }
+}
+function addRoleWarning(stats, warning, org, userId) {
+    stats.warnings.push({
+        timestamp: new Date().toISOString(),
+        code: warning.code,
+        message: warning.message,
+        ...(org ? { org_id: org.id, org_name: org.display_name || org.name } : {}),
+        ...(userId ? { user_id: userId } : {}),
+        ...(warning.role_id || warning.role_name || warning.slug
+            ? {
+                details: {
+                    ...(warning.role_id ? { role_id: warning.role_id } : {}),
+                    ...(warning.role_name ? { role_name: warning.role_name } : {}),
+                    ...(warning.slug ? { role_slug: warning.slug } : {}),
+                },
+            }
+            : {}),
+    });
+}
 function createEmptyPackageStats() {
     return {
         totalUsers: 0,
@@ -556,6 +706,8 @@ function createEmptyPackageStats() {
         uploadUsers: 0,
         uploadOrganizations: 0,
         uploadMemberships: 0,
+        roleDefinitions: 0,
+        userRoleAssignments: 0,
         skippedUsers: 0,
         warnings: [],
         skipped: [],
@@ -572,6 +724,8 @@ function mergePackageStats(target, source) {
     target.uploadUsers += source.uploadUsers;
     target.uploadOrganizations += source.uploadOrganizations;
     target.uploadMemberships += source.uploadMemberships;
+    target.roleDefinitions += source.roleDefinitions;
+    target.userRoleAssignments += source.userRoleAssignments;
     target.skippedUsers += source.skippedUsers;
     target.warnings.push(...source.warnings);
     target.skipped.push(...source.skipped);
