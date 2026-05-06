@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createMigrationPackage } from '../../package/writer';
 import { MIGRATION_PACKAGE_CSV_HEADERS } from '../../package/manifest';
-import { importPackage, planImportPackage } from '../orchestrator';
+import { groupAssignmentsByOrg, importPackage, planImportPackage } from '../orchestrator';
 
 describe('import-package orchestrator', () => {
   let tempRoot: string;
@@ -206,6 +206,104 @@ describe('import-package orchestrator', () => {
 
     const summary = await importPackage({ packageDir: pkgDir, dryRun: true, quiet: true });
     expect(summary.ssoConnections).toMatchObject({ status: 'handoff', total: 1 });
+  });
+
+  describe('groupAssignmentsByOrg', () => {
+    it('groups by org_external_id when org_id is missing and tracks both keys', async () => {
+      const csvPath = path.join(tempRoot, 'role_assignments.csv');
+      writeRows(csvPath, MIGRATION_PACKAGE_CSV_HEADERS.userRoleAssignments, [
+        {
+          email: 'alice@example.com',
+          user_id: '',
+          external_id: 'auth0|alice',
+          role_slug: 'admin-role',
+          org_id: '',
+          org_external_id: 'auth0_org_1',
+        },
+        {
+          email: 'bob@example.com',
+          user_id: '',
+          external_id: 'auth0|bob',
+          role_slug: 'member-role',
+          org_id: '',
+          org_external_id: 'auth0_org_1',
+        },
+        {
+          email: 'carol@example.com',
+          user_id: '',
+          external_id: 'auth0|carol',
+          role_slug: 'admin-role',
+          org_id: '',
+          org_external_id: 'auth0_org_2',
+        },
+      ]);
+
+      const groups = await groupAssignmentsByOrg(csvPath);
+      expect(groups).toHaveLength(2);
+
+      const byExternalId = new Map(groups.map((group) => [group.orgExternalId, group]));
+      expect(byExternalId.get('auth0_org_1')).toMatchObject({
+        orgExternalId: 'auth0_org_1',
+        rowCount: 2,
+      });
+      expect(byExternalId.get('auth0_org_1')?.orgId).toBeUndefined();
+      expect(byExternalId.get('auth0_org_2')).toMatchObject({
+        orgExternalId: 'auth0_org_2',
+        rowCount: 1,
+      });
+
+      // Each group must point at a real on-disk CSV that assignRolesToUsers can read.
+      for (const group of groups) {
+        expect(fs.existsSync(group.mappingPath)).toBe(true);
+      }
+    });
+
+    it('prefers WorkOS org_id over org_external_id and merges rows with the same org_id', async () => {
+      const csvPath = path.join(tempRoot, 'role_assignments.csv');
+      writeRows(csvPath, MIGRATION_PACKAGE_CSV_HEADERS.userRoleAssignments, [
+        {
+          email: 'alice@example.com',
+          user_id: '',
+          external_id: 'auth0|alice',
+          role_slug: 'admin-role',
+          org_id: 'org_01ABC',
+          org_external_id: 'auth0_org_1',
+        },
+        {
+          email: 'bob@example.com',
+          user_id: '',
+          external_id: 'auth0|bob',
+          role_slug: 'member-role',
+          org_id: 'org_01ABC',
+          org_external_id: 'auth0_org_1',
+        },
+      ]);
+
+      const groups = await groupAssignmentsByOrg(csvPath);
+      expect(groups).toHaveLength(1);
+      expect(groups[0]).toMatchObject({
+        orgId: 'org_01ABC',
+        orgExternalId: 'auth0_org_1',
+        rowCount: 2,
+      });
+    });
+
+    it('skips rows with neither org_id nor org_external_id', async () => {
+      const csvPath = path.join(tempRoot, 'role_assignments.csv');
+      writeRows(csvPath, MIGRATION_PACKAGE_CSV_HEADERS.userRoleAssignments, [
+        {
+          email: 'orphan@example.com',
+          user_id: '',
+          external_id: 'auth0|orphan',
+          role_slug: 'admin-role',
+          org_id: '',
+          org_external_id: '',
+        },
+      ]);
+
+      const groups = await groupAssignmentsByOrg(csvPath);
+      expect(groups).toEqual([]);
+    });
   });
 });
 

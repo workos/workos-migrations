@@ -60,3 +60,14 @@ export interface ImportPackageSummary {
 }
 export declare function planImportPackage(packageDir: string): Promise<ImportPackagePlan>;
 export declare function importPackage(options: ImportPackageOptions): Promise<ImportPackageSummary>;
+export interface RoleAssignmentGroup {
+    /** WorkOS organization id when the CSV provided one. */
+    orgId?: string;
+    /** Source-provider external organization id when present. */
+    orgExternalId?: string;
+    /** Path to the per-org temp CSV used by assignRolesToUsers. */
+    mappingPath: string;
+    /** Number of role assignment rows in this group. */
+    rowCount: number;
+}
+export declare function groupAssignmentsByOrg(assignmentsCsvPath: string): Promise<RoleAssignmentGroup[]>;

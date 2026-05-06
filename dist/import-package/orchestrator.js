@@ -3,6 +3,7 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { parse } from 'csv-parse';
 import { runImport } from '../import/importer.js';
+import { getOrganizationByExternalId } from '../import/org-api.js';
 import { validateMigrationPackage, } from '../package/validator.js';
 import { loadMigrationPackage } from '../package/writer.js';
 import { processRoleDefinitions, assignRolesToUsers } from '../roles/processor.js';
@@ -21,7 +22,7 @@ export async function planImportPackage(packageDir) {
         pkg = await loadMigrationPackage(resolvedDir);
     }
     catch (error) {
-        throw new Error(`Unable to load migration package at ${resolvedDir}: ${error.message}`);
+        throw new Error(`Unable to load migration package at ${resolvedDir}: ${error.message}`, { cause: error });
     }
     const counts = pkg.manifest.entitiesExported ?? {};
     return {
@@ -163,15 +164,49 @@ export async function importPackage(options) {
             let totalAssigned = 0;
             let totalFailed = 0;
             const aggregatedWarnings = [];
-            for (const [orgExternalId, mappingPath] of groups) {
+            const orgIdByExternalId = new Map();
+            for (const group of groups) {
                 if (!options.workos)
                     continue;
+                // Resolve the WorkOS organization id. The CSV may carry either a
+                // WorkOS org_id (already resolved) or only an org_external_id from
+                // the source provider, which must be looked up against WorkOS.
+                let resolvedOrgId = group.orgId;
+                if (!resolvedOrgId && group.orgExternalId) {
+                    const cached = orgIdByExternalId.get(group.orgExternalId);
+                    if (cached) {
+                        resolvedOrgId = cached;
+                    }
+                    else {
+                        try {
+                            const found = await getOrganizationByExternalId(options.workos, group.orgExternalId);
+                            if (found) {
+                                resolvedOrgId = found;
+                                orgIdByExternalId.set(group.orgExternalId, found);
+                            }
+                        }
+                        catch (error) {
+                            aggregatedWarnings.push(`Failed to resolve organization for external_id ${group.orgExternalId}: ${error.message}`);
+                            totalFailed += group.rowCount;
+                            continue;
+                        }
+                    }
+                }
+                if (!resolvedOrgId) {
+                    const label = group.orgExternalId ?? '(unknown org)';
+                    aggregatedWarnings.push(`Skipped role assignments for ${label}: organization not found in WorkOS.`);
+                    totalFailed += group.rowCount;
+                    continue;
+                }
+                const label = group.orgExternalId
+                    ? `${group.orgExternalId} (${resolvedOrgId})`
+                    : resolvedOrgId;
                 if (!quiet) {
-                    logger.info(`Assigning roles for org ${orgExternalId}...`);
+                    logger.info(`Assigning roles for org ${label}...`);
                 }
                 try {
-                    const result = await assignRolesToUsers(mappingPath, options.workos, {
-                        orgId: orgExternalId,
+                    const result = await assignRolesToUsers(group.mappingPath, options.workos, {
+                        orgId: resolvedOrgId,
                         dryRun: false,
                     });
                     totalAssigned += result.assigned;
@@ -179,8 +214,8 @@ export async function importPackage(options) {
                     aggregatedWarnings.push(...result.warnings);
                 }
                 catch (error) {
-                    aggregatedWarnings.push(`Failed to assign roles for org ${orgExternalId}: ${error.message}`);
-                    totalFailed += 1;
+                    aggregatedWarnings.push(`Failed to assign roles for org ${label}: ${error.message}`);
+                    totalFailed += group.rowCount;
                 }
             }
             roleAssignments = {
@@ -295,7 +330,7 @@ async function csvHasRows(filePath) {
         stream.pipe(parser);
     });
 }
-async function groupAssignmentsByOrg(assignmentsCsvPath) {
+export async function groupAssignmentsByOrg(assignmentsCsvPath) {
     const rowsByOrg = new Map();
     await new Promise((resolve, reject) => {
         const stream = fs.createReadStream(assignmentsCsvPath);
@@ -303,29 +338,47 @@ async function groupAssignmentsByOrg(assignmentsCsvPath) {
         stream
             .pipe(parser)
             .on('data', (row) => {
-            const orgKey = row.org_external_id?.trim() || row.org_id?.trim();
-            if (!orgKey)
+            const orgId = row.org_id?.trim() || undefined;
+            const orgExternalId = row.org_external_id?.trim() || undefined;
+            // Prefer WorkOS org_id as the grouping key when present so that rows
+            // already resolved are kept together regardless of external_id.
+            const groupKey = orgId ?? orgExternalId;
+            if (!groupKey)
                 return;
-            const list = rowsByOrg.get(orgKey) ?? [];
-            list.push(row);
-            rowsByOrg.set(orgKey, list);
+            let group = rowsByOrg.get(groupKey);
+            if (!group) {
+                group = { orgId, orgExternalId, rows: [] };
+                rowsByOrg.set(groupKey, group);
+            }
+            else {
+                if (!group.orgId && orgId)
+                    group.orgId = orgId;
+                if (!group.orgExternalId && orgExternalId)
+                    group.orgExternalId = orgExternalId;
+            }
+            group.rows.push(row);
         })
             .on('end', resolve)
             .on('error', reject);
     });
     const tmpDir = path.join(path.dirname(assignmentsCsvPath), 'tmp_role_assignments');
     await fsp.mkdir(tmpDir, { recursive: true });
-    const result = new Map();
-    for (const [orgExternalId, rows] of rowsByOrg) {
-        const safe = orgExternalId.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const result = [];
+    for (const [groupKey, group] of rowsByOrg) {
+        const safe = groupKey.replace(/[^a-zA-Z0-9_-]/g, '_');
         const filePath = path.join(tmpDir, `${safe}.csv`);
         const headers = ['email', 'user_id', 'external_id', 'role_slug', 'org_id', 'org_external_id'];
         const lines = [headers.join(',')];
-        for (const row of rows) {
+        for (const row of group.rows) {
             lines.push(headers.map((h) => csvEscape(row[h] ?? '')).join(','));
         }
         await fsp.writeFile(filePath, `${lines.join('\n')}\n`, 'utf-8');
-        result.set(orgExternalId, filePath);
+        result.push({
+            ...(group.orgId ? { orgId: group.orgId } : {}),
+            ...(group.orgExternalId ? { orgExternalId: group.orgExternalId } : {}),
+            mappingPath: filePath,
+            rowCount: group.rows.length,
+        });
     }
     return result;
 }
