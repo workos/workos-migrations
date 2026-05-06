@@ -312,6 +312,26 @@ The Cognito exporter requires these IAM permissions:
 
 ### 2. Export users and connections
 
+The recommended path is to write a [migration package](docs/migration-package.md) that the
+`import-package` orchestrator can consume in a single step:
+
+```bash
+workos-migrate export-cognito \
+  --region us-east-1 \
+  --user-pool-ids us-east-1_ABC123,us-east-1_DEF456 \
+  --package \
+  --output-dir ./migration-cognito \
+  --entities users,organizations,memberships,sso
+```
+
+Package mode writes the canonical layout: `users.csv`, `organizations.csv`,
+`organization_memberships.csv`, the `sso/` handoff CSVs, and the `workos_upload/` projection.
+By default each Cognito user pool maps to one WorkOS organization; pass
+`--org-strategy connection` for one org per identity provider (memberships then become
+header-only) or `--org-strategy none` to skip organization rows entirely.
+
+The legacy loose-CSV mode is still available for backward compatibility:
+
 ```bash
 workos-migrate export-cognito \
   --region us-east-1 \
@@ -320,13 +340,16 @@ workos-migrate export-cognito \
 
 Options:
 
-- `--entities <list>` - Comma-separated entities to export: `connections`, `users` (default: both)
+- `--package` - Write a migration package (recommended). Without this flag, loose CSVs are written.
+- `--entities <list>` - Loose mode: `connections,users`. Package mode: `users,organizations,memberships,sso`.
+- `--org-strategy <strategy>` - Package mode only: `user-pool` (default), `connection`, or `none`.
 - `--output-dir <dir>` - Output directory for CSV files (default: current directory)
 - `--saml-custom-entity-id-template <url>` - Template for SAML custom Entity ID (default: `urn:amazon:cognito:sp:{user_pool_id}`)
 - `--saml-custom-acs-url-template <url>` - Template for SAML custom ACS URL (placeholders: `{provider_name}`, `{user_pool_id}`, `{region}`)
 - `--oidc-custom-redirect-uri-template <url>` - Template for OIDC custom redirect URI
+- `--skip-external-provider-users` - Skip Cognito users whose `userStatus=EXTERNAL_PROVIDER` (default in package mode; opt-in in loose mode).
 
-The export produces:
+Loose mode produces:
 
 - `workos_saml_connections.csv` - SAML SSO connections
 - `workos_oidc_connections.csv` - OIDC SSO connections

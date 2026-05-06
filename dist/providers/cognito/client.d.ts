@@ -1,5 +1,6 @@
 import type { ProviderClient, EntityType, ExportResult, ProviderCredentials } from '../../shared/types.js';
 import { type ProxyTemplates } from './workos-csv.js';
+import { type CognitoOrgStrategy, type ExportCognitoPackageResult } from './package-exporter.js';
 export interface CognitoClientOptions {
     /** Comma-separated pool IDs or a single ID. Overrides the USER_POOL_IDS credential. */
     userPoolIds?: string[];
@@ -24,6 +25,12 @@ export declare class CognitoClient implements ProviderClient {
     validateCredentials(): Promise<void>;
     getScopes(): string[];
     getAvailableEntities(): Promise<EntityType[]>;
+    exportPackage(options?: {
+        entities?: string[];
+        outputDir?: string;
+        orgStrategy?: CognitoOrgStrategy;
+        quiet?: boolean;
+    }): Promise<ExportCognitoPackageResult>;
     exportEntities(entityTypes: string[]): Promise<ExportResult>;
     private exportConnections;
     private exportUsers;
