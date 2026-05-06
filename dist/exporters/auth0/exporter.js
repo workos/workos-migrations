@@ -45,9 +45,6 @@ export async function exportAuth0CsvWithClient(client, options) {
     }
     const startTime = Date.now();
     const warnings = [];
-    let totalUsers = 0;
-    let totalOrgs = 0;
-    let skippedUsers = 0;
     // Open output streams
     const output = options.output;
     const writeStream = createWriteStream(output, { encoding: 'utf-8' });
@@ -56,18 +53,10 @@ export async function exportAuth0CsvWithClient(client, options) {
     try {
         // Write CSV header
         writeStream.write(CSV_COLUMNS.join(',') + '\n');
-        if (options.useMetadata) {
-            const stats = await exportUsersWithMetadata(client, writeStream, skippedStream, options, warnings);
-            totalUsers = stats.totalUsers;
-            totalOrgs = stats.totalOrgs;
-            skippedUsers = stats.skippedUsers;
-        }
-        else {
-            const stats = await exportOrganizations(client, writeStream, skippedStream, options, warnings);
-            totalUsers = stats.totalUsers;
-            totalOrgs = stats.totalOrgs;
-            skippedUsers = stats.skippedUsers;
-        }
+        const stats = options.useMetadata
+            ? await exportUsersWithMetadata(client, writeStream, skippedStream, options, warnings)
+            : await exportOrganizations(client, writeStream, skippedStream, options, warnings);
+        const { totalUsers, totalOrgs, skippedUsers } = stats;
         await closeStream(writeStream);
         await closeStream(skippedStream);
         const duration = Date.now() - startTime;
@@ -91,11 +80,10 @@ export async function exportAuth0CsvWithClient(client, options) {
 }
 async function exportOrganizations(client, writeStream, skippedStream, options, warnings) {
     let totalUsers = 0;
-    let totalOrgs = 0;
     let skippedUsers = 0;
     // Fetch all organizations
     const organizations = await fetchAllOrganizations(client, options.pageSize);
-    totalOrgs = organizations.length;
+    const totalOrgs = organizations.length;
     if (!options.quiet) {
         logger.info(`Found ${totalOrgs} organizations`);
     }
