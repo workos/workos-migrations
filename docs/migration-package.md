@@ -137,6 +137,15 @@ role_slug,role_name,role_type,permissions,org_id,org_external_id
 
 This matches the current `process-role-definitions` command. `role_type` is `environment` or `organization`.
 
+Auth0 roles are tenant-wide, so the Auth0 exporter writes them as `environment` roles. Permissions
+are left blank because the Auth0 catalog API does not return permission lists in a single call;
+operators can populate them by running `process-role-definitions` against an enriched copy.
+
+Slugs are kebab-cased from the Auth0 role name. When two roles produce the same slug, the second
+gets a numeric suffix (`admin-role`, `admin-role-2`, ...) and a `duplicate_role_slug` warning is
+written to `warnings.jsonl`. Roles with empty or unmappable names get a synthesized
+`auth0-role-<id>` slug and an `unmappable_role_name` warning so operators can rename them later.
+
 ### User Role Assignments
 
 ```csv
@@ -144,6 +153,11 @@ email,user_id,external_id,role_slug,org_id,org_external_id
 ```
 
 This is the package-level mapping for assigning roles to user organization memberships.
+
+The Auth0 exporter populates one row per (user, org, role) tuple, deduplicated by slug per user.
+The same slug list is written into the `role_slugs` column on the matching `users.csv` and
+`organization_memberships.csv` rows so importers that only consume those columns still receive the
+mapping.
 
 ### TOTP Secrets
 

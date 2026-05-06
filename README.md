@@ -123,6 +123,25 @@ Package mode also writes `workos_upload/users.csv`, `workos_upload/organizations
 `workos_upload/organization_memberships.csv` using the narrower WorkOS upload templates. SSO
 connection files remain under `sso/` as handoff artifacts.
 
+To include the Auth0 role catalog and per-org role assignments alongside users, organizations, and
+memberships:
+
+```bash
+workos-migrate export-auth0 \
+  --domain my-tenant.us.auth0.com \
+  --client-id <M2M_CLIENT_ID> \
+  --client-secret <M2M_CLIENT_SECRET> \
+  --package \
+  --entities users,organizations,memberships,roles \
+  --output-dir ./migration-auth0
+```
+
+This writes `role_definitions.csv` and `user_role_assignments.csv` and merges the matched
+`role_slugs` into `users.csv` and `organization_memberships.csv`. The
+[`process-role-definitions`](#post-import-totp-and-roles) command can then create the roles in
+WorkOS and assign them to memberships. Note that the `--use-metadata` flow cannot fetch per-org
+assignments from Auth0, so it writes the role catalog only and emits a warning.
+
 To write only SSO handoff files:
 
 ```bash
@@ -138,7 +157,7 @@ workos-migrate export-auth0 \
 Options:
 
 - `--orgs <ids...>` - Filter to specific Auth0 organization IDs
-- `--entities <entities>` - Comma-separated package entities to export (`users,organizations,memberships,sso`)
+- `--entities <entities>` - Comma-separated package entities to export (`users,organizations,memberships,roles,sso`)
 - `--rate-limit <n>` - API requests per second (default: 50)
 - `--use-metadata` - Use `user_metadata` for org discovery instead of the Organizations API
 - `--include-federated-users` - Include federated/JIT users in package mode (skipped by default)

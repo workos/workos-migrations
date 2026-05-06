@@ -1,4 +1,4 @@
-import type { Auth0Connection, Auth0ExportOptions, Auth0Organization, Auth0OrganizationConnection, Auth0User, ExportSummary } from '../../shared/types.js';
+import type { Auth0Connection, Auth0ExportOptions, Auth0Organization, Auth0OrganizationConnection, Auth0Role, Auth0User, ExportSummary } from '../../shared/types.js';
 export interface Auth0ExportClient {
     testConnection?(): Promise<{
         success: boolean;
@@ -13,6 +13,8 @@ export interface Auth0ExportClient {
     }>>;
     getUser(userId: string): Promise<Auth0User | null>;
     getUsers(page?: number, perPage?: number): Promise<Auth0User[]>;
+    getRoles?(page?: number, perPage?: number): Promise<Auth0Role[]>;
+    getMemberRoles?(orgId: string, userId: string, page?: number, perPage?: number): Promise<Auth0Role[]>;
 }
 export declare function exportAuth0Package(options: Auth0ExportOptions): Promise<ExportSummary>;
 export declare function exportAuth0PackageWithClient(client: Auth0ExportClient, options: Auth0ExportOptions): Promise<ExportSummary>;
