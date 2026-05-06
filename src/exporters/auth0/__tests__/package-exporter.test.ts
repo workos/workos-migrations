@@ -627,10 +627,7 @@ describe('exportAuth0PackageWithClient', () => {
     const client = new FakeAuth0Client({
       organizations: [org],
       membersByOrg: {
-        [org.id]: [
-          { user_id: databaseUser.user_id },
-          { user_id: multiRoleUser.user_id },
-        ],
+        [org.id]: [{ user_id: databaseUser.user_id }, { user_id: multiRoleUser.user_id }],
       },
       usersById: {
         [databaseUser.user_id]: databaseUser,
@@ -715,9 +712,7 @@ describe('exportAuth0PackageWithClient', () => {
       'admin-role,member-role',
     );
 
-    const memberships = await readCsv(
-      path.join(tempRoot, 'organization_memberships.csv'),
-    );
+    const memberships = await readCsv(path.join(tempRoot, 'organization_memberships.csv'));
     expect(memberships.find((row) => row.external_id === 'auth0|multi')?.role_slugs).toBe(
       'admin-role,member-role',
     );

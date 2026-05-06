@@ -1,8 +1,4 @@
-import {
-  buildRoleAssignmentRows,
-  normalizeAuth0Roles,
-  normalizeRoleSlug,
-} from '../role-mapper';
+import { buildRoleAssignmentRows, normalizeAuth0Roles, normalizeRoleSlug } from '../role-mapper';
 
 describe('normalizeRoleSlug', () => {
   it('lowercases and replaces non-alphanumeric runs with single hyphens', () => {
