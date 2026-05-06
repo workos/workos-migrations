@@ -168,6 +168,7 @@ export class OrgCache {
               throw new Error(
                 `Organization with external_id "${orgExternalId}" reported as existing ` +
                   `but could not be retrieved after 3 retries. Original: ${errorMsg}`,
+                { cause: err },
               );
             }
           } else {
