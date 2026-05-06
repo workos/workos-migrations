@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import { registerImportCommand } from './commands/import.js';
+import { registerImportPackageCommand } from './commands/import-package.js';
 import { registerValidateCommand } from './commands/validate.js';
 import { registerExportAuth0Command } from './commands/export-auth0.js';
 import { registerExportCognitoCommand } from './commands/export-cognito.js';
@@ -19,6 +20,7 @@ program
   .version('2.0.0');
 
 registerImportCommand(program);
+registerImportPackageCommand(program);
 registerValidateCommand(program);
 registerExportAuth0Command(program);
 registerExportCognitoCommand(program);

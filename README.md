@@ -44,6 +44,7 @@ npm link            # optional: exposes `workos-migrate` on your PATH
 | `transform-firebase`       | Transform a Firebase Auth JSON export to WorkOS format |
 | `validate`                 | Validate a CSV file before import                      |
 | `import`                   | Import users from CSV into WorkOS                      |
+| `import-package`           | Import a migration package directory into WorkOS       |
 | `analyze`                  | Analyze import errors and generate retry CSV           |
 | `enroll-totp`              | Enroll TOTP MFA factors for imported users             |
 | `process-role-definitions` | Create roles and assign permissions in WorkOS          |
@@ -464,6 +465,34 @@ workos-migrate analyze \
 ```
 
 The analyzer groups errors by pattern, classifies them as retryable or non-retryable, and suggests fixes. The retry CSV contains only the rows that failed with retryable errors, so you can re-import just those users.
+
+---
+
+## Importing a migration package
+
+Migration packages produced by `export-auth0 --package` (and other providers as they move onto the package contract) can be imported in one step with `import-package`:
+
+```bash
+# Plan only — print what would happen and exit
+workos-migrate import-package ./migration-auth0 --plan
+
+# Dry run — validate the package and write workos_import_summary.json with status=planned
+workos-migrate import-package ./migration-auth0 --dry-run
+
+# Live import
+workos-migrate import-package ./migration-auth0
+```
+
+The orchestrator runs entities in this order:
+
+1. Organizations (resolved or created during user import via `--create-org-if-missing` semantics).
+2. Users + memberships (`runImport` on `users.csv`).
+3. Role definitions (`process-role-definitions` on `role_definitions.csv`).
+4. User-role assignments (per-org slices of `user_role_assignments.csv`).
+5. TOTP enrollment (`enroll-totp` on `totp_secrets.csv`).
+6. SSO connections — surfaced as **handoff-only**. The orchestrator never creates WorkOS SSO connections automatically. See `sso/handoff_notes.md` in the package for next steps.
+
+Every run writes `workos_import_summary.json` (or `--summary <path>`) with per-entity status, totals, succeeded/failed counts, and warnings. Per-row errors land in `workos_import_errors.jsonl` (or `--errors <path>`).
 
 ---
 
