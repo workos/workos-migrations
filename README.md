@@ -221,7 +221,24 @@ Continue to [Validation](#validation), [Import](#importing-users), and [Post-Imp
 
 Export your users from the Clerk Dashboard as a CSV file. The export includes columns like `id`, `first_name`, `last_name`, `primary_email_address`, `password_digest`, `password_hasher`, etc.
 
-### 2. Transform to WorkOS format
+### 2. Transform to a migration package (recommended)
+
+```bash
+workos-migrate transform-clerk \
+  --input clerk-export.csv \
+  --package \
+  --output-dir ./migration-clerk \
+  --org-mapping orgs.csv \
+  --role-mapping roles.csv
+```
+
+Package mode writes the canonical layout (`users.csv`, `organizations.csv`,
+`organization_memberships.csv`, `role_definitions.csv`, `user_role_assignments.csv`,
+`workos_upload/`, manifest, warnings, skipped users) so the result can be fed
+straight into `import-package`. Unsupported password hashers are recorded as
+warnings instead of failing the export.
+
+The legacy single-CSV mode is still available for back-compat:
 
 ```bash
 workos-migrate transform-clerk \
@@ -231,15 +248,18 @@ workos-migrate transform-clerk \
 
 Options:
 
+- `--package` - Write a migration package instead of a single CSV.
+- `--output-dir <dir>` - Required when `--package` is set.
 - `--org-mapping <path>` - CSV mapping Clerk user IDs to organizations (`clerk_user_id,org_external_id,org_name`)
 - `--role-mapping <path>` - CSV mapping Clerk user IDs to roles (`clerk_user_id,role_slug`)
+- `--source-tenant <name>` - Optional tenant identifier recorded in the manifest.
 
 The transformer handles:
 
 - Field mapping (Clerk columns to WorkOS columns)
 - bcrypt password passthrough (other hash types like argon2 are dropped with a warning since WorkOS does not support them)
 - Username, phone number, and TOTP secret preservation in metadata
-- Organization and role sidecar merging into the output CSV
+- Organization and role sidecar merging into the output CSV (or package)
 
 ### 3. Validate, import, and post-import
 
