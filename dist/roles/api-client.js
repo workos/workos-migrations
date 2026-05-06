@@ -14,7 +14,6 @@ export async function listRolesForOrganization(organizationId) {
     const apiKey = getApiKey();
     const roles = [];
     let after;
-    // eslint-disable-next-line no-constant-condition
     while (true) {
         const params = new URLSearchParams({ limit: '100' });
         if (after)

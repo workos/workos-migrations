@@ -1,12 +1,16 @@
 import fs from 'node:fs';
 import chalk from 'chalk';
 import { transformFirebaseExport } from '../../transformers/firebase/transformer.js';
+import { exportFirebasePackage } from '../../transformers/firebase/package-exporter.js';
 export function registerTransformFirebaseCommand(program) {
     program
         .command('transform-firebase')
-        .description('Transform Firebase Auth JSON export to WorkOS-compatible CSV')
+        .description('Transform Firebase Auth JSON export to WorkOS-compatible CSV or migration package')
         .requiredOption('--input <path>', 'Firebase Auth JSON export file')
-        .requiredOption('--output <path>', 'Output WorkOS CSV file')
+        .option('--output <path>', 'Output WorkOS CSV file (legacy single-CSV mode)')
+        .option('--package', 'Write a migration package instead of a single CSV')
+        .option('--output-dir <dir>', 'Output directory when --package is set')
+        .option('--source-tenant <name>', 'Optional source tenant identifier to record in the manifest')
         .option('--org-mapping <path>', 'Org mapping CSV (firebase_uid,org_external_id,org_name)')
         .option('--role-mapping <path>', 'Role mapping CSV (firebase_uid,role_slug)')
         .option('--include-disabled', 'Include disabled users (excluded by default)')
@@ -40,6 +44,38 @@ export function registerTransformFirebaseCommand(program) {
                     rounds: parseInt(opts.rounds, 10),
                     memoryCost: parseInt(opts.memoryCost, 10),
                 };
+            }
+            if (opts.package) {
+                if (!opts.outputDir) {
+                    console.error(chalk.red('--output-dir is required when --package is set'));
+                    process.exit(1);
+                }
+                const stats = await exportFirebasePackage({
+                    input: opts.input,
+                    outputDir: opts.outputDir,
+                    scryptConfig,
+                    nameSplitStrategy: opts.nameSplit,
+                    includeDisabled: opts.includeDisabled ?? false,
+                    skipPasswords: opts.skipPasswords ?? false,
+                    orgMapping: opts.orgMapping,
+                    roleMapping: opts.roleMapping,
+                    sourceTenant: opts.sourceTenant,
+                    quiet: opts.quiet ?? false,
+                });
+                if (!opts.quiet) {
+                    console.log(chalk.green('\nFirebase package export complete'));
+                    console.log(`  Users:        ${stats.totalUsers}`);
+                    console.log(`  Orgs:         ${stats.totalOrgs}`);
+                    console.log(`  Memberships:  ${stats.totalMemberships}`);
+                    console.log(`  Roles:        ${stats.roleDefinitions}`);
+                    console.log(`  Skipped:      ${stats.skippedUsers}`);
+                    console.log(`  Warnings:     ${stats.warnings.length}`);
+                }
+                return;
+            }
+            if (!opts.output) {
+                console.error(chalk.red('--output is required unless --package is set'));
+                process.exit(1);
             }
             const startTime = Date.now();
             if (!opts.quiet) {

@@ -252,6 +252,8 @@ Continue to [Validation](#validation), [Import](#importing-users), and [Post-Imp
 
 ## Migrating from Firebase Auth
 
+The recommended path is `transform-firebase --package`, which writes a [migration package](docs/migration-package.md) ready for `import-package`. The legacy `--output <csv>` mode still ships for back-compat.
+
 ### 1. Export from Firebase
 
 Export your users from the Firebase Console or using the Firebase CLI (`firebase auth:export`). This produces a JSON file with a `users` array.
@@ -261,6 +263,22 @@ Export your users from the Firebase Console or using the Firebase CLI (`firebase
 If you want to migrate passwords, get the hash parameters from Firebase Console > Authentication > Users > Password Hash Parameters. You need the signer key, salt separator, rounds, and memory cost.
 
 ### 3. Transform to WorkOS format
+
+Migration package (recommended):
+
+```bash
+workos-migrate transform-firebase \
+  --input firebase-export.json \
+  --package \
+  --output-dir ./migration-firebase \
+  --signer-key <BASE64_KEY> \
+  --salt-separator <BASE64_SEP> \
+  --rounds 8 \
+  --memory-cost 14 \
+  --org-mapping orgs.csv
+```
+
+Legacy single CSV (still supported):
 
 ```bash
 workos-migrate transform-firebase \
@@ -274,6 +292,9 @@ workos-migrate transform-firebase \
 
 Options:
 
+- `--package` - Write a migration package instead of a single CSV.
+- `--output-dir <dir>` - Required when `--package` is set.
+- `--source-tenant <name>` - Optional tenant identifier recorded in the manifest.
 - `--name-split <strategy>` - How to split `displayName` into first/last: `first-space` (default), `last-space`, or `first-name-only`
 - `--include-disabled` - Include disabled users (excluded by default)
 - `--skip-passwords` - Skip password hash encoding
