@@ -1,10 +1,16 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { createMigrationPackage } from '../../../package/writer.js';
+import {
+  MIGRATION_PACKAGE_CSV_HEADERS,
+  type MigrationPackageManifest,
+} from '../../../package/manifest.js';
 import {
   detectHashAlgorithm,
   loadPasswordHashes,
   mergePasswordsIntoCsv,
+  mergePasswordsIntoPackage,
 } from '../password-merger.js';
 
 describe('Password Merger', () => {
@@ -131,4 +137,151 @@ describe('Password Merger', () => {
       expect(output).toContain('md5');
     });
   });
+
+  describe('mergePasswordsIntoPackage', () => {
+    it('merges hashes into users.csv and workos_upload/users.csv and updates the manifest', async () => {
+      const packageDir = path.join(tmpDir, 'pkg');
+      await createMigrationPackage({
+        provider: 'auth0',
+        rootDir: packageDir,
+        entitiesRequested: ['users', 'organizations', 'memberships'],
+        entitiesExported: { users: 2, uploadUsers: 2 },
+        warnings: [],
+      });
+
+      writeUsersCsv(packageDir, [
+        {
+          email: 'alice@example.com',
+          first_name: 'Alice',
+          last_name: 'Smith',
+          email_verified: 'true',
+          external_id: 'auth0|alice',
+          metadata: '',
+          org_id: '',
+          org_external_id: 'org_1',
+          org_name: 'Acme',
+          role_slugs: '',
+        },
+        {
+          email: 'bob@example.com',
+          first_name: 'Bob',
+          last_name: 'Jones',
+          email_verified: 'true',
+          external_id: 'auth0|bob',
+          metadata: '',
+          org_id: '',
+          org_external_id: 'org_1',
+          org_name: 'Acme',
+          role_slugs: '',
+        },
+      ]);
+      writeUploadUsersCsv(packageDir, [
+        {
+          user_id: 'auth0|alice',
+          email: 'alice@example.com',
+          email_verified: 'true',
+          first_name: 'Alice',
+          last_name: 'Smith',
+          password_hash: '',
+        },
+        {
+          user_id: 'auth0|bob',
+          email: 'bob@example.com',
+          email_verified: 'true',
+          first_name: 'Bob',
+          last_name: 'Jones',
+          password_hash: '',
+        },
+      ]);
+
+      const passwordsPath = path.join(tmpDir, 'pw.ndjson');
+      fs.writeFileSync(
+        passwordsPath,
+        [
+          JSON.stringify({ email: 'alice@example.com', passwordHash: '$2a$10$alicehash' }),
+          JSON.stringify({
+            email: 'bob@example.com',
+            passwordHash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+          }),
+        ].join('\n'),
+      );
+
+      const stats = await mergePasswordsIntoPackage({
+        packageDir,
+        passwordsPath,
+      });
+
+      expect(stats).toMatchObject({
+        totalRows: 2,
+        passwordsAdded: 1,
+        passwordsRejectedAlgorithm: 1,
+        uploadRowsUpdated: 1,
+      });
+
+      const usersCsv = fs.readFileSync(path.join(packageDir, 'users.csv'), 'utf-8');
+      expect(usersCsv).toContain('alice@example.com');
+      expect(usersCsv).toContain('$2a$10$alicehash');
+      expect(usersCsv).toContain('bcrypt');
+      expect(usersCsv).not.toContain(
+        'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+      );
+
+      const uploadCsv = fs.readFileSync(
+        path.join(packageDir, 'workos_upload', 'users.csv'),
+        'utf-8',
+      );
+      expect(uploadCsv).toContain('$2a$10$alicehash');
+      expect(uploadCsv).not.toContain(
+        'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+      );
+
+      const manifest = JSON.parse(
+        fs.readFileSync(path.join(packageDir, 'manifest.json'), 'utf-8'),
+      ) as MigrationPackageManifest;
+      const passwordMerge = manifest.metadata?.passwordMerge as
+        | {
+            passwordsAdded: number;
+            passwordsNotFound: number;
+            passwordsRejectedAlgorithm: number;
+            uploadRowsUpdated: number;
+          }
+        | undefined;
+      expect(passwordMerge).toMatchObject({
+        passwordsAdded: 1,
+        passwordsNotFound: 0,
+        passwordsRejectedAlgorithm: 1,
+        uploadRowsUpdated: 1,
+      });
+      expect(manifest.warnings.some((m) => m.includes('algorithm "sha256"'))).toBe(true);
+    });
+
+    it('reports a single warning when users.csv is missing', async () => {
+      const passwordsPath = path.join(tmpDir, 'empty-passwords.ndjson');
+      fs.writeFileSync(passwordsPath, '');
+      const stats = await mergePasswordsIntoPackage({
+        packageDir: path.join(tmpDir, 'missing'),
+        passwordsPath,
+      });
+      expect(stats.warnings.map((warning) => warning.code)).toEqual(['package_users_csv_missing']);
+      expect(stats.passwordsAdded).toBe(0);
+    });
+  });
 });
+
+function writeUsersCsv(packageDir: string, rows: Record<string, string>[]): void {
+  const headers = MIGRATION_PACKAGE_CSV_HEADERS.users;
+  const lines = [headers.join(',')];
+  for (const row of rows) {
+    lines.push(headers.map((header) => row[header] ?? '').join(','));
+  }
+  fs.writeFileSync(path.join(packageDir, 'users.csv'), `${lines.join('\n')}\n`);
+}
+
+function writeUploadUsersCsv(packageDir: string, rows: Record<string, string>[]): void {
+  const headers = MIGRATION_PACKAGE_CSV_HEADERS.uploadUsers;
+  const lines = [headers.join(',')];
+  for (const row of rows) {
+    lines.push(headers.map((header) => row[header] ?? '').join(','));
+  }
+  fs.writeFileSync(path.join(packageDir, 'workos_upload', 'users.csv'), `${lines.join('\n')}\n`);
+}

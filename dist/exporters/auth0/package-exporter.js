@@ -6,6 +6,7 @@ import { packageMembershipToUploadMembershipRow, packageOrganizationToUploadOrga
 import { createCSVWriter } from '../../shared/csv-utils.js';
 import { writeCustomAttributeMappingsCsv, writeOidcConnectionsCsv, writeProxyRoutesCsv, writeSamlConnectionsCsv, } from '../../sso/handoff.js';
 import * as logger from '../../shared/logger.js';
+import { runAuth0BulkUserExport } from './bulk-export.js';
 import { Auth0Client, isMissingConnectionOptionsScopeError } from './client.js';
 import { extractOrgFromMetadata, isFederatedAuth0User, mapAuth0UserToWorkOS } from './mapper.js';
 import { buildRoleAssignmentRows, normalizeAuth0Roles, } from './role-mapper.js';
@@ -61,10 +62,21 @@ export async function exportAuth0PackageWithClient(client, options) {
     const roleContext = shouldExportRoles
         ? await loadRoleCatalogIfRequested(client, resolvedOutputDir, options, stats)
         : undefined;
+    const engine = options.engine ?? 'management-api';
     if (shouldExportIdentityEntities) {
-        const identityStats = options.useMetadata
-            ? await exportPackageUsersWithMetadata(client, resolvedOutputDir, options, roleContext)
-            : await exportPackageOrganizations(client, resolvedOutputDir, options, roleContext);
+        let identityStats;
+        if (engine === 'bulk-job') {
+            identityStats = await exportPackageUsersFromBulkJob(client, resolvedOutputDir, options);
+            if (roleContext) {
+                addWarning(identityStats, 'role_assignments_unavailable_bulk_mode', 'Auth0 bulk-job export does not return per-org role assignments; only the role catalog was exported.');
+            }
+        }
+        else if (options.useMetadata) {
+            identityStats = await exportPackageUsersWithMetadata(client, resolvedOutputDir, options, roleContext);
+        }
+        else {
+            identityStats = await exportPackageOrganizations(client, resolvedOutputDir, options, roleContext);
+        }
         mergePackageStats(stats, identityStats);
     }
     if (shouldExportSso) {
@@ -310,6 +322,72 @@ async function exportPackageUsersWithMetadata(client, outputDir, options, roleCo
             uploadMembershipWriter.end(),
         ]);
     }
+    return stats;
+}
+async function exportPackageUsersFromBulkJob(client, outputDir, options) {
+    const stats = createEmptyPackageStats();
+    if (!client.createUserExportJob || !client.getJob || !client.downloadJobLocation) {
+        addWarning(stats, 'bulk_export_unsupported', 'Auth0 client does not support bulk-job export; users were not exported.');
+        return stats;
+    }
+    if (!options.quiet) {
+        logger.info('Starting Auth0 bulk-job user export...');
+    }
+    let bulkResult;
+    try {
+        bulkResult = await runAuth0BulkUserExport(client, {
+            ...(options.bulkConnectionId ? { connectionId: options.bulkConnectionId } : {}),
+            ...(options.bulkPollIntervalMs !== undefined
+                ? { pollIntervalMs: options.bulkPollIntervalMs }
+                : {}),
+            ...(options.bulkMaxPollAttempts !== undefined
+                ? { maxPollAttempts: options.bulkMaxPollAttempts }
+                : {}),
+        });
+    }
+    catch (error) {
+        addWarning(stats, 'bulk_export_failed', `Auth0 bulk export failed: ${error.message}`);
+        return stats;
+    }
+    if (!options.quiet) {
+        logger.info(`Auth0 bulk-job export completed in ${bulkResult.pollAttempts} poll(s); ${bulkResult.users.length} user record(s) downloaded.`);
+    }
+    const userWriter = createCSVWriter(getPackageFilePath(outputDir, 'users'), [...USER_HEADERS]);
+    const uploadUserWriter = createCSVWriter(getPackageFilePath(outputDir, 'uploadUsers'), [
+        ...UPLOAD_USER_HEADERS,
+    ]);
+    const seenUserIds = new Set();
+    try {
+        for (const user of bulkResult.users) {
+            if (!user.email) {
+                addSkipped(stats, user.user_id, undefined, undefined, 'no_email');
+                continue;
+            }
+            if (!options.includeFederatedUsers && isFederatedAuth0User(user)) {
+                addSkipped(stats, user.user_id, user.email, undefined, 'federated_user');
+                continue;
+            }
+            const placeholderOrg = { id: '', name: '', display_name: undefined };
+            const row = mapAuth0UserToWorkOS(user, placeholderOrg);
+            row.org_external_id = '';
+            row.org_name = '';
+            userWriter.write(normalizeCsvRow(row, USER_HEADERS));
+            stats.totalUsers++;
+            const uploadUser = packageUserToUploadUserRow(row);
+            if (uploadUser && !seenUserIds.has(uploadUser.user_id)) {
+                seenUserIds.add(uploadUser.user_id);
+                uploadUserWriter.write(uploadUser);
+                stats.uploadUsers++;
+            }
+            if (user.blocked === true) {
+                addWarning(stats, 'blocked_user_metadata_only', `Blocked Auth0 user ${user.user_id} was exported without credentials.`, undefined, user.user_id);
+            }
+        }
+    }
+    finally {
+        await Promise.all([userWriter.end(), uploadUserWriter.end()]);
+    }
+    addWarning(stats, 'bulk_export_no_org_membership', 'Auth0 bulk-job export does not include organization membership; users were exported without org_external_id.');
     return stats;
 }
 async function exportPackageSso(client, outputDir, options) {

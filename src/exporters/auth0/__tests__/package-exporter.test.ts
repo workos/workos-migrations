@@ -4,10 +4,12 @@ import path from 'node:path';
 import { streamCSV } from '../../../shared/csv-utils';
 import type {
   Auth0Connection,
+  Auth0Job,
   Auth0Organization,
   Auth0OrganizationConnection,
   Auth0Role,
   Auth0User,
+  Auth0UserExportField,
 } from '../../../shared/types';
 import { validateMigrationPackage } from '../../../package/validator';
 import { exportAuth0PackageWithClient, type Auth0ExportClient } from '../package-exporter';
@@ -20,6 +22,11 @@ interface FakeAuth0ClientOptions {
   organizationConnectionsByOrg?: Record<string, Auth0OrganizationConnection[]>;
   roles?: Auth0Role[];
   rolesByMember?: Record<string, Auth0Role[]>;
+  bulkJobs?: {
+    initial: Auth0Job;
+    statuses: Auth0Job[];
+    payload: string;
+  };
 }
 
 class FakeAuth0Client implements Auth0ExportClient {
@@ -30,6 +37,8 @@ class FakeAuth0Client implements Auth0ExportClient {
   private readonly organizationConnectionsByOrg: Record<string, Auth0OrganizationConnection[]>;
   private readonly roles: Auth0Role[];
   private readonly rolesByMember: Record<string, Auth0Role[]>;
+  private readonly bulkJobs?: FakeAuth0ClientOptions['bulkJobs'];
+  private bulkJobStatusIndex = 0;
 
   constructor(options: FakeAuth0ClientOptions = {}) {
     this.organizations = options.organizations ?? [];
@@ -39,6 +48,36 @@ class FakeAuth0Client implements Auth0ExportClient {
     this.organizationConnectionsByOrg = options.organizationConnectionsByOrg ?? {};
     this.roles = options.roles ?? [];
     this.rolesByMember = options.rolesByMember ?? {};
+    this.bulkJobs = options.bulkJobs;
+  }
+
+  async createUserExportJob(_options?: {
+    connectionId?: string;
+    format?: 'json' | 'csv';
+    limit?: number;
+    fields?: Auth0UserExportField[];
+  }): Promise<Auth0Job> {
+    if (!this.bulkJobs) throw new Error('Fake client has no bulk-job fixture');
+    return this.bulkJobs.initial;
+  }
+
+  async getJob(jobId: string): Promise<Auth0Job> {
+    if (!this.bulkJobs) throw new Error('Fake client has no bulk-job fixture');
+    const next =
+      this.bulkJobs.statuses[this.bulkJobStatusIndex] ??
+      this.bulkJobs.statuses[this.bulkJobs.statuses.length - 1] ??
+      this.bulkJobs.initial;
+    this.bulkJobStatusIndex = Math.min(
+      this.bulkJobStatusIndex + 1,
+      this.bulkJobs.statuses.length - 1,
+    );
+    expect(jobId).toBe(this.bulkJobs.initial.id);
+    return next;
+  }
+
+  async downloadJobLocation(_location: string): Promise<string> {
+    if (!this.bulkJobs) throw new Error('Fake client has no bulk-job fixture');
+    return this.bulkJobs.payload;
   }
 
   async getConnections(page = 0): Promise<Auth0Connection[]> {
@@ -771,6 +810,77 @@ describe('exportAuth0PackageWithClient', () => {
     expect(warnings.map((warning) => warning.code)).toContain(
       'role_assignments_unavailable_metadata_mode',
     );
+  });
+
+  it('exports users via bulk-job engine with no org membership', async () => {
+    const bulkUser: Auth0User = {
+      ...databaseUser,
+      user_id: 'auth0|bulk',
+      email: 'bulk@example.com',
+      given_name: 'Bulk',
+      family_name: 'User',
+    };
+    const initial: Auth0Job = {
+      id: 'job_bulk',
+      type: 'users_export',
+      status: 'pending',
+    };
+
+    const client = new FakeAuth0Client({
+      bulkJobs: {
+        initial,
+        statuses: [
+          { ...initial, status: 'processing' },
+          {
+            ...initial,
+            status: 'completed',
+            location: 'https://example.com/users.ndjson',
+          },
+        ],
+        payload: `${JSON.stringify(bulkUser)}\n`,
+      },
+    });
+
+    const summary = await exportAuth0PackageWithClient(client, {
+      domain: 'example.us.auth0.com',
+      clientId: 'client_123',
+      clientSecret: 'secret',
+      package: true,
+      outputDir: tempRoot,
+      pageSize: 100,
+      rateLimit: 50,
+      userFetchConcurrency: 2,
+      useMetadata: false,
+      engine: 'bulk-job',
+      bulkPollIntervalMs: 1,
+      bulkMaxPollAttempts: 5,
+      quiet: true,
+    });
+
+    expect(summary).toMatchObject({
+      totalUsers: 1,
+      totalOrgs: 0,
+    });
+
+    const users = await readCsv(path.join(tempRoot, 'users.csv'));
+    expect(users).toMatchObject([
+      {
+        email: 'bulk@example.com',
+        external_id: 'auth0|bulk',
+        org_external_id: '',
+      },
+    ]);
+
+    const uploadUsers = await readCsv(path.join(tempRoot, 'workos_upload', 'users.csv'));
+    expect(uploadUsers).toMatchObject([
+      {
+        user_id: 'auth0|bulk',
+        email: 'bulk@example.com',
+      },
+    ]);
+
+    const warnings = readJsonl(path.join(tempRoot, 'warnings.jsonl'));
+    expect(warnings.map((warning) => warning.code)).toContain('bulk_export_no_org_membership');
   });
 });
 

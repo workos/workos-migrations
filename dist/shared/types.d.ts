@@ -85,6 +85,7 @@ export interface ErrorRecord {
     orgExternalId?: string;
     roleSlugs?: string[];
 }
+export type Auth0ExportEngine = 'management-api' | 'bulk-job';
 export interface Auth0ExportOptions {
     domain: string;
     clientId: string;
@@ -102,6 +103,10 @@ export interface Auth0ExportOptions {
     metadataOrgIdField?: string;
     metadataOrgNameField?: string;
     includeFederatedUsers?: boolean;
+    engine?: Auth0ExportEngine;
+    bulkConnectionId?: string;
+    bulkPollIntervalMs?: number;
+    bulkMaxPollAttempts?: number;
     jobId?: string;
     resume?: boolean;
     quiet: boolean;
