@@ -5,6 +5,7 @@ import type { WizardState } from '../wizard.js';
 import {
   loadPasswordHashes,
   mergePasswordsIntoCsv,
+  mergePasswordsIntoPackage,
 } from '../../exporters/auth0/password-merger.js';
 
 export async function mergePasswords(state: WizardState): Promise<WizardState> {
@@ -54,22 +55,45 @@ export async function mergePasswords(state: WizardState): Promise<WizardState> {
   console.log(chalk.blue('\n  Loading password hashes...'));
 
   try {
-    const passwordLookup = await loadPasswordHashes(state.auth0PasswordsPath!);
-    const passwordCount = Object.keys(passwordLookup).length;
-    console.log(chalk.green(`  Loaded ${passwordCount} password hashes`));
+    if (state.auth0Package && state.auth0PackageDir) {
+      console.log(chalk.blue('  Merging passwords into migration package...'));
+      const stats = await mergePasswordsIntoPackage({
+        packageDir: state.auth0PackageDir,
+        passwordsPath: state.auth0PasswordsPath!,
+      });
 
-    const outputPath = state.csvFilePath!.replace('.csv', '-with-passwords.csv');
-    console.log(chalk.blue('  Merging passwords into CSV...'));
+      console.log(chalk.green('\n  Merge complete'));
+      console.log(`    Total rows: ${stats.totalRows}`);
+      console.log(`    Passwords added: ${stats.passwordsAdded}`);
+      console.log(`    No password found: ${stats.passwordsNotFound}`);
+      console.log(`    Rejected (unsupported algorithm): ${stats.passwordsRejectedAlgorithm}`);
+      console.log(`    workos_upload rows updated: ${stats.uploadRowsUpdated}\n`);
 
-    const stats = await mergePasswordsIntoCsv(state.csvFilePath!, outputPath, passwordLookup);
+      for (const warning of stats.warnings) {
+        if (warning.code === 'unsupported_password_hash_algorithm') {
+          console.log(chalk.yellow(`    ${warning.message}`));
+        }
+      }
+      // csvFilePath continues to point at the package's users.csv,
+      // which has been updated in-place with password hashes.
+    } else {
+      const passwordLookup = await loadPasswordHashes(state.auth0PasswordsPath!);
+      const passwordCount = Object.keys(passwordLookup).length;
+      console.log(chalk.green(`  Loaded ${passwordCount} password hashes`));
 
-    console.log(chalk.green('\n  Merge complete'));
-    console.log(`    Total rows: ${stats.totalRows}`);
-    console.log(`    Passwords added: ${stats.passwordsAdded}`);
-    console.log(`    No password found: ${stats.passwordsNotFound}\n`);
+      const outputPath = state.csvFilePath!.replace('.csv', '-with-passwords.csv');
+      console.log(chalk.blue('  Merging passwords into CSV...'));
 
-    // Update CSV path to merged file
-    state.csvFilePath = outputPath;
+      const stats = await mergePasswordsIntoCsv(state.csvFilePath!, outputPath, passwordLookup);
+
+      console.log(chalk.green('\n  Merge complete'));
+      console.log(`    Total rows: ${stats.totalRows}`);
+      console.log(`    Passwords added: ${stats.passwordsAdded}`);
+      console.log(`    No password found: ${stats.passwordsNotFound}\n`);
+
+      // Update CSV path to merged file
+      state.csvFilePath = outputPath;
+    }
   } catch (err) {
     console.error(chalk.red(`\n  Password merge failed: ${(err as Error).message}`));
     console.log(chalk.gray('  Continuing without passwords.\n'));

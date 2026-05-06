@@ -37,7 +37,49 @@ async function configureAuth0Export(state) {
             initial: false,
         },
         {
-            type: 'text',
+            type: 'select',
+            name: 'mode',
+            message: 'Export shape',
+            choices: [
+                {
+                    title: 'Migration package (recommended — users, orgs, memberships, roles, SSO handoff)',
+                    value: 'package',
+                },
+                { title: 'Single users CSV (legacy)', value: 'csv' },
+            ],
+            initial: 0,
+        },
+        {
+            type: (_, values) => values.mode === 'package' ? 'multiselect' : null,
+            name: 'entities',
+            message: 'Entities to include in the package',
+            choices: [
+                { title: 'users', value: 'users', selected: true },
+                { title: 'organizations', value: 'organizations', selected: true },
+                { title: 'memberships', value: 'memberships', selected: true },
+                { title: 'roles', value: 'roles', selected: true },
+                { title: 'sso (handoff)', value: 'sso', selected: true },
+            ],
+            min: 1,
+        },
+        {
+            type: (_, values) => values.mode === 'package' ? 'select' : null,
+            name: 'engine',
+            message: 'User export engine',
+            choices: [
+                { title: 'Management API (default; preserves org membership)', value: 'management-api' },
+                { title: 'Bulk job (fastest for very large tenants; users-only)', value: 'bulk-job' },
+            ],
+            initial: 0,
+        },
+        {
+            type: (_, values) => values.mode === 'package' ? 'text' : null,
+            name: 'outputDir',
+            message: 'Output directory for the migration package',
+            initial: './migration-auth0',
+        },
+        {
+            type: (_, values) => values.mode === 'csv' ? 'text' : null,
             name: 'output',
             message: 'Output CSV file path',
             initial: 'auth0-export.csv',
@@ -51,7 +93,17 @@ async function configureAuth0Export(state) {
         return state;
     state.auth0RateLimit = response.rateLimit;
     state.auth0UseMetadata = response.useMetadata;
-    state.csvFilePath = response.output;
+    if (response.mode === 'package') {
+        state.auth0Package = true;
+        state.auth0PackageDir = response.outputDir;
+        state.auth0PackageEntities = response.entities ?? [];
+        state.auth0PackageEngine = response.engine ?? 'management-api';
+        state.csvFilePath = `${response.outputDir}/users.csv`;
+    }
+    else {
+        state.auth0Package = false;
+        state.csvFilePath = response.output;
+    }
     return state;
 }
 async function configureClerkExport(state) {

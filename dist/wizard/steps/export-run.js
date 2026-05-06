@@ -24,6 +24,9 @@ export async function runExport(state) {
     return state;
 }
 async function runAuth0Export(state) {
+    if (state.auth0Package) {
+        return runAuth0PackageExport(state);
+    }
     console.log(chalk.blue('  Exporting users from Auth0...\n'));
     try {
         await exportAuth0({
@@ -43,6 +46,33 @@ async function runAuth0Export(state) {
     catch (err) {
         console.error(chalk.red(`\n  Auth0 export failed: ${err.message}`));
         console.log(chalk.gray('  You can retry with: workos-migrate export-auth0\n'));
+        state.cancelled = true;
+    }
+    return state;
+}
+async function runAuth0PackageExport(state) {
+    console.log(chalk.blue('  Exporting Auth0 migration package...\n'));
+    try {
+        await exportAuth0({
+            domain: state.auth0Domain,
+            clientId: state.auth0ClientId,
+            clientSecret: state.auth0ClientSecret,
+            package: true,
+            outputDir: state.auth0PackageDir,
+            entities: state.auth0PackageEntities,
+            engine: state.auth0PackageEngine ?? 'management-api',
+            pageSize: 100,
+            rateLimit: state.auth0RateLimit ?? 50,
+            userFetchConcurrency: 10,
+            useMetadata: state.auth0UseMetadata ?? false,
+            resume: false,
+            quiet: false,
+        });
+        console.log(chalk.green(`\n  Package export complete: ${state.auth0PackageDir}\n`));
+    }
+    catch (err) {
+        console.error(chalk.red(`\n  Auth0 package export failed: ${err.message}`));
+        console.log(chalk.gray('  You can retry with: workos-migrate export-auth0 --package\n'));
         state.cancelled = true;
     }
     return state;

@@ -81,6 +81,12 @@ The export and transform commands produce CSVs in this format automatically.
 
 ## Migrating from Auth0
 
+Auth0 is a parity-complete migration source. The end-to-end flow is:
+
+1. Run `export-auth0 --package` to produce a [migration package](docs/migration-package.md) with users, organizations, memberships, roles, SSO handoff files, warnings, and the upload-compatible projection. For very large tenants, `--engine bulk-job` is available; see step 3b.
+2. Optionally run `merge-passwords --package <dir>` to merge the Auth0 password export into the package. Unsupported hash algorithms are skipped with warnings instead of failing the merge.
+3. Run `import-package <dir>` to push organizations, users, memberships, roles, and TOTP factors into WorkOS in one shot. SSO connections are surfaced as **handoff-only**; see [`docs/auth0-sso-handoff.md`](docs/auth0-sso-handoff.md).
+
 ### 1. Set up Auth0 credentials
 
 Create a Machine-to-Machine application in Auth0, authorize it for the Management API, and grant these scopes:
