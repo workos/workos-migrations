@@ -8,6 +8,10 @@ export interface WizardState {
     auth0RateLimit?: number;
     auth0Orgs?: string[];
     auth0UseMetadata?: boolean;
+    auth0Package?: boolean;
+    auth0PackageDir?: string;
+    auth0PackageEntities?: string[];
+    auth0PackageEngine?: 'management-api' | 'bulk-job';
     clerkCsvPath?: string;
     clerkOrgMapping?: string;
     clerkRoleMapping?: string;
