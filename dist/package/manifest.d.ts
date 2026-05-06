@@ -14,6 +14,9 @@ export declare const MIGRATION_PACKAGE_FILES: {
     readonly customAttributeMappings: "sso/custom_attribute_mappings.csv";
     readonly proxyRoutes: "sso/proxy_routes.csv";
     readonly handoffNotes: "sso/handoff_notes.md";
+    readonly uploadUsers: "workos_upload/users.csv";
+    readonly uploadOrganizations: "workos_upload/organizations.csv";
+    readonly uploadMemberships: "workos_upload/organization_memberships.csv";
 };
 export type MigrationPackageFileKey = keyof typeof MIGRATION_PACKAGE_FILES;
 export type MigrationPackageFilePath = (typeof MIGRATION_PACKAGE_FILES)[MigrationPackageFileKey];
@@ -28,6 +31,9 @@ export declare const SAML_CONNECTION_CSV_HEADERS: readonly ["organizationName", 
 export declare const OIDC_CONNECTION_CSV_HEADERS: readonly ["organizationName", "organizationId", "organizationExternalId", "domains", "clientId", "clientSecret", "discoveryEndpoint", "customRedirectUri", "name", "customAttributes", "importedId"];
 export declare const CUSTOM_ATTRIBUTE_MAPPING_CSV_HEADERS: readonly ["importedId", "organizationExternalId", "providerType", "userPoolAttribute", "idpClaim"];
 export declare const PROXY_ROUTE_CSV_HEADERS: readonly ["importedId", "organizationExternalId", "provider", "protocol", "sourceAcsUrl", "sourceEntityId", "sourceRedirectUri", "customAcsUrl", "customEntityId", "customRedirectUri", "workosConnectionId", "workosAcsUrl", "cutoverState", "notes"];
+export declare const UPLOAD_USER_CSV_HEADERS: readonly ["user_id", "email", "email_verified", "first_name", "last_name", "password_hash"];
+export declare const UPLOAD_ORGANIZATION_CSV_HEADERS: readonly ["organization_id", "name"];
+export declare const UPLOAD_ORGANIZATION_MEMBERSHIP_CSV_HEADERS: readonly ["organization_id", "user_id"];
 export declare const MIGRATION_PACKAGE_CSV_HEADERS: {
     readonly users: readonly ["email", "password", "password_hash", "password_hash_type", "first_name", "last_name", "email_verified", "external_id", "metadata", "org_id", "org_external_id", "org_name", "role_slugs"];
     readonly organizations: readonly ["org_id", "org_external_id", "org_name", "domains", "metadata"];
@@ -39,6 +45,9 @@ export declare const MIGRATION_PACKAGE_CSV_HEADERS: {
     readonly oidcConnections: readonly ["organizationName", "organizationId", "organizationExternalId", "domains", "clientId", "clientSecret", "discoveryEndpoint", "customRedirectUri", "name", "customAttributes", "importedId"];
     readonly customAttributeMappings: readonly ["importedId", "organizationExternalId", "providerType", "userPoolAttribute", "idpClaim"];
     readonly proxyRoutes: readonly ["importedId", "organizationExternalId", "provider", "protocol", "sourceAcsUrl", "sourceEntityId", "sourceRedirectUri", "customAcsUrl", "customEntityId", "customRedirectUri", "workosConnectionId", "workosAcsUrl", "cutoverState", "notes"];
+    readonly uploadUsers: readonly ["user_id", "email", "email_verified", "first_name", "last_name", "password_hash"];
+    readonly uploadOrganizations: readonly ["organization_id", "name"];
+    readonly uploadMemberships: readonly ["organization_id", "user_id"];
 };
 export type MigrationPackageCsvFileKey = keyof typeof MIGRATION_PACKAGE_CSV_HEADERS;
 export declare const DEFAULT_ENTITY_COUNTS: {
@@ -52,6 +61,9 @@ export declare const DEFAULT_ENTITY_COUNTS: {
     readonly oidcConnections: 0;
     readonly customAttributeMappings: 0;
     readonly proxyRoutes: 0;
+    readonly uploadUsers: 0;
+    readonly uploadOrganizations: 0;
+    readonly uploadMemberships: 0;
     readonly warnings: 0;
     readonly skippedUsers: 0;
 };

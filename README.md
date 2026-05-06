@@ -119,6 +119,10 @@ workos-migrate export-auth0 \
   --output-dir ./migration-auth0
 ```
 
+Package mode also writes `workos_upload/users.csv`, `workos_upload/organizations.csv`, and
+`workos_upload/organization_memberships.csv` using the narrower WorkOS upload templates. SSO
+connection files remain under `sso/` as handoff artifacts.
+
 To write only SSO handoff files:
 
 ```bash

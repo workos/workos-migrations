@@ -14,6 +14,9 @@ export const MIGRATION_PACKAGE_FILES = {
     customAttributeMappings: 'sso/custom_attribute_mappings.csv',
     proxyRoutes: 'sso/proxy_routes.csv',
     handoffNotes: 'sso/handoff_notes.md',
+    uploadUsers: 'workos_upload/users.csv',
+    uploadOrganizations: 'workos_upload/organizations.csv',
+    uploadMemberships: 'workos_upload/organization_memberships.csv',
 };
 export const MIGRATION_PACKAGE_FILE_KEYS = Object.keys(MIGRATION_PACKAGE_FILES);
 export const USER_CSV_HEADERS = [
@@ -129,6 +132,16 @@ export const PROXY_ROUTE_CSV_HEADERS = [
     'cutoverState',
     'notes',
 ];
+export const UPLOAD_USER_CSV_HEADERS = [
+    'user_id',
+    'email',
+    'email_verified',
+    'first_name',
+    'last_name',
+    'password_hash',
+];
+export const UPLOAD_ORGANIZATION_CSV_HEADERS = ['organization_id', 'name'];
+export const UPLOAD_ORGANIZATION_MEMBERSHIP_CSV_HEADERS = ['organization_id', 'user_id'];
 export const MIGRATION_PACKAGE_CSV_HEADERS = {
     users: USER_CSV_HEADERS,
     organizations: ORGANIZATION_CSV_HEADERS,
@@ -140,6 +153,9 @@ export const MIGRATION_PACKAGE_CSV_HEADERS = {
     oidcConnections: OIDC_CONNECTION_CSV_HEADERS,
     customAttributeMappings: CUSTOM_ATTRIBUTE_MAPPING_CSV_HEADERS,
     proxyRoutes: PROXY_ROUTE_CSV_HEADERS,
+    uploadUsers: UPLOAD_USER_CSV_HEADERS,
+    uploadOrganizations: UPLOAD_ORGANIZATION_CSV_HEADERS,
+    uploadMemberships: UPLOAD_ORGANIZATION_MEMBERSHIP_CSV_HEADERS,
 };
 export const DEFAULT_ENTITY_COUNTS = {
     users: 0,
@@ -152,6 +168,9 @@ export const DEFAULT_ENTITY_COUNTS = {
     oidcConnections: 0,
     customAttributeMappings: 0,
     proxyRoutes: 0,
+    uploadUsers: 0,
+    uploadOrganizations: 0,
+    uploadMemberships: 0,
     warnings: 0,
     skippedUsers: 0,
 };

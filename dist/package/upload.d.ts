@@ -1,0 +1,13 @@
+import { UPLOAD_ORGANIZATION_CSV_HEADERS, UPLOAD_ORGANIZATION_MEMBERSHIP_CSV_HEADERS, UPLOAD_USER_CSV_HEADERS } from './manifest.js';
+export type UploadUserRow = Record<(typeof UPLOAD_USER_CSV_HEADERS)[number], string>;
+export type UploadOrganizationRow = Record<(typeof UPLOAD_ORGANIZATION_CSV_HEADERS)[number], string>;
+export type UploadOrganizationMembershipRow = Record<(typeof UPLOAD_ORGANIZATION_MEMBERSHIP_CSV_HEADERS)[number], string>;
+export type UploadUserRowInput = Partial<UploadUserRow>;
+export type UploadOrganizationRowInput = Partial<UploadOrganizationRow>;
+export type UploadOrganizationMembershipRowInput = Partial<UploadOrganizationMembershipRow>;
+export declare function createUploadUserRow(input?: UploadUserRowInput): UploadUserRow;
+export declare function createUploadOrganizationRow(input?: UploadOrganizationRowInput): UploadOrganizationRow;
+export declare function createUploadOrganizationMembershipRow(input?: UploadOrganizationMembershipRowInput): UploadOrganizationMembershipRow;
+export declare function packageUserToUploadUserRow(input: Record<string, unknown>): UploadUserRow | undefined;
+export declare function packageOrganizationToUploadOrganizationRow(input: Record<string, unknown>): UploadOrganizationRow | undefined;
+export declare function packageMembershipToUploadMembershipRow(input: Record<string, unknown>): UploadOrganizationMembershipRow | undefined;

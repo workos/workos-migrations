@@ -11,6 +11,11 @@ import {
   writeMigrationPackageManifest,
   writePackageJsonlRecords,
 } from '../../package/writer.js';
+import {
+  packageMembershipToUploadMembershipRow,
+  packageOrganizationToUploadOrganizationRow,
+  packageUserToUploadUserRow,
+} from '../../package/upload.js';
 import { createCSVWriter } from '../../shared/csv-utils.js';
 import type {
   Auth0Connection,
@@ -96,6 +101,9 @@ interface Auth0PackageStats {
   oidcConnections: number;
   customAttributeMappings: number;
   proxyRoutes: number;
+  uploadUsers: number;
+  uploadOrganizations: number;
+  uploadMemberships: number;
   skippedUsers: number;
   warnings: Auth0WarningRecord[];
   skipped: Auth0SkippedUserRecord[];
@@ -104,8 +112,20 @@ interface Auth0PackageStats {
 const USER_HEADERS = MIGRATION_PACKAGE_CSV_HEADERS.users;
 const ORG_HEADERS = MIGRATION_PACKAGE_CSV_HEADERS.organizations;
 const MEMBERSHIP_HEADERS = MIGRATION_PACKAGE_CSV_HEADERS.memberships;
+const UPLOAD_USER_HEADERS = MIGRATION_PACKAGE_CSV_HEADERS.uploadUsers;
+const UPLOAD_ORG_HEADERS = MIGRATION_PACKAGE_CSV_HEADERS.uploadOrganizations;
+const UPLOAD_MEMBERSHIP_HEADERS = MIGRATION_PACKAGE_CSV_HEADERS.uploadMemberships;
 const DEFAULT_PACKAGE_ENTITIES = ['users', 'organizations', 'memberships'] as const;
 const SUPPORTED_PACKAGE_ENTITIES = new Set([...DEFAULT_PACKAGE_ENTITIES, 'sso']);
+
+interface Auth0UploadWriters {
+  userWriter: ReturnType<typeof createCSVWriter>;
+  organizationWriter: ReturnType<typeof createCSVWriter>;
+  membershipWriter: ReturnType<typeof createCSVWriter>;
+  seenUserIds: Set<string>;
+  seenOrganizationIds: Set<string>;
+  seenMembershipIds: Set<string>;
+}
 
 export async function exportAuth0Package(options: Auth0ExportOptions): Promise<ExportSummary> {
   const client = new Auth0Client({
@@ -190,6 +210,9 @@ export async function exportAuth0PackageWithClient(
       oidcConnections: stats.oidcConnections,
       customAttributeMappings: stats.customAttributeMappings,
       proxyRoutes: stats.proxyRoutes,
+      uploadUsers: stats.uploadUsers,
+      uploadOrganizations: stats.uploadOrganizations,
+      uploadMemberships: stats.uploadMemberships,
       warnings: stats.warnings.length,
       skippedUsers: stats.skipped.length,
     },
@@ -250,17 +273,53 @@ async function exportPackageOrganizations(
   const membershipWriter = createCSVWriter(getPackageFilePath(outputDir, 'memberships'), [
     ...MEMBERSHIP_HEADERS,
   ]);
+  const uploadUserWriter = createCSVWriter(getPackageFilePath(outputDir, 'uploadUsers'), [
+    ...UPLOAD_USER_HEADERS,
+  ]);
+  const uploadOrganizationWriter = createCSVWriter(
+    getPackageFilePath(outputDir, 'uploadOrganizations'),
+    [...UPLOAD_ORG_HEADERS],
+  );
+  const uploadMembershipWriter = createCSVWriter(
+    getPackageFilePath(outputDir, 'uploadMemberships'),
+    [...UPLOAD_MEMBERSHIP_HEADERS],
+  );
+  const uploadWriters: Auth0UploadWriters = {
+    userWriter: uploadUserWriter,
+    organizationWriter: uploadOrganizationWriter,
+    membershipWriter: uploadMembershipWriter,
+    seenUserIds: new Set<string>(),
+    seenOrganizationIds: new Set<string>(),
+    seenMembershipIds: new Set<string>(),
+  };
 
   const stats = createEmptyPackageStats();
   stats.totalOrgs = organizations.length;
 
   try {
     for (const org of organizations) {
-      orgWriter.write(toOrganizationRow(org));
-      await exportOneOrganizationMembers(client, org, userWriter, membershipWriter, options, stats);
+      const organizationRow = toOrganizationRow(org);
+      orgWriter.write(organizationRow);
+      writeUploadOrganization(organizationRow, uploadWriters, stats);
+      await exportOneOrganizationMembers(
+        client,
+        org,
+        userWriter,
+        membershipWriter,
+        uploadWriters,
+        options,
+        stats,
+      );
     }
   } finally {
-    await Promise.all([orgWriter.end(), userWriter.end(), membershipWriter.end()]);
+    await Promise.all([
+      orgWriter.end(),
+      userWriter.end(),
+      membershipWriter.end(),
+      uploadUserWriter.end(),
+      uploadOrganizationWriter.end(),
+      uploadMembershipWriter.end(),
+    ]);
   }
 
   return stats;
@@ -271,6 +330,7 @@ async function exportOneOrganizationMembers(
   org: Auth0Organization,
   userWriter: ReturnType<typeof createCSVWriter>,
   membershipWriter: ReturnType<typeof createCSVWriter>,
+  uploadWriters: Auth0UploadWriters,
   options: Auth0ExportOptions,
   stats: Auth0PackageStats,
 ): Promise<void> {
@@ -308,6 +368,7 @@ async function exportOneOrganizationMembers(
             org,
             userWriter,
             membershipWriter,
+            uploadWriters,
             options,
             stats,
           );
@@ -353,9 +414,28 @@ async function exportPackageUsersWithMetadata(
   const membershipWriter = createCSVWriter(getPackageFilePath(outputDir, 'memberships'), [
     ...MEMBERSHIP_HEADERS,
   ]);
+  const uploadUserWriter = createCSVWriter(getPackageFilePath(outputDir, 'uploadUsers'), [
+    ...UPLOAD_USER_HEADERS,
+  ]);
+  const uploadOrganizationWriter = createCSVWriter(
+    getPackageFilePath(outputDir, 'uploadOrganizations'),
+    [...UPLOAD_ORG_HEADERS],
+  );
+  const uploadMembershipWriter = createCSVWriter(
+    getPackageFilePath(outputDir, 'uploadMemberships'),
+    [...UPLOAD_MEMBERSHIP_HEADERS],
+  );
 
   const stats = createEmptyPackageStats();
   const seenOrgs = new Set<string>();
+  const uploadWriters: Auth0UploadWriters = {
+    userWriter: uploadUserWriter,
+    organizationWriter: uploadOrganizationWriter,
+    membershipWriter: uploadMembershipWriter,
+    seenUserIds: new Set<string>(),
+    seenOrganizationIds: new Set<string>(),
+    seenMembershipIds: new Set<string>(),
+  };
 
   if (!options.quiet) {
     logger.info('Using metadata-based org discovery');
@@ -393,11 +473,21 @@ async function exportPackageUsersWithMetadata(
 
         if (!seenOrgs.has(org.id)) {
           seenOrgs.add(org.id);
-          orgWriter.write(toOrganizationRow(org));
+          const organizationRow = toOrganizationRow(org);
+          orgWriter.write(organizationRow);
+          writeUploadOrganization(organizationRow, uploadWriters, stats);
           stats.totalOrgs++;
         }
 
-        writePackageUserAndMembership(user, org, userWriter, membershipWriter, options, stats);
+        writePackageUserAndMembership(
+          user,
+          org,
+          userWriter,
+          membershipWriter,
+          uploadWriters,
+          options,
+          stats,
+        );
       }
 
       hasMore = users.length >= options.pageSize;
@@ -408,7 +498,14 @@ async function exportPackageUsersWithMetadata(
       }
     }
   } finally {
-    await Promise.all([orgWriter.end(), userWriter.end(), membershipWriter.end()]);
+    await Promise.all([
+      orgWriter.end(),
+      userWriter.end(),
+      membershipWriter.end(),
+      uploadUserWriter.end(),
+      uploadOrganizationWriter.end(),
+      uploadMembershipWriter.end(),
+    ]);
   }
 
   return stats;
@@ -506,6 +603,7 @@ function writePackageUserAndMembership(
   org: Auth0Organization | undefined,
   userWriter: ReturnType<typeof createCSVWriter>,
   membershipWriter: ReturnType<typeof createCSVWriter>,
+  uploadWriters: Auth0UploadWriters,
   options: Auth0ExportOptions,
   stats: Auth0PackageStats,
 ): 'exported' | 'skipped' {
@@ -525,8 +623,10 @@ function writePackageUserAndMembership(
   }
 
   const row = mapAuth0UserToWorkOS(user, org);
+  const membershipRow = toMembershipRow(user, org, row);
   userWriter.write(normalizeCsvRow(row, USER_HEADERS));
-  membershipWriter.write(toMembershipRow(user, org, row));
+  membershipWriter.write(membershipRow);
+  writeUploadUserAndMembership(row, membershipRow, uploadWriters, stats);
   stats.totalUsers++;
   stats.totalMemberships++;
 
@@ -541,6 +641,43 @@ function writePackageUserAndMembership(
   }
 
   return 'exported';
+}
+
+function writeUploadOrganization(
+  organizationRow: Record<string, unknown>,
+  uploadWriters: Auth0UploadWriters,
+  stats: Auth0PackageStats,
+): void {
+  const uploadOrganization = packageOrganizationToUploadOrganizationRow(organizationRow);
+  if (!uploadOrganization) return;
+
+  if (uploadWriters.seenOrganizationIds.has(uploadOrganization.organization_id)) return;
+  uploadWriters.seenOrganizationIds.add(uploadOrganization.organization_id);
+  uploadWriters.organizationWriter.write(uploadOrganization);
+  stats.uploadOrganizations++;
+}
+
+function writeUploadUserAndMembership(
+  userRow: Record<string, unknown>,
+  membershipRow: Record<string, unknown>,
+  uploadWriters: Auth0UploadWriters,
+  stats: Auth0PackageStats,
+): void {
+  const uploadUser = packageUserToUploadUserRow(userRow);
+  if (uploadUser && !uploadWriters.seenUserIds.has(uploadUser.user_id)) {
+    uploadWriters.seenUserIds.add(uploadUser.user_id);
+    uploadWriters.userWriter.write(uploadUser);
+    stats.uploadUsers++;
+  }
+
+  const uploadMembership = packageMembershipToUploadMembershipRow(membershipRow);
+  if (!uploadMembership) return;
+
+  const membershipKey = `${uploadMembership.organization_id}:${uploadMembership.user_id}`;
+  if (uploadWriters.seenMembershipIds.has(membershipKey)) return;
+  uploadWriters.seenMembershipIds.add(membershipKey);
+  uploadWriters.membershipWriter.write(uploadMembership);
+  stats.uploadMemberships++;
 }
 
 async function fetchAllOrganizations(
@@ -763,6 +900,9 @@ function createEmptyPackageStats(): Auth0PackageStats {
     oidcConnections: 0,
     customAttributeMappings: 0,
     proxyRoutes: 0,
+    uploadUsers: 0,
+    uploadOrganizations: 0,
+    uploadMemberships: 0,
     skippedUsers: 0,
     warnings: [],
     skipped: [],
@@ -777,6 +917,9 @@ function mergePackageStats(target: Auth0PackageStats, source: Auth0PackageStats)
   target.oidcConnections += source.oidcConnections;
   target.customAttributeMappings += source.customAttributeMappings;
   target.proxyRoutes += source.proxyRoutes;
+  target.uploadUsers += source.uploadUsers;
+  target.uploadOrganizations += source.uploadOrganizations;
+  target.uploadMemberships += source.uploadMemberships;
   target.skippedUsers += source.skippedUsers;
   target.warnings.push(...source.warnings);
   target.skipped.push(...source.skipped);
