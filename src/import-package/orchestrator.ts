@@ -8,15 +8,18 @@ import {
   validateMigrationPackage,
   type MigrationPackageValidationIssue,
 } from '../package/validator.js';
-import {
-  loadMigrationPackage,
-  type MigrationPackage,
-} from '../package/writer.js';
+import { loadMigrationPackage, type MigrationPackage } from '../package/writer.js';
 import { processRoleDefinitions, assignRolesToUsers } from '../roles/processor.js';
 import { enrollTotp } from '../totp/enroller.js';
 import * as logger from '../shared/logger.js';
 
-export type EntityImportStatus = 'imported' | 'skipped' | 'planned' | 'handoff' | 'unsupported' | 'absent';
+export type EntityImportStatus =
+  | 'imported'
+  | 'skipped'
+  | 'planned'
+  | 'handoff'
+  | 'unsupported'
+  | 'absent';
 
 export interface ImportEntityResult {
   status: EntityImportStatus;
@@ -119,9 +122,7 @@ export async function planImportPackage(packageDir: string): Promise<ImportPacka
   };
 }
 
-export async function importPackage(
-  options: ImportPackageOptions,
-): Promise<ImportPackageSummary> {
+export async function importPackage(options: ImportPackageOptions): Promise<ImportPackageSummary> {
   const startedAt = Date.now();
   const resolvedDir = path.resolve(options.packageDir);
   const plan = await planImportPackage(resolvedDir);
@@ -135,8 +136,7 @@ export async function importPackage(
 
   const dryRun = options.dryRun ?? false;
   const quiet = options.quiet ?? false;
-  const errorsPath =
-    options.errorsPath ?? path.join(resolvedDir, 'workos_import_errors.jsonl');
+  const errorsPath = options.errorsPath ?? path.join(resolvedDir, 'workos_import_errors.jsonl');
 
   let organizations: ImportEntityResult = { ...ABSENT };
   let users: ImportEntityResult = { ...ABSENT };

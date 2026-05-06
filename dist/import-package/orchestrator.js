@@ -4,7 +4,7 @@ import path from 'node:path';
 import { parse } from 'csv-parse';
 import { runImport } from '../import/importer.js';
 import { validateMigrationPackage, } from '../package/validator.js';
-import { loadMigrationPackage, } from '../package/writer.js';
+import { loadMigrationPackage } from '../package/writer.js';
 import { processRoleDefinitions, assignRolesToUsers } from '../roles/processor.js';
 import { enrollTotp } from '../totp/enroller.js';
 import * as logger from '../shared/logger.js';
