@@ -63,10 +63,14 @@ class FakeAuth0Client implements Auth0ExportClient {
 
   async getJob(jobId: string): Promise<Auth0Job> {
     if (!this.bulkJobs) throw new Error('Fake client has no bulk-job fixture');
-    const next = this.bulkJobs.statuses[this.bulkJobStatusIndex] ??
+    const next =
+      this.bulkJobs.statuses[this.bulkJobStatusIndex] ??
       this.bulkJobs.statuses[this.bulkJobs.statuses.length - 1] ??
       this.bulkJobs.initial;
-    this.bulkJobStatusIndex = Math.min(this.bulkJobStatusIndex + 1, this.bulkJobs.statuses.length - 1);
+    this.bulkJobStatusIndex = Math.min(
+      this.bulkJobStatusIndex + 1,
+      this.bulkJobs.statuses.length - 1,
+    );
     expect(jobId).toBe(this.bulkJobs.initial.id);
     return next;
   }
@@ -662,10 +666,7 @@ describe('exportAuth0PackageWithClient', () => {
     const client = new FakeAuth0Client({
       organizations: [org],
       membersByOrg: {
-        [org.id]: [
-          { user_id: databaseUser.user_id },
-          { user_id: multiRoleUser.user_id },
-        ],
+        [org.id]: [{ user_id: databaseUser.user_id }, { user_id: multiRoleUser.user_id }],
       },
       usersById: {
         [databaseUser.user_id]: databaseUser,
@@ -750,9 +751,7 @@ describe('exportAuth0PackageWithClient', () => {
       'admin-role,member-role',
     );
 
-    const memberships = await readCsv(
-      path.join(tempRoot, 'organization_memberships.csv'),
-    );
+    const memberships = await readCsv(path.join(tempRoot, 'organization_memberships.csv'));
     expect(memberships.find((row) => row.external_id === 'auth0|multi')?.role_slugs).toBe(
       'admin-role,member-role',
     );

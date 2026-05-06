@@ -72,7 +72,8 @@ export function normalizeAuth0Roles(roles: Auth0Role[]): NormalizeAuth0RolesResu
 
     if (!candidate || RESERVED_SLUGS.has(candidate)) {
       synthesized = !candidate;
-      const fallbackSeed = candidate || normalizeRoleSlug(role.id) || `${SLUG_FALLBACK_PREFIX}-${++fallbackIndex}`;
+      const fallbackSeed =
+        candidate || normalizeRoleSlug(role.id) || `${SLUG_FALLBACK_PREFIX}-${++fallbackIndex}`;
       candidate = candidate ? `${candidate}-role` : fallbackSeed;
       if (!candidate.startsWith(SLUG_FALLBACK_PREFIX) && synthesized) {
         candidate = `${SLUG_FALLBACK_PREFIX}-${candidate}`;

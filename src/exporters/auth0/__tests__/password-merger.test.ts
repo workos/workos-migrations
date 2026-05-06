@@ -201,8 +201,7 @@ describe('Password Merger', () => {
           JSON.stringify({ email: 'alice@example.com', passwordHash: '$2a$10$alicehash' }),
           JSON.stringify({
             email: 'bob@example.com',
-            passwordHash:
-              'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+            passwordHash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
           }),
         ].join('\n'),
       );

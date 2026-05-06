@@ -610,18 +610,15 @@ async function exportPackageUsersFromBulkJob(
 
   let bulkResult;
   try {
-    bulkResult = await runAuth0BulkUserExport(
-      client as BulkExportClient,
-      {
-        ...(options.bulkConnectionId ? { connectionId: options.bulkConnectionId } : {}),
-        ...(options.bulkPollIntervalMs !== undefined
-          ? { pollIntervalMs: options.bulkPollIntervalMs }
-          : {}),
-        ...(options.bulkMaxPollAttempts !== undefined
-          ? { maxPollAttempts: options.bulkMaxPollAttempts }
-          : {}),
-      },
-    );
+    bulkResult = await runAuth0BulkUserExport(client as BulkExportClient, {
+      ...(options.bulkConnectionId ? { connectionId: options.bulkConnectionId } : {}),
+      ...(options.bulkPollIntervalMs !== undefined
+        ? { pollIntervalMs: options.bulkPollIntervalMs }
+        : {}),
+      ...(options.bulkMaxPollAttempts !== undefined
+        ? { maxPollAttempts: options.bulkMaxPollAttempts }
+        : {}),
+    });
   } catch (error: unknown) {
     addWarning(
       stats,
@@ -1172,10 +1169,7 @@ async function loadRoleCatalogIfRequested(
   };
 }
 
-async function fetchAllRoles(
-  client: Auth0ExportClient,
-  pageSize: number,
-): Promise<Auth0Role[]> {
+async function fetchAllRoles(client: Auth0ExportClient, pageSize: number): Promise<Auth0Role[]> {
   if (!client.getRoles) return [];
   const collected: Auth0Role[] = [];
   let page = 0;

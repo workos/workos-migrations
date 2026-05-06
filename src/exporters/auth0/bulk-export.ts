@@ -83,7 +83,9 @@ export async function runAuth0BulkUserExport(
   };
 }
 
-export function parseAuth0BulkExportPayload(payload: string | ArrayBuffer | Uint8Array): Auth0User[] {
+export function parseAuth0BulkExportPayload(
+  payload: string | ArrayBuffer | Uint8Array,
+): Auth0User[] {
   const text = decodePayload(payload);
   const users: Auth0User[] = [];
 
@@ -103,7 +105,8 @@ export function parseAuth0BulkExportPayload(payload: string | ArrayBuffer | Uint
 
 function decodePayload(payload: string | ArrayBuffer | Uint8Array): string {
   if (typeof payload === 'string') return payload;
-  const buffer = payload instanceof Uint8Array ? Buffer.from(payload) : Buffer.from(new Uint8Array(payload));
+  const buffer =
+    payload instanceof Uint8Array ? Buffer.from(payload) : Buffer.from(new Uint8Array(payload));
   if (looksLikeGzip(buffer)) {
     return gunzipSync(buffer).toString('utf-8');
   }
