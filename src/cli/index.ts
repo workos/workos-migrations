@@ -1,7 +1,9 @@
 import { Command } from 'commander';
+import { registerGeneratePackageTemplateCommand } from './commands/generate-package-template.js';
 import { registerImportCommand } from './commands/import.js';
 import { registerImportPackageCommand } from './commands/import-package.js';
 import { registerValidateCommand } from './commands/validate.js';
+import { registerValidatePackageCommand } from './commands/validate-package.js';
 import { registerExportAuth0Command } from './commands/export-auth0.js';
 import { registerExportCognitoCommand } from './commands/export-cognito.js';
 import { registerMergePasswordsCommand } from './commands/merge-passwords.js';
@@ -22,6 +24,8 @@ program
 registerImportCommand(program);
 registerImportPackageCommand(program);
 registerValidateCommand(program);
+registerValidatePackageCommand(program);
+registerGeneratePackageTemplateCommand(program);
 registerExportAuth0Command(program);
 registerExportCognitoCommand(program);
 registerMergePasswordsCommand(program);
