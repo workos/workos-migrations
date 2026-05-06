@@ -1,12 +1,16 @@
 import fs from 'node:fs';
 import chalk from 'chalk';
 import { transformClerkExport } from '../../transformers/clerk/transformer.js';
+import { exportClerkPackage } from '../../transformers/clerk/package-exporter.js';
 export function registerTransformClerkCommand(program) {
     program
         .command('transform-clerk')
-        .description('Transform Clerk export CSV to WorkOS-compatible CSV')
+        .description('Transform Clerk export CSV to WorkOS-compatible CSV or migration package')
         .requiredOption('--input <path>', 'Clerk export CSV file')
-        .requiredOption('--output <path>', 'Output WorkOS CSV file')
+        .option('--output <path>', 'Output WorkOS CSV file (legacy single-CSV mode)')
+        .option('--package', 'Write a migration package instead of a single CSV')
+        .option('--output-dir <dir>', 'Output directory when --package is set')
+        .option('--source-tenant <name>', 'Optional source tenant identifier to record in the manifest')
         .option('--org-mapping <path>', 'Org mapping CSV (clerk_user_id,org_external_id,org_name)')
         .option('--role-mapping <path>', 'Role mapping CSV (clerk_user_id,role_slug)')
         .option('--quiet', 'Suppress progress output')
@@ -22,6 +26,34 @@ export function registerTransformClerkCommand(program) {
             }
             if (opts.roleMapping && !fs.existsSync(opts.roleMapping)) {
                 console.error(chalk.red(`Role mapping file not found: ${opts.roleMapping}`));
+                process.exit(1);
+            }
+            if (opts.package) {
+                if (!opts.outputDir) {
+                    console.error(chalk.red('--output-dir is required when --package is set'));
+                    process.exit(1);
+                }
+                const stats = await exportClerkPackage({
+                    input: opts.input,
+                    outputDir: opts.outputDir,
+                    orgMapping: opts.orgMapping,
+                    roleMapping: opts.roleMapping,
+                    sourceTenant: opts.sourceTenant,
+                    quiet: opts.quiet ?? false,
+                });
+                if (!opts.quiet) {
+                    console.log(chalk.green('\nClerk package export complete'));
+                    console.log(`  Users:        ${stats.totalUsers}`);
+                    console.log(`  Orgs:         ${stats.totalOrgs}`);
+                    console.log(`  Memberships:  ${stats.totalMemberships}`);
+                    console.log(`  Roles:        ${stats.roleDefinitions}`);
+                    console.log(`  Skipped:      ${stats.skippedUsers}`);
+                    console.log(`  Warnings:     ${stats.warnings.length}`);
+                }
+                return;
+            }
+            if (!opts.output) {
+                console.error(chalk.red('--output is required unless --package is set'));
                 process.exit(1);
             }
             const startTime = Date.now();
