@@ -172,16 +172,38 @@ For a callback proxy reference implementation during Auth0 enterprise-connection
 
 ### 3. Merge password hashes (optional)
 
-Auth0 does not include password hashes in the Management API export. You need to request a password export from Auth0 support, which provides an NDJSON file. Once you have it:
+Auth0 does not include password hashes in the Management API export. You need to request a password export from Auth0 support, which provides an NDJSON file. Once you have it, the CLI supports both legacy single-CSV merging and package-aware merging:
 
 ```bash
+# Single CSV (legacy)
 workos-migrate merge-passwords \
   --csv auth0-export.csv \
   --passwords auth0-passwords.ndjson \
   --output auth0-with-passwords.csv
+
+# Migration package — updates users.csv, workos_upload/users.csv, and the manifest
+workos-migrate merge-passwords \
+  --package ./migration-auth0 \
+  --passwords auth0-passwords.ndjson
 ```
 
-This merges bcrypt hashes into the CSV by matching on email. Users without a matching hash are left without a password and will need to reset on first login.
+Package mode warns and omits credentials for users whose hash algorithm is not supported by WorkOS imports (anything other than `bcrypt` or `md5`). Users without a matching hash are left without a password and will need to reset on first login.
+
+### 3b. Bulk export engine for very large tenants
+
+For tenants where the Management API per-user fetch is too slow, package mode can use Auth0's `users-exports` job engine instead. This engine returns users without organization membership, so you'll typically run it alongside a Management API run that captured org/membership data, or follow up with a CSV-driven membership reconciliation.
+
+```bash
+workos-migrate export-auth0 \
+  --domain my-tenant.us.auth0.com \
+  --client-id <M2M_CLIENT_ID> \
+  --client-secret <M2M_CLIENT_SECRET> \
+  --package \
+  --engine bulk-job \
+  --output-dir ./migration-auth0-bulk
+```
+
+A `bulk_export_no_org_membership` warning is recorded in the package and bulk mode does not populate `organizations.csv`, `organization_memberships.csv`, or per-org role assignments.
 
 ### 4. Validate, import, and post-import
 

@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
-import type { Auth0ExportOptions } from '../../shared/types.js';
+import type { Auth0ExportEngine, Auth0ExportOptions } from '../../shared/types.js';
 import { exportAuth0 } from '../../exporters/auth0/exporter.js';
 
 export function registerExportAuth0Command(program: Command): void {
@@ -30,6 +30,23 @@ export function registerExportAuth0Command(program: Command): void {
       '--include-federated-users',
       'Include federated/JIT users in package mode (skipped by default)',
     )
+    .option(
+      '--engine <engine>',
+      'Auth0 user export engine: management-api or bulk-job',
+      'management-api',
+    )
+    .option(
+      '--bulk-connection-id <id>',
+      'Auth0 connection ID to scope a bulk-job export to a single connection',
+    )
+    .option(
+      '--bulk-poll-interval-ms <n>',
+      'Polling interval (ms) for bulk-job status checks (default: 2000)',
+    )
+    .option(
+      '--bulk-max-poll-attempts <n>',
+      'Maximum bulk-job poll attempts before timing out (default: 150)',
+    )
     .option('--job-id <id>', 'Job ID for export checkpointing')
     .option('--resume [jobId]', 'Resume from export checkpoint')
     .option('--quiet', 'Suppress progress output')
@@ -40,6 +57,12 @@ export function registerExportAuth0Command(program: Command): void {
         }
         if (opts.package && !opts.outputDir) {
           throw new Error('--output-dir is required when using --package');
+        }
+
+        const engine = parseEngine(opts.engine);
+
+        if (engine === 'bulk-job' && !opts.package) {
+          throw new Error('--engine bulk-job requires --package mode');
         }
 
         const options: Auth0ExportOptions = {
@@ -59,6 +82,14 @@ export function registerExportAuth0Command(program: Command): void {
           metadataOrgIdField: opts.metadataOrgIdField,
           metadataOrgNameField: opts.metadataOrgNameField,
           includeFederatedUsers: opts.includeFederatedUsers ?? false,
+          engine,
+          bulkConnectionId: opts.bulkConnectionId,
+          bulkPollIntervalMs: opts.bulkPollIntervalMs
+            ? parseInt(opts.bulkPollIntervalMs, 10)
+            : undefined,
+          bulkMaxPollAttempts: opts.bulkMaxPollAttempts
+            ? parseInt(opts.bulkMaxPollAttempts, 10)
+            : undefined,
           jobId: opts.jobId,
           resume: opts.resume ?? false,
           quiet: opts.quiet ?? false,
@@ -78,4 +109,10 @@ function parseEntities(value: string | undefined): string[] | undefined {
     .split(',')
     .map((entity) => entity.trim())
     .filter(Boolean);
+}
+
+function parseEngine(value: string | undefined): Auth0ExportEngine {
+  const normalized = (value ?? 'management-api').trim();
+  if (normalized === 'management-api' || normalized === 'bulk-job') return normalized;
+  throw new Error(`--engine must be "management-api" or "bulk-job", got "${value}"`);
 }

@@ -1,7 +1,14 @@
 import { createReadStream, createWriteStream } from 'node:fs';
+import fsp from 'node:fs/promises';
+import path from 'node:path';
 import { createInterface } from 'node:readline';
 import { parse } from 'csv-parse';
 import { stringify } from 'csv-stringify';
+import {
+  MIGRATION_PACKAGE_CSV_HEADERS,
+  type MigrationPackageManifest,
+} from '../../package/manifest.js';
+import { getPackageFilePath, writeMigrationPackageManifest } from '../../package/writer.js';
 import type { Auth0PasswordRecord, PasswordLookup } from '../../shared/types.js';
 
 export async function loadPasswordHashes(filePath: string): Promise<PasswordLookup> {
@@ -53,6 +60,8 @@ export interface MergeStats {
   passwordsAdded: number;
   passwordsNotFound: number;
 }
+
+export const SUPPORTED_PACKAGE_PASSWORD_ALGORITHMS = new Set(['bcrypt', 'md5']);
 
 export async function mergePasswordsIntoCsv(
   inputCsv: string,
@@ -123,6 +132,216 @@ export async function mergePasswordsIntoCsv(
       stringifier.write(row);
     }
 
+    stringifier.end();
+  });
+}
+
+export interface PackageMergeWarning {
+  code:
+    | 'unsupported_password_hash_algorithm'
+    | 'missing_password_hash'
+    | 'package_users_csv_missing';
+  message: string;
+  email?: string;
+  external_id?: string;
+  algorithm?: string;
+}
+
+export interface PackageMergeStats {
+  totalRows: number;
+  passwordsAdded: number;
+  passwordsNotFound: number;
+  passwordsRejectedAlgorithm: number;
+  uploadRowsUpdated: number;
+  warnings: PackageMergeWarning[];
+}
+
+export interface MergePasswordsIntoPackageOptions {
+  packageDir: string;
+  passwordsPath: string;
+  /** Optional override of the supported hash algorithm set. */
+  supportedAlgorithms?: Set<string>;
+}
+
+export async function mergePasswordsIntoPackage(
+  options: MergePasswordsIntoPackageOptions,
+): Promise<PackageMergeStats> {
+  const supportedAlgorithms = options.supportedAlgorithms ?? SUPPORTED_PACKAGE_PASSWORD_ALGORITHMS;
+  const packageDir = path.resolve(options.packageDir);
+  const usersCsvPath = getPackageFilePath(packageDir, 'users');
+  const uploadUsersCsvPath = getPackageFilePath(packageDir, 'uploadUsers');
+  const manifestPath = getPackageFilePath(packageDir, 'manifest');
+
+  if (!(await pathExists(usersCsvPath))) {
+    return {
+      totalRows: 0,
+      passwordsAdded: 0,
+      passwordsNotFound: 0,
+      passwordsRejectedAlgorithm: 0,
+      uploadRowsUpdated: 0,
+      warnings: [
+        {
+          code: 'package_users_csv_missing',
+          message: `Package users.csv not found at ${usersCsvPath}; merge skipped.`,
+        },
+      ],
+    };
+  }
+
+  const passwordLookup = await loadPasswordHashes(options.passwordsPath);
+
+  const stats: PackageMergeStats = {
+    totalRows: 0,
+    passwordsAdded: 0,
+    passwordsNotFound: 0,
+    passwordsRejectedAlgorithm: 0,
+    uploadRowsUpdated: 0,
+    warnings: [],
+  };
+
+  const usersHeaders = [...MIGRATION_PACKAGE_CSV_HEADERS.users];
+  const usersRows = await readCsvWithFixedHeaders(usersCsvPath, usersHeaders);
+  stats.totalRows = usersRows.length;
+
+  const passwordHashByExternalId = new Map<string, string>();
+  const algorithmByExternalId = new Map<string, string>();
+
+  for (const row of usersRows) {
+    const email = row.email?.toLowerCase();
+    const externalId = row.external_id;
+    if (!email || !passwordLookup[email]) {
+      stats.passwordsNotFound++;
+      continue;
+    }
+
+    const candidate = passwordLookup[email];
+    if (!supportedAlgorithms.has(candidate.algorithm)) {
+      stats.passwordsRejectedAlgorithm++;
+      stats.warnings.push({
+        code: 'unsupported_password_hash_algorithm',
+        message: `Skipped password hash for ${email} because algorithm "${candidate.algorithm}" is not supported by WorkOS imports.`,
+        email,
+        ...(externalId ? { external_id: externalId } : {}),
+        algorithm: candidate.algorithm,
+      });
+      continue;
+    }
+
+    row.password_hash = candidate.hash;
+    row.password_hash_type = candidate.algorithm;
+    stats.passwordsAdded++;
+
+    if (externalId) {
+      passwordHashByExternalId.set(externalId, candidate.hash);
+      algorithmByExternalId.set(externalId, candidate.algorithm);
+    }
+  }
+
+  await writeCsvWithFixedHeaders(usersCsvPath, usersHeaders, usersRows);
+
+  if (await pathExists(uploadUsersCsvPath)) {
+    const uploadHeaders = [...MIGRATION_PACKAGE_CSV_HEADERS.uploadUsers];
+    const uploadRows = await readCsvWithFixedHeaders(uploadUsersCsvPath, uploadHeaders);
+    for (const row of uploadRows) {
+      const userId = row.user_id;
+      if (userId && passwordHashByExternalId.has(userId)) {
+        row.password_hash = passwordHashByExternalId.get(userId) ?? '';
+        stats.uploadRowsUpdated++;
+      }
+    }
+    await writeCsvWithFixedHeaders(uploadUsersCsvPath, uploadHeaders, uploadRows);
+  }
+
+  if (stats.passwordsNotFound > 0) {
+    stats.warnings.push({
+      code: 'missing_password_hash',
+      message: `${stats.passwordsNotFound} package user(s) had no matching Auth0 password hash.`,
+    });
+  }
+
+  if (await pathExists(manifestPath)) {
+    await updatePackageManifestForMerge(manifestPath, stats);
+  }
+
+  return stats;
+}
+
+async function updatePackageManifestForMerge(
+  manifestPath: string,
+  stats: PackageMergeStats,
+): Promise<void> {
+  const raw = await fsp.readFile(manifestPath, 'utf-8');
+  const manifest = JSON.parse(raw) as MigrationPackageManifest;
+
+  const messages = stats.warnings.map((warning) => warning.message);
+  manifest.warnings = [...(manifest.warnings ?? []), ...messages];
+
+  const counts = manifest.entitiesExported ?? {};
+  counts.warnings = (counts.warnings ?? 0) + messages.length;
+  manifest.entitiesExported = counts;
+
+  manifest.metadata = {
+    ...(manifest.metadata ?? {}),
+    passwordMerge: {
+      mergedAt: new Date().toISOString(),
+      passwordsAdded: stats.passwordsAdded,
+      passwordsNotFound: stats.passwordsNotFound,
+      passwordsRejectedAlgorithm: stats.passwordsRejectedAlgorithm,
+      uploadRowsUpdated: stats.uploadRowsUpdated,
+    },
+  };
+
+  const rootDir = path.dirname(manifestPath);
+  await writeMigrationPackageManifest(rootDir, manifest);
+}
+
+async function pathExists(filePath: string): Promise<boolean> {
+  try {
+    await fsp.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function readCsvWithFixedHeaders(
+  filePath: string,
+  headers: string[],
+): Promise<Record<string, string>[]> {
+  const rows: Record<string, string>[] = [];
+  await new Promise<void>((resolve, reject) => {
+    const parser = parse({
+      columns: true,
+      skip_empty_lines: true,
+      relax_column_count: true,
+    });
+    createReadStream(filePath)
+      .pipe(parser)
+      .on('data', (row: Record<string, string>) => {
+        const normalized: Record<string, string> = {};
+        for (const header of headers) {
+          normalized[header] = row[header] ?? '';
+        }
+        rows.push(normalized);
+      })
+      .on('end', resolve)
+      .on('error', reject);
+  });
+  return rows;
+}
+
+async function writeCsvWithFixedHeaders(
+  filePath: string,
+  headers: string[],
+  rows: Record<string, string>[],
+): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const stringifier = stringify({ header: true, columns: headers });
+    const out = createWriteStream(filePath);
+    stringifier.pipe(out).on('finish', resolve).on('error', reject);
+    for (const row of rows) {
+      stringifier.write(row);
+    }
     stringifier.end();
   });
 }

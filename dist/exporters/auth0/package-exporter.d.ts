@@ -1,5 +1,6 @@
 import type { Auth0Connection, Auth0ExportOptions, Auth0Organization, Auth0OrganizationConnection, Auth0Role, Auth0User, ExportSummary } from '../../shared/types.js';
-export interface Auth0ExportClient {
+import { type BulkExportClient } from './bulk-export.js';
+export interface Auth0ExportClient extends Partial<BulkExportClient> {
     testConnection?(): Promise<{
         success: boolean;
         error?: string;
