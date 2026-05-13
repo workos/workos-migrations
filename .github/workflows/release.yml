@@ -47,4 +47,7 @@ jobs:
           fi
 
       - name: Publish
-        run: npm publish --tag ${{ steps.npm-tag.outputs.tag }} --access=public --provenance
+        run: |
+          sed -i '/_authToken/d' "$NPM_CONFIG_USERCONFIG"
+          unset NODE_AUTH_TOKEN
+          npm publish --tag ${{ steps.npm-tag.outputs.tag }} --access=public --provenance
