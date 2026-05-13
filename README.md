@@ -9,27 +9,24 @@ The fastest way to get started is with the interactive wizard:
 ```bash
 export WORKOS_SECRET_KEY=sk_...
 
-npx workos/workos-migrations wizard
+npx @workos/migrations wizard
 ```
 
 The wizard walks you through provider selection, export/transform, validation, and import step by step.
 
 ## Installation
 
-This tool isn't published to npm yet. The easiest way to run it is straight from GitHub with `npx`:
+Run directly with `npx` (no install needed):
 
 ```bash
-npx workos/workos-migrations <command>
+npx @workos/migrations <command>
 ```
 
-If you'd rather have a local checkout (for example to hack on the tool), clone and build it:
+Or install globally:
 
 ```bash
-git clone https://github.com/workos/workos-migrations.git
-cd workos-migrations
-npm install
-npm run build
-npm link            # optional: exposes `workos-migrate` on your PATH
+npm install -g @workos/migrations
+workos-migrate <command>
 ```
 
 ## Commands
@@ -49,7 +46,7 @@ npm link            # optional: exposes `workos-migrate` on your PATH
 | `enroll-totp`              | Enroll TOTP MFA factors for imported users             |
 | `process-role-definitions` | Create roles and assign permissions in WorkOS          |
 
-Run `npx workos/workos-migrations <command> --help` (or `workos-migrate <command> --help` from a local checkout) for full option details on any command.
+Run `npx @workos/migrations <command> --help` for full option details on any command.
 
 ## Prerequisites
 
