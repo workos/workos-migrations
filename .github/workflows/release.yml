@@ -1,16 +1,16 @@
 name: Release
 
 on:
-  workflow_dispatch:
   workflow_call:
-
-defaults:
-  run:
-    shell: bash
+    inputs:
+      tag_name:
+        description: Release tag name (e.g., v2.0.1)
+        type: string
+        default: ''
 
 jobs:
   publish:
-    name: Publish to NPM
+    name: Publish to npm
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -29,5 +29,25 @@ jobs:
       - name: Build project
         run: npm run build
 
+      - name: Determine npm tag
+        id: npm-tag
+        env:
+          TAG_NAME: ${{ inputs.tag_name }}
+        run: |
+          VERSION="${TAG_NAME#v}"
+
+          if [[ -z "$VERSION" ]]; then
+            VERSION="$(node -p "require('./package.json').version")"
+          fi
+
+          if [[ "$VERSION" == *"-"* ]]; then
+            echo "tag=beta" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=latest" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Publish
-        run: npm publish --tag latest --access=public --provenance
+        run: |
+          sed -i '/_authToken/d' "$NPM_CONFIG_USERCONFIG"
+          unset NODE_AUTH_TOKEN
+          npm publish --tag ${{ steps.npm-tag.outputs.tag }} --access=public --provenance
