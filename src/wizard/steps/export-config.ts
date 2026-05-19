@@ -366,30 +366,7 @@ async function configureCustomCsv(state: WizardState): Promise<WizardState> {
 }
 
 async function configureSupabaseExport(state: WizardState): Promise<WizardState> {
-  console.log(chalk.gray('  Supabase credentials are read from environment variables:'));
-  console.log(chalk.gray('    SUPABASE_URL              (required)'));
-  console.log(chalk.gray('    SUPABASE_SERVICE_ROLE_KEY (required)'));
-  console.log(chalk.gray('    SUPABASE_DB_URL           (optional — needed for passwords/MFA/SSO/orgs)\n'));
-
-  const url = process.env.SUPABASE_URL?.trim();
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
-  const dbUrl = process.env.SUPABASE_DB_URL?.trim();
-
-  if (!url || !serviceRoleKey) {
-    console.error(
-      chalk.red(
-        '  Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY. Set them and re-run the wizard.',
-      ),
-    );
-    state.cancelled = true;
-    return state;
-  }
-
-  state.supabaseUrl = url;
-  state.supabaseServiceRoleKey = serviceRoleKey;
-  state.supabaseDbUrl = dbUrl || undefined;
-
-  const hasDb = Boolean(dbUrl);
+  const hasDb = Boolean(state.supabaseDbUrl);
 
   const response = await prompts(
     [
