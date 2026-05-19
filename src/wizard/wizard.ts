@@ -10,7 +10,7 @@ import { runImportStep } from './steps/import-run.js';
 import { runPostImport } from './steps/post-import.js';
 import { showSummary } from './steps/summary.js';
 
-export type Provider = 'auth0' | 'clerk' | 'firebase' | 'cognito' | 'csv';
+export type Provider = 'auth0' | 'clerk' | 'firebase' | 'cognito' | 'supabase' | 'csv';
 
 export interface WizardState {
   // Step 1: Provider
@@ -46,6 +46,22 @@ export interface WizardState {
   cognitoUserPoolIds?: string;
   cognitoEntities?: string;
   cognitoOutputDir?: string;
+  supabaseUrl?: string;
+  supabaseServiceRoleKey?: string;
+  supabaseDbUrl?: string;
+  supabasePackageDir?: string;
+  supabaseEntities?: string[];
+  supabaseTotpIssuer?: string;
+  supabaseOrgTable?: string;
+  supabaseOrgIdColumn?: string;
+  supabaseOrgNameColumn?: string;
+  supabaseOrgExternalIdColumn?: string;
+  supabaseOrgDomainsColumn?: string;
+  supabaseMembersTable?: string;
+  supabaseMembershipUserColumn?: string;
+  supabaseMembershipOrgColumn?: string;
+  supabaseMembershipRoleColumn?: string;
+  supabaseRoleSlugMapPath?: string;
   customCsvPath?: string;
 
   // Step 4: Export output
@@ -108,8 +124,11 @@ export class MigrationWizard {
       this.state = await runExport(this.state);
       if (this.state.cancelled) return this.onCancel();
 
-      // Step 5: Password merge (Auth0 only)
-      if (this.state.provider === 'auth0') {
+      // Step 5: Password merge (Auth0 + Supabase-with-DB)
+      const needsPasswordMerge =
+        this.state.provider === 'auth0' ||
+        (this.state.provider === 'supabase' && Boolean(this.state.supabaseDbUrl));
+      if (needsPasswordMerge) {
         this.state = await mergePasswords(this.state);
         if (this.state.cancelled) return this.onCancel();
       }

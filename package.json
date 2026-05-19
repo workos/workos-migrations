@@ -32,7 +32,8 @@
     "auth0",
     "clerk",
     "firebase",
-    "cognito"
+    "cognito",
+    "supabase"
   ],
   "author": "WorkOS",
   "license": "MIT",

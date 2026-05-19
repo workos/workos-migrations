@@ -12,6 +12,7 @@ import type { OrgMappingRow } from '../shared/org-mapper.js';
 import { loadOrgMapping, applyOrgMapping, buildOutputColumns } from '../shared/org-mapper.js';
 import { loadRoleMapping } from '../shared/role-mapper.js';
 import { encodeFirebaseScryptPHC } from './scrypt.js';
+import { splitDisplayName } from '../../shared/name-split.js';
 import * as logger from '../../shared/logger.js';
 
 export interface FirebaseTransformOptions {
@@ -24,37 +25,6 @@ export interface FirebaseTransformOptions {
   orgMapping?: string;
   roleMapping?: string;
   quiet?: boolean;
-}
-
-/**
- * Split a display name into first and last name using the given strategy.
- */
-export function splitDisplayName(
-  displayName: string | undefined,
-  strategy: NameSplitStrategy,
-): { firstName: string; lastName: string } {
-  if (!displayName?.trim()) {
-    return { firstName: '', lastName: '' };
-  }
-
-  const name = displayName.trim();
-
-  switch (strategy) {
-    case 'first-space': {
-      const idx = name.indexOf(' ');
-      if (idx === -1) return { firstName: name, lastName: '' };
-      return { firstName: name.slice(0, idx), lastName: name.slice(idx + 1) };
-    }
-    case 'last-space': {
-      const idx = name.lastIndexOf(' ');
-      if (idx === -1) return { firstName: name, lastName: '' };
-      return { firstName: name.slice(0, idx), lastName: name.slice(idx + 1) };
-    }
-    case 'first-name-only':
-      return { firstName: name, lastName: '' };
-    default:
-      return { firstName: name, lastName: '' };
-  }
 }
 
 function msEpochToISO(msString: string): string | undefined {

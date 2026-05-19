@@ -344,7 +344,7 @@ Continue to [Validation](#validation), [Import](#importing-users), and [Post-Imp
 
 ## Migrating from Supabase Auth
 
-> **Status — Phase 3**: users + OAuth identities via the Admin API; bcrypt password hashes, TOTP MFA factors, SAML SSO connections, and organizations/role assignments via direct Postgres.
+Full Supabase Auth migration support: users + OAuth identities via the Admin API; bcrypt password hashes, TOTP MFA factors, SAML SSO connections, and organizations + role assignments via direct Postgres. Available end-to-end via the interactive wizard (`workos-migrate wizard` → choose Supabase Auth) or the individual CLI commands below.
 
 ### 1. Set up Supabase credentials
 

@@ -1,4 +1,5 @@
 import type { CSVRow } from '../../shared/types.js';
+import { splitDisplayName } from '../../shared/name-split.js';
 import type { SupabaseAdminUser, SupabaseIdentity } from './types.js';
 
 export interface MappedSupabaseUser {
@@ -8,25 +9,12 @@ export interface MappedSupabaseUser {
   warnings: string[];
 }
 
-interface SplitName {
-  firstName: string;
-  lastName: string;
-}
-
-function splitDisplayName(displayName: string | undefined): SplitName {
-  if (!displayName?.trim()) return { firstName: '', lastName: '' };
-  const name = displayName.trim();
-  const idx = name.indexOf(' ');
-  if (idx === -1) return { firstName: name, lastName: '' };
-  return { firstName: name.slice(0, idx), lastName: name.slice(idx + 1) };
-}
-
 function readStringField(source: Record<string, unknown> | undefined, key: string): string | undefined {
   const value = source?.[key];
   return typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined;
 }
 
-function resolveNames(user: SupabaseAdminUser): SplitName {
+function resolveNames(user: SupabaseAdminUser): { firstName: string; lastName: string } {
   const meta = user.user_metadata;
   const explicitFirst = readStringField(meta, 'first_name');
   const explicitLast = readStringField(meta, 'last_name');
@@ -35,7 +23,7 @@ function resolveNames(user: SupabaseAdminUser): SplitName {
   }
 
   const fullName = readStringField(meta, 'full_name') ?? readStringField(meta, 'name');
-  if (fullName) return splitDisplayName(fullName);
+  if (fullName) return splitDisplayName(fullName, 'first-space');
 
   return { firstName: '', lastName: '' };
 }
