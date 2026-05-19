@@ -50,6 +50,9 @@ export interface SupabaseExportStats {
   skipped: number;
   totpExported: number;
   samlExported: number;
+  orgsExported: number;
+  membershipsExported: number;
+  orphanMemberships: number;
   warnings: string[];
   skippedRecords: SupabaseSkippedRecord[];
 }

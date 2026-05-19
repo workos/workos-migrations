@@ -109,7 +109,7 @@ describe('exportSupabase (end-to-end)', () => {
         url: 'https://demo.supabase.co',
         serviceRoleKey: 'sb-service-role-jwt',
         outputDir: tmpDir,
-        entities: ['users', 'organizations'],
+        entities: ['users', 'role_definitions'],
         rateLimit: 1000,
         pageSize: 100,
         quiet: true,

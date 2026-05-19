@@ -344,7 +344,7 @@ Continue to [Validation](#validation), [Import](#importing-users), and [Post-Imp
 
 ## Migrating from Supabase Auth
 
-> **Status — Phase 2**: users + OAuth identities via the Admin API; bcrypt password hashes, TOTP MFA factors, and SAML SSO connections via direct Postgres. Organization/role extraction lands in Phase 3.
+> **Status — Phase 3**: users + OAuth identities via the Admin API; bcrypt password hashes, TOTP MFA factors, SAML SSO connections, and organizations/role assignments via direct Postgres.
 
 ### 1. Set up Supabase credentials
 
@@ -380,9 +380,10 @@ If you omit `--db-url`, the export still produces `users.csv` (with `metadata.su
 | -------------------------- | ------------ | ---------------------------------------------------------------------------------------- |
 | `--rate-limit <n>`         | 50           | Admin API requests per second                                                            |
 | `--page-size <n>`          | 1000         | Users per Admin API page                                                                 |
-| `--entities <list>`        | `users`      | Comma-separated entities — `users`, `identities`, `mfa`, `sso` (Phase 2)                 |
-| `--db-url <conn-string>`   | —            | Postgres connection string (required for `mfa`/`sso`); also reads `SUPABASE_DB_URL`      |
+| `--entities <list>`        | `users`      | Comma-separated entities — `users`, `identities`, `mfa`, `sso`, `organizations`          |
+| `--db-url <conn-string>`   | —            | Postgres connection string (required for `mfa`/`sso`/`organizations`); also reads `SUPABASE_DB_URL` |
 | `--totp-issuer <name>`     | `Supabase`   | Issuer label written into `totp_secrets.csv`                                             |
+| Org schema flags           | —            | See [docs/supabase-org-schema.md](./docs/supabase-org-schema.md) for the full schema-flag reference (`--org-table`, `--org-members-table`, `--membership-role-column`, `--role-slug-map`, etc.) |
 
 ### 3. Merge bcrypt password hashes (optional)
 

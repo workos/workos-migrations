@@ -55,7 +55,7 @@ export const supabaseProvider: Provider = {
       key: 'organizations',
       name: 'Organizations',
       description: 'From user-supplied org table — requires Postgres connection',
-      enabled: false,
+      enabled: true,
     },
   ],
 };

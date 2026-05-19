@@ -3,6 +3,8 @@ import { createCSVWriter } from '../../shared/csv-utils.js';
 import {
   USER_CSV_HEADERS,
   TOTP_SECRET_CSV_HEADERS,
+  ORGANIZATION_CSV_HEADERS,
+  ORGANIZATION_MEMBERSHIP_CSV_HEADERS,
   createMigrationPackageManifest,
 } from '../../package/manifest.js';
 import {
@@ -23,6 +25,8 @@ export interface SupabaseWriterContext {
   writeUser: (row: CSVRow) => void;
   writeTotpRecords: (records: TotpRecord[]) => Promise<void>;
   writeSamlConnections: (rows: SamlRowInput[]) => Promise<void>;
+  writeOrganizations: (rows: Record<string, string>[]) => Promise<void>;
+  writeMemberships: (rows: Record<string, string>[]) => Promise<void>;
   finalize: (options: { url: string; entitiesRequested: string[] }) => Promise<void>;
 }
 
@@ -53,6 +57,9 @@ export async function openSupabasePackage(outputDir: string): Promise<SupabaseWr
     skipped: 0,
     totpExported: 0,
     samlExported: 0,
+    orgsExported: 0,
+    membershipsExported: 0,
+    orphanMemberships: 0,
     warnings: [],
     skippedRecords: [],
   };
@@ -80,6 +87,16 @@ export async function openSupabasePackage(outputDir: string): Promise<SupabaseWr
       await writeSamlConnectionsCsv(filePath, rows);
       stats.samlExported += rows.length;
     },
+    async writeOrganizations(rows: Record<string, string>[]) {
+      if (rows.length === 0) return;
+      await writePackageCsvRows(rootDir, 'organizations', rows, ORGANIZATION_CSV_HEADERS);
+      stats.orgsExported += rows.length;
+    },
+    async writeMemberships(rows: Record<string, string>[]) {
+      if (rows.length === 0) return;
+      await writePackageCsvRows(rootDir, 'memberships', rows, ORGANIZATION_MEMBERSHIP_CSV_HEADERS);
+      stats.membershipsExported += rows.length;
+    },
     async finalize(options) {
       await usersWriter.end();
 
@@ -92,8 +109,8 @@ export async function openSupabasePackage(outputDir: string): Promise<SupabaseWr
         entitiesRequested: options.entitiesRequested,
         entitiesExported: {
           users: stats.exported,
-          organizations: 0,
-          memberships: 0,
+          organizations: stats.orgsExported,
+          memberships: stats.membershipsExported,
           roleDefinitions: 0,
           userRoleAssignments: 0,
           totpSecrets: stats.totpExported,

@@ -5,11 +5,13 @@ import { SupabasePgClient } from './pg-client.js';
 import { mapSupabaseUser } from './user-mapper.js';
 import { exportMfaFactors } from './mfa-mapper.js';
 import { exportSamlProviders } from './sso-mapper.js';
+import { exportOrganizations } from './org-mapper.js';
+import { loadRoleSlugMap, type RoleSlugMap } from './role-slug-map.js';
 import { openSupabasePackage, type SupabaseWriterContext } from './package-writer.js';
 import type { SupabasePgQueryClient } from './pg-client.js';
 
-const SUPPORTED_ENTITIES = new Set(['users', 'identities', 'mfa', 'sso']);
-const PG_ENTITIES = new Set(['mfa', 'sso']);
+const SUPPORTED_ENTITIES = new Set(['users', 'identities', 'mfa', 'sso', 'organizations']);
+const PG_ENTITIES = new Set(['mfa', 'sso', 'organizations']);
 
 export interface ExportSupabaseInternal extends SupabaseExportOptions {
   /** Test seam — replace the Postgres client used for mfa/sso exports. */
@@ -25,9 +27,12 @@ export async function exportSupabase(options: ExportSupabaseInternal): Promise<E
   const unsupported = requested.filter((entity) => !SUPPORTED_ENTITIES.has(entity));
   if (unsupported.length > 0) {
     throw new Error(
-      `Unsupported entities for Supabase export: ${unsupported.join(', ')}. Supported in Phase 2: users, identities, mfa, sso.`,
+      `Unsupported entities for Supabase export: ${unsupported.join(', ')}. Supported: users, identities, mfa, sso, organizations.`,
     );
   }
+
+  // Fail fast on a bad role-slug-map path — before opening any network connection.
+  const roleSlugMap = await maybeLoadRoleSlugMap(options);
 
   const client = new SupabaseAdminClient({
     url: options.url,
@@ -49,7 +54,7 @@ export async function exportSupabase(options: ExportSupabaseInternal): Promise<E
   const pkg = await openSupabasePackage(options.outputDir);
 
   await exportUsers(client, pkg, options);
-  await exportPgEntities(pkg, options, requested);
+  await exportPgEntities(pkg, options, requested, roleSlugMap);
 
   await pkg.finalize({ url: options.url, entitiesRequested: requested });
 
@@ -62,6 +67,9 @@ export async function exportSupabase(options: ExportSupabaseInternal): Promise<E
     logger.info(`  Skipped: ${pkg.stats.skipped}`);
     if (pkg.stats.totpExported > 0) logger.info(`  TOTP factors: ${pkg.stats.totpExported}`);
     if (pkg.stats.samlExported > 0) logger.info(`  SAML providers: ${pkg.stats.samlExported}`);
+    if (pkg.stats.orgsExported > 0) logger.info(`  Organizations: ${pkg.stats.orgsExported}`);
+    if (pkg.stats.membershipsExported > 0)
+      logger.info(`  Memberships: ${pkg.stats.membershipsExported}`);
     logger.info(`  Warnings: ${pkg.stats.warnings.length}`);
     logger.info(`  Duration: ${duration}ms`);
     logger.info(`  Output: ${pkg.rootDir}`);
@@ -114,10 +122,25 @@ async function exportUsers(
   }
 }
 
+async function maybeLoadRoleSlugMap(
+  options: ExportSupabaseInternal,
+): Promise<RoleSlugMap | undefined> {
+  const path = options.orgSchema?.roleSlugMapPath;
+  if (!path) return undefined;
+  try {
+    return await loadRoleSlugMap(path);
+  } catch (error: unknown) {
+    throw new Error(`Failed to load --role-slug-map ${path}: ${(error as Error).message}`, {
+      cause: error,
+    });
+  }
+}
+
 async function exportPgEntities(
   pkg: SupabaseWriterContext,
   options: ExportSupabaseInternal,
   requested: string[],
+  roleSlugMap: RoleSlugMap | undefined,
 ): Promise<void> {
   const pgRequested = requested.filter((entity) => PG_ENTITIES.has(entity));
   if (pgRequested.length === 0) return;
@@ -161,7 +184,34 @@ async function exportPgEntities(
       if (saml.warnings.length > 0) pkg.stats.warnings.push(...saml.warnings);
       await pkg.writeSamlConnections(saml.rows);
     }
+
+    if (requested.includes('organizations')) {
+      await runOrganizationsExport(pg, pkg, options, roleSlugMap);
+    }
   } finally {
     await pg.close();
   }
+}
+
+async function runOrganizationsExport(
+  pg: SupabasePgQueryClient,
+  pkg: SupabaseWriterContext,
+  options: ExportSupabaseInternal,
+  roleSlugMap: RoleSlugMap | undefined,
+): Promise<void> {
+  if (!options.orgSchema) {
+    pkg.stats.warnings.push(
+      'Requested entity "organizations" but no org schema flags supplied; pass --org-table, --org-members-table, etc. Organizations export skipped.',
+    );
+    return;
+  }
+
+  if (!options.quiet) logger.info('  Exporting organizations...');
+
+  const result = await exportOrganizations(pg, options.orgSchema, roleSlugMap);
+  if (result.warnings.length > 0) pkg.stats.warnings.push(...result.warnings);
+  pkg.stats.orphanMemberships += result.orphanCount;
+
+  await pkg.writeOrganizations(result.organizationRows);
+  await pkg.writeMemberships(result.membershipRows);
 }

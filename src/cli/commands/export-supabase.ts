@@ -2,9 +2,10 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import type { SupabaseExportOptions } from '../../shared/types.js';
 import { exportSupabase } from '../../exporters/supabase/exporter.js';
+import { validateOrgSchemaFlags } from '../../exporters/supabase/org-schema.js';
 
-const SUPPORTED_ENTITIES = ['users', 'identities', 'mfa', 'sso'];
-const PG_ENTITIES = new Set(['mfa', 'sso']);
+const SUPPORTED_ENTITIES = ['users', 'identities', 'mfa', 'sso', 'organizations'];
+const PG_ENTITIES = new Set(['mfa', 'sso', 'organizations']);
 
 function parseEntities(value: string | undefined): string[] {
   if (!value) return ['users'];
@@ -24,18 +25,49 @@ export function registerExportSupabaseCommand(program: Command): void {
     .option('--output-dir <dir>', 'Output directory for the migration package')
     .option(
       '--entities <entities>',
-      'Comma-separated entities to export (users, identities, mfa, sso)',
+      'Comma-separated entities to export (users, identities, mfa, sso, organizations)',
       'users',
     )
     .option('--rate-limit <n>', 'Admin API requests per second', '50')
     .option('--page-size <n>', 'Admin API page size', '1000')
     .option(
       '--db-url <connection-string>',
-      'Postgres connection string (required for mfa and sso entities; can also be supplied via SUPABASE_DB_URL)',
+      'Postgres connection string (required for mfa, sso, organizations; or set SUPABASE_DB_URL)',
+    )
+    .option('--totp-issuer <name>', 'Issuer label written into totp_secrets.csv (default: Supabase)')
+    .option(
+      '--org-table <table>',
+      'Postgres table holding organizations (e.g., public.organizations)',
+    )
+    .option('--org-id-column <column>', 'Column on --org-table that holds the org primary id')
+    .option('--org-name-column <column>', 'Column on --org-table that holds the org display name')
+    .option(
+      '--org-external-id-column <column>',
+      'Column on --org-table that holds the external org identifier (defaults to org-id-column)',
     )
     .option(
-      '--totp-issuer <name>',
-      'Issuer label written into totp_secrets.csv (default: Supabase)',
+      '--org-domains-column <column>',
+      'Column on --org-table that holds the org domain(s); string or text[] both accepted',
+    )
+    .option(
+      '--org-members-table <table>',
+      'Postgres table holding org memberships (e.g., public.org_members)',
+    )
+    .option(
+      '--membership-user-column <column>',
+      'Column on --org-members-table that holds the user UUID (joined to auth.users.id)',
+    )
+    .option(
+      '--membership-org-column <column>',
+      'Column on --org-members-table that holds the org id (joined to --org-id-column)',
+    )
+    .option(
+      '--membership-role-column <column>',
+      'Column on --org-members-table that holds the per-membership role (optional)',
+    )
+    .option(
+      '--role-slug-map <path>',
+      'JSON or CSV file mapping raw DB role values to WorkOS role slugs',
     )
     .option('--quiet', 'Suppress progress output')
     .action(async (opts) => {
@@ -65,6 +97,27 @@ export function registerExportSupabaseCommand(program: Command): void {
           );
         }
 
+        const orgSchema = validateOrgSchemaFlags({
+          orgTable: opts.orgTable,
+          orgIdColumn: opts.orgIdColumn,
+          orgNameColumn: opts.orgNameColumn,
+          orgExternalIdColumn: opts.orgExternalIdColumn,
+          orgDomainsColumn: opts.orgDomainsColumn,
+          membersTable: opts.orgMembersTable,
+          membershipUserColumn: opts.membershipUserColumn,
+          membershipOrgColumn: opts.membershipOrgColumn,
+          membershipRoleColumn: opts.membershipRoleColumn,
+          roleSlugMapPath: opts.roleSlugMap,
+        });
+
+        if (entities.includes('organizations') && !orgSchema) {
+          console.error(
+            chalk.yellow(
+              'Warning: --entities includes "organizations" but no org schema flags supplied. Organizations export will be skipped.',
+            ),
+          );
+        }
+
         const options: SupabaseExportOptions = {
           url: opts.url,
           serviceRoleKey: opts.serviceRoleKey,
@@ -74,6 +127,7 @@ export function registerExportSupabaseCommand(program: Command): void {
           rateLimit: parseInt(opts.rateLimit, 10),
           pageSize: parseInt(opts.pageSize, 10),
           totpIssuer: opts.totpIssuer,
+          orgSchema: orgSchema ?? undefined,
           quiet: opts.quiet ?? false,
         };
 
