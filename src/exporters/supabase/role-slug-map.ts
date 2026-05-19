@@ -20,7 +20,9 @@ export async function loadRoleSlugMap(filePath: string): Promise<RoleSlugMap> {
 
   if (ext === '.json') return loadJson(resolved);
   if (ext === '.csv') return loadCsv(resolved);
-  throw new Error(`Unsupported role-slug-map extension: ${ext || '<none>'} (expected .json or .csv)`);
+  throw new Error(
+    `Unsupported role-slug-map extension: ${ext || '<none>'} (expected .json or .csv)`,
+  );
 }
 
 export function applyRoleSlugMap(
@@ -45,9 +47,12 @@ async function loadJson(filePath: string): Promise<RoleSlugMap> {
   try {
     parsed = JSON.parse(raw);
   } catch (error: unknown) {
-    throw new Error(`Failed to parse role-slug-map JSON at ${filePath}: ${(error as Error).message}`, {
-      cause: error,
-    });
+    throw new Error(
+      `Failed to parse role-slug-map JSON at ${filePath}: ${(error as Error).message}`,
+      {
+        cause: error,
+      },
+    );
   }
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
     throw new Error(`Role-slug-map JSON must be an object dict: ${filePath}`);

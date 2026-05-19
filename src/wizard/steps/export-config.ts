@@ -376,10 +376,22 @@ async function configureSupabaseExport(state: WizardState): Promise<WizardState>
         message: 'Which entities should be exported?',
         choices: [
           { title: 'Users', value: 'users', selected: true },
-          { title: 'OAuth identities (stored in user metadata)', value: 'identities', selected: true },
+          {
+            title: 'OAuth identities (stored in user metadata)',
+            value: 'identities',
+            selected: true,
+          },
           { title: 'TOTP MFA factors (requires SUPABASE_DB_URL)', value: 'mfa', selected: hasDb },
-          { title: 'SAML SSO connections (requires SUPABASE_DB_URL)', value: 'sso', selected: hasDb },
-          { title: 'Organizations + memberships (requires SUPABASE_DB_URL + schema flags)', value: 'organizations', selected: false },
+          {
+            title: 'SAML SSO connections (requires SUPABASE_DB_URL)',
+            value: 'sso',
+            selected: hasDb,
+          },
+          {
+            title: 'Organizations + memberships (requires SUPABASE_DB_URL + schema flags)',
+            value: 'organizations',
+            selected: false,
+          },
         ],
         min: 1,
       },
@@ -391,7 +403,9 @@ async function configureSupabaseExport(state: WizardState): Promise<WizardState>
       },
       {
         type: (_: unknown, values: Record<string, unknown>) =>
-          Array.isArray(values.entities) && (values.entities as string[]).includes('mfa') ? 'text' : null,
+          Array.isArray(values.entities) && (values.entities as string[]).includes('mfa')
+            ? 'text'
+            : null,
         name: 'totpIssuer',
         message: 'TOTP issuer label (shown in authenticator apps)',
         initial: 'Supabase',
@@ -406,36 +420,31 @@ async function configureSupabaseExport(state: WizardState): Promise<WizardState>
         validate: (v: string) => v.length > 0 || 'Required',
       },
       {
-        type: (_: unknown, values: Record<string, unknown>) =>
-          values.orgTable ? 'text' : null,
+        type: (_: unknown, values: Record<string, unknown>) => (values.orgTable ? 'text' : null),
         name: 'orgIdColumn',
         message: 'Org id column',
         initial: 'id',
       },
       {
-        type: (_: unknown, values: Record<string, unknown>) =>
-          values.orgTable ? 'text' : null,
+        type: (_: unknown, values: Record<string, unknown>) => (values.orgTable ? 'text' : null),
         name: 'orgNameColumn',
         message: 'Org name column',
         initial: 'name',
       },
       {
-        type: (_: unknown, values: Record<string, unknown>) =>
-          values.orgTable ? 'text' : null,
+        type: (_: unknown, values: Record<string, unknown>) => (values.orgTable ? 'text' : null),
         name: 'orgExternalIdColumn',
         message: 'Org external_id column (leave blank to use the id column)',
         initial: '',
       },
       {
-        type: (_: unknown, values: Record<string, unknown>) =>
-          values.orgTable ? 'text' : null,
+        type: (_: unknown, values: Record<string, unknown>) => (values.orgTable ? 'text' : null),
         name: 'orgDomainsColumn',
         message: 'Org domains column (leave blank if not stored)',
         initial: '',
       },
       {
-        type: (_: unknown, values: Record<string, unknown>) =>
-          values.orgTable ? 'text' : null,
+        type: (_: unknown, values: Record<string, unknown>) => (values.orgTable ? 'text' : null),
         name: 'membersTable',
         message: 'Members table (e.g., public.org_members)',
         validate: (v: string) => v.length > 0 || 'Required',
@@ -465,7 +474,8 @@ async function configureSupabaseExport(state: WizardState): Promise<WizardState>
         type: (_: unknown, values: Record<string, unknown>) =>
           values.membershipRoleColumn ? 'text' : null,
         name: 'roleSlugMapPath',
-        message: 'Path to --role-slug-map JSON or CSV (leave blank to pass DB roles through verbatim)',
+        message:
+          'Path to --role-slug-map JSON or CSV (leave blank to pass DB roles through verbatim)',
         initial: '',
         validate: (v: string) => !v || fs.existsSync(v) || 'File not found',
       },

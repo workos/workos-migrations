@@ -24,9 +24,15 @@ describe('exportSupabase (end-to-end)', () => {
   });
 
   it('produces a complete package directory from two pages of users', async () => {
-    const page1 = JSON.parse(fs.readFileSync(path.join(FIXTURES_DIR, 'admin-users-page-1.json'), 'utf-8'));
-    const page2 = JSON.parse(fs.readFileSync(path.join(FIXTURES_DIR, 'admin-users-page-2.json'), 'utf-8'));
-    const empty = JSON.parse(fs.readFileSync(path.join(FIXTURES_DIR, 'admin-users-page-3-empty.json'), 'utf-8'));
+    const page1 = JSON.parse(
+      fs.readFileSync(path.join(FIXTURES_DIR, 'admin-users-page-1.json'), 'utf-8'),
+    );
+    const page2 = JSON.parse(
+      fs.readFileSync(path.join(FIXTURES_DIR, 'admin-users-page-2.json'), 'utf-8'),
+    );
+    const empty = JSON.parse(
+      fs.readFileSync(path.join(FIXTURES_DIR, 'admin-users-page-3-empty.json'), 'utf-8'),
+    );
 
     fetchMock
       // testConnection() makes a per_page=1 probe call first

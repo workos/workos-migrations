@@ -73,7 +73,12 @@ describe('exportMfaFactors', () => {
 
   it('uses the supplied totpIssuer when provided', async () => {
     const pg = fakeClientWithRows([
-      { email: 'alice@example.com', factor_type: 'totp', secret: 'JBSWY3DPEHPK3PXP', status: 'verified' },
+      {
+        email: 'alice@example.com',
+        factor_type: 'totp',
+        secret: 'JBSWY3DPEHPK3PXP',
+        status: 'verified',
+      },
     ]);
     const result = await exportMfaFactors(pg, { totpIssuer: 'Acme' });
     expect(result.records[0].totpIssuer).toBe('Acme');
@@ -90,7 +95,12 @@ describe('exportMfaFactors', () => {
 
   it('emits an extra warning when query returned rows but emitted nothing', async () => {
     const pg = fakeClientWithRows([
-      { email: 'webauthn-only@example.com', factor_type: 'webauthn', secret: 'x', status: 'verified' },
+      {
+        email: 'webauthn-only@example.com',
+        factor_type: 'webauthn',
+        secret: 'x',
+        status: 'verified',
+      },
     ]);
     const result = await exportMfaFactors(pg);
     expect(result.warnings.some((w) => /emitted 0/.test(w))).toBe(true);

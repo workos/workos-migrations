@@ -9,7 +9,10 @@ export interface MappedSupabaseUser {
   warnings: string[];
 }
 
-function readStringField(source: Record<string, unknown> | undefined, key: string): string | undefined {
+function readStringField(
+  source: Record<string, unknown> | undefined,
+  key: string,
+): string | undefined {
   const value = source?.[key];
   return typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined;
 }
@@ -97,8 +100,7 @@ export function mapSupabaseUser(user: SupabaseAdminUser): MappedSupabaseUser {
   }
 
   const { firstName, lastName } = resolveNames(user);
-  const emailVerified =
-    user.email_confirmed_at !== null && user.email_confirmed_at !== undefined;
+  const emailVerified = user.email_confirmed_at !== null && user.email_confirmed_at !== undefined;
 
   const metadata = buildMetadata(user);
 

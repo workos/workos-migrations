@@ -9,7 +9,9 @@ interface FakePool extends PgPoolLike {
   closed: boolean;
 }
 
-function createFakePoolFactory(queryImpl?: (sql: string, params?: unknown[]) => Promise<{ rows: unknown[] }>): {
+function createFakePoolFactory(
+  queryImpl?: (sql: string, params?: unknown[]) => Promise<{ rows: unknown[] }>,
+): {
   factory: (config: PoolConfig) => PgPoolLike;
   pools: FakePool[];
 } {
@@ -50,7 +52,9 @@ describe('SupabasePgClient', () => {
     expect(pools).toHaveLength(1);
     expect(pools[0].config.max).toBe(1);
     expect(pools[0].config.statement_timeout).toBe(12_000);
-    expect(pools[0].config.connectionString).toBe('postgresql://user:pw@db.example.com:5432/postgres');
+    expect(pools[0].config.connectionString).toBe(
+      'postgresql://user:pw@db.example.com:5432/postgres',
+    );
   });
 
   it('uses a 30s default statement timeout when not specified', () => {
@@ -100,16 +104,21 @@ describe('SupabasePgClient', () => {
   });
 
   it('forwards query() params to the pool and returns rows', async () => {
-    const { factory, pools } = createFakePoolFactory(async (_sql, params) => ({
-      rows: [{ email: 'a@example.com', encrypted_password: '$2b$10$abc' }],
-      lastParams: params,
-    } as unknown as { rows: unknown[] }));
+    const { factory, pools } = createFakePoolFactory(
+      async (_sql, params) =>
+        ({
+          rows: [{ email: 'a@example.com', encrypted_password: '$2b$10$abc' }],
+          lastParams: params,
+        }) as unknown as { rows: unknown[] },
+    );
     const client = new SupabasePgClient({
       connectionString: 'postgresql://user:pw@db.example.com:5432/postgres',
       poolFactory: factory,
     });
 
-    const rows = await client.query<{ email: string }>('SELECT 1 WHERE x = ANY($1)', [['a@example.com']]);
+    const rows = await client.query<{ email: string }>('SELECT 1 WHERE x = ANY($1)', [
+      ['a@example.com'],
+    ]);
     expect(rows).toHaveLength(1);
     expect(rows[0].email).toBe('a@example.com');
     expect(pools[0].queries[0].params).toEqual([['a@example.com']]);

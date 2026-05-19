@@ -117,7 +117,9 @@ async function mergeSupabasePasswordsStep(state: WizardState): Promise<WizardSta
     return state;
   }
   if (!state.supabasePackageDir) {
-    console.log(chalk.gray('  Skipping password merge (Supabase package directory not configured).\n'));
+    console.log(
+      chalk.gray('  Skipping password merge (Supabase package directory not configured).\n'),
+    );
     return state;
   }
 

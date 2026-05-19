@@ -69,7 +69,10 @@ export function validateOrgSchemaFlags(flags: OrgSchemaFlags): OrgSchemaConfig |
   };
 
   if (flags.orgExternalIdColumn) {
-    config.orgExternalIdColumn = validateColumn(flags.orgExternalIdColumn, '--org-external-id-column');
+    config.orgExternalIdColumn = validateColumn(
+      flags.orgExternalIdColumn,
+      '--org-external-id-column',
+    );
   }
   if (flags.orgDomainsColumn) {
     config.orgDomainsColumn = validateColumn(flags.orgDomainsColumn, '--org-domains-column');

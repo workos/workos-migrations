@@ -34,7 +34,10 @@ export function registerExportSupabaseCommand(program: Command): void {
       '--db-url <connection-string>',
       'Postgres connection string (required for mfa, sso, organizations; or set SUPABASE_DB_URL)',
     )
-    .option('--totp-issuer <name>', 'Issuer label written into totp_secrets.csv (default: Supabase)')
+    .option(
+      '--totp-issuer <name>',
+      'Issuer label written into totp_secrets.csv (default: Supabase)',
+    )
     .option(
       '--org-table <table>',
       'Postgres table holding organizations (e.g., public.organizations)',

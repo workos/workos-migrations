@@ -44,7 +44,11 @@ async function setupPackage(
     secretsRedacted: true,
     warnings: [],
   };
-  await fsp.writeFile(path.join(rootDir, 'manifest.json'), JSON.stringify(manifest, null, 2), 'utf-8');
+  await fsp.writeFile(
+    path.join(rootDir, 'manifest.json'),
+    JSON.stringify(manifest, null, 2),
+    'utf-8',
+  );
 
   if (options.withoutUsersCsv) return;
 
@@ -103,7 +107,9 @@ describe('mergeSupabasePasswords', () => {
     expect(stats.unsupportedAlgo).toBe(0);
 
     const rows = await readUsersCsv(tmpDir);
-    expect(rows.find((r) => r.email === 'alice@example.com')?.password_hash).toBe('$2a$10$alicebcrypt');
+    expect(rows.find((r) => r.email === 'alice@example.com')?.password_hash).toBe(
+      '$2a$10$alicebcrypt',
+    );
     expect(rows.find((r) => r.email === 'alice@example.com')?.password_hash_type).toBe('bcrypt');
     expect(rows.find((r) => r.email === 'bob@example.com')?.password_hash).toBe('$2b$12$bobbcrypt');
 
@@ -125,7 +131,10 @@ describe('mergeSupabasePasswords', () => {
       clientFactory: () =>
         fakeClient([
           { email: 'alice@example.com', encrypted_password: '$2y$10$alicebcrypt' },
-          { email: 'argon@example.com', encrypted_password: '$argon2id$v=19$m=4096,t=3,p=1$xxxx$yyyy' },
+          {
+            email: 'argon@example.com',
+            encrypted_password: '$argon2id$v=19$m=4096,t=3,p=1$xxxx$yyyy',
+          },
         ]),
     });
 
@@ -136,12 +145,23 @@ describe('mergeSupabasePasswords', () => {
 
   it('is idempotent: running twice produces identical CSV', async () => {
     await setupPackage(tmpDir, [{ email: 'alice@example.com', external_id: 'u1' }]);
-    const factory = () => fakeClient([{ email: 'alice@example.com', encrypted_password: '$2a$10$alicebcrypt' }]);
+    const factory = () =>
+      fakeClient([{ email: 'alice@example.com', encrypted_password: '$2a$10$alicebcrypt' }]);
 
-    await mergeSupabasePasswords({ packageDir: tmpDir, dbUrl: 'postgresql://x', quiet: true, clientFactory: factory });
+    await mergeSupabasePasswords({
+      packageDir: tmpDir,
+      dbUrl: 'postgresql://x',
+      quiet: true,
+      clientFactory: factory,
+    });
     const first = await fsp.readFile(path.join(tmpDir, 'users.csv'), 'utf-8');
 
-    await mergeSupabasePasswords({ packageDir: tmpDir, dbUrl: 'postgresql://x', quiet: true, clientFactory: factory });
+    await mergeSupabasePasswords({
+      packageDir: tmpDir,
+      dbUrl: 'postgresql://x',
+      quiet: true,
+      clientFactory: factory,
+    });
     const second = await fsp.readFile(path.join(tmpDir, 'users.csv'), 'utf-8');
     expect(second).toBe(first);
   });

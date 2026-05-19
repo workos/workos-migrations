@@ -134,7 +134,8 @@ export async function enterCredentials(state: WizardState): Promise<WizardState>
         {
           type: 'confirm',
           name: 'hasDb',
-          message: 'Provide a Postgres connection string (enables passwords, MFA, SSO, organizations)?',
+          message:
+            'Provide a Postgres connection string (enables passwords, MFA, SSO, organizations)?',
           initial: Boolean(envDbUrl),
         },
         {
@@ -143,7 +144,8 @@ export async function enterCredentials(state: WizardState): Promise<WizardState>
           message: 'Postgres connection string (postgres://...)',
           initial: envDbUrl,
           validate: (v: string) =>
-            v.startsWith('postgres://') || v.startsWith('postgresql://') ||
+            v.startsWith('postgres://') ||
+            v.startsWith('postgresql://') ||
             'Expected postgres:// or postgresql:// URL',
         },
       ],

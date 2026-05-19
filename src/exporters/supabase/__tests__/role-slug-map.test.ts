@@ -35,7 +35,9 @@ describe('loadRoleSlugMap', () => {
   });
 
   it('rejects unsupported extensions', async () => {
-    await expect(loadRoleSlugMap(path.join(tmpDir, 'roles.yaml'))).rejects.toThrow(/Unsupported.*\.yaml/);
+    await expect(loadRoleSlugMap(path.join(tmpDir, 'roles.yaml'))).rejects.toThrow(
+      /Unsupported.*\.yaml/,
+    );
   });
 
   it('throws when the file does not exist (JSON branch)', async () => {

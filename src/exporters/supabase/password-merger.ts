@@ -145,9 +145,7 @@ export async function mergeSupabasePasswords(
 
 async function assertSupabasePackage(manifestPath: string): Promise<void> {
   if (!(await pathExists(manifestPath))) {
-    throw new Error(
-      `Manifest not found at ${manifestPath}. Run export-supabase --package first.`,
-    );
+    throw new Error(`Manifest not found at ${manifestPath}. Run export-supabase --package first.`);
   }
   const raw = await fsp.readFile(manifestPath, 'utf-8');
   const manifest = JSON.parse(raw) as MigrationPackageManifest;
@@ -220,10 +218,7 @@ async function writeCsvAtomic(
   await fsp.rename(tmpPath, filePath);
 }
 
-async function updateManifest(
-  manifestPath: string,
-  stats: PasswordMergeStats,
-): Promise<void> {
+async function updateManifest(manifestPath: string, stats: PasswordMergeStats): Promise<void> {
   const raw = await fsp.readFile(manifestPath, 'utf-8');
   const manifest = JSON.parse(raw) as MigrationPackageManifest;
   manifest.metadata = {

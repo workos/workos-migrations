@@ -36,7 +36,8 @@ export interface OrgExportResult {
 }
 
 export function mapOrgRow(row: OrgQueryRow): { csvRow: OrgCsvRow; warning?: string } {
-  const externalId = row.org_external_id?.toString().trim() || row.org_internal_id?.toString().trim() || '';
+  const externalId =
+    row.org_external_id?.toString().trim() || row.org_internal_id?.toString().trim() || '';
   const { domains, warning } = normalizeDomains(row.org_domains, externalId);
   const csvRow: OrgCsvRow = {
     org_id: '',

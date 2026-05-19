@@ -77,7 +77,9 @@ describe('SupabaseAdminClient', () => {
   it('dedupes users that appear in multiple pages and reports the first duplicate', async () => {
     const sharedId = '99999999-9999-9999-9999-999999999999';
     fetchMock
-      .mockResolvedValueOnce(jsonResponse({ users: makeUsers([sharedId, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa']) }))
+      .mockResolvedValueOnce(
+        jsonResponse({ users: makeUsers([sharedId, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa']) }),
+      )
       .mockResolvedValueOnce(jsonResponse({ users: makeUsers([sharedId]) }))
       .mockResolvedValueOnce(jsonResponse({ users: [] }));
 

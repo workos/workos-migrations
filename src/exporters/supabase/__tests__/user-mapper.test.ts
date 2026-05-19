@@ -59,7 +59,7 @@ describe('mapSupabaseUser', () => {
     expect(result.csvRow.last_name).toBe('Junior Builder');
   });
 
-  it("falls back to user_metadata.name when full_name is missing", () => {
+  it('falls back to user_metadata.name when full_name is missing', () => {
     const result = mapSupabaseUser(baseUser({ user_metadata: { name: 'Charlie Chaplin' } }));
     expect(result.csvRow.first_name).toBe('Charlie');
     expect(result.csvRow.last_name).toBe('Chaplin');

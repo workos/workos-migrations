@@ -51,10 +51,7 @@ export async function exportSamlProviders(pg: SupabasePgQueryClient): Promise<Sa
   return result;
 }
 
-async function buildRow(
-  provider: SupabaseSamlProviderRow,
-  warnings: string[],
-): Promise<SamlRow> {
+async function buildRow(provider: SupabaseSamlProviderRow, warnings: string[]): Promise<SamlRow> {
   let metadataXml = provider.metadata_xml?.trim() ?? '';
 
   if (!metadataXml && provider.metadata_url) {
@@ -117,7 +114,13 @@ function readAttributeMapping(map: Record<string, unknown>): SamlAttributeNames 
   return {
     email: pickAttribute(keys, ['email', 'emailaddress', 'email_address']),
     firstName: pickAttribute(keys, ['first_name', 'firstname', 'given_name', 'givenname']),
-    lastName: pickAttribute(keys, ['last_name', 'lastname', 'family_name', 'familyname', 'surname']),
+    lastName: pickAttribute(keys, [
+      'last_name',
+      'lastname',
+      'family_name',
+      'familyname',
+      'surname',
+    ]),
   };
 }
 

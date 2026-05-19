@@ -134,7 +134,12 @@ describe('exportOrganizations', () => {
     const pg = fakeClient((sql) => {
       if (/AS org_internal_id/.test(sql)) {
         return [
-          { org_internal_id: 'u1', org_name: 'Acme', org_external_id: 'acme', org_domains: 'acme.com' },
+          {
+            org_internal_id: 'u1',
+            org_name: 'Acme',
+            org_external_id: 'acme',
+            org_domains: 'acme.com',
+          },
         ];
       }
       if (/u\.email AS email/.test(sql)) {

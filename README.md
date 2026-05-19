@@ -376,14 +376,14 @@ This produces a migration package directory with `users.csv`, `totp_secrets.csv`
 
 If you omit `--db-url`, the export still produces `users.csv` (with `metadata.supabase_identities`) but `mfa` and `sso` are skipped with warnings.
 
-| Flag                       | Default      | Description                                                                              |
-| -------------------------- | ------------ | ---------------------------------------------------------------------------------------- |
-| `--rate-limit <n>`         | 50           | Admin API requests per second                                                            |
-| `--page-size <n>`          | 1000         | Users per Admin API page                                                                 |
-| `--entities <list>`        | `users`      | Comma-separated entities — `users`, `identities`, `mfa`, `sso`, `organizations`          |
-| `--db-url <conn-string>`   | —            | Postgres connection string (required for `mfa`/`sso`/`organizations`); also reads `SUPABASE_DB_URL` |
-| `--totp-issuer <name>`     | `Supabase`   | Issuer label written into `totp_secrets.csv`                                             |
-| Org schema flags           | —            | See [docs/supabase-org-schema.md](./docs/supabase-org-schema.md) for the full schema-flag reference (`--org-table`, `--org-members-table`, `--membership-role-column`, `--role-slug-map`, etc.) |
+| Flag                     | Default    | Description                                                                                                                                                                                     |
+| ------------------------ | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--rate-limit <n>`       | 50         | Admin API requests per second                                                                                                                                                                   |
+| `--page-size <n>`        | 1000       | Users per Admin API page                                                                                                                                                                        |
+| `--entities <list>`      | `users`    | Comma-separated entities — `users`, `identities`, `mfa`, `sso`, `organizations`                                                                                                                 |
+| `--db-url <conn-string>` | —          | Postgres connection string (required for `mfa`/`sso`/`organizations`); also reads `SUPABASE_DB_URL`                                                                                             |
+| `--totp-issuer <name>`   | `Supabase` | Issuer label written into `totp_secrets.csv`                                                                                                                                                    |
+| Org schema flags         | —          | See [docs/supabase-org-schema.md](./docs/supabase-org-schema.md) for the full schema-flag reference (`--org-table`, `--org-members-table`, `--membership-role-column`, `--role-slug-map`, etc.) |
 
 ### 3. Merge bcrypt password hashes (optional)
 
