@@ -31,6 +31,11 @@ export async function selectProvider(state: WizardState): Promise<WizardState> {
           value: 'cognito',
           description: 'Export users + SSO connections from Cognito user pools',
         },
+        {
+          title: 'Supabase Auth',
+          value: 'supabase',
+          description: 'Admin API for users + optional Postgres for passwords/MFA/SSO/orgs',
+        },
         { title: 'Custom CSV', value: 'csv', description: 'Already have a WorkOS-formatted CSV' },
       ],
     },

@@ -4,7 +4,9 @@ import { exportAuth0 } from '../../exporters/auth0/exporter.js';
 import { transformClerkExport } from '../../transformers/clerk/transformer.js';
 import { transformFirebaseExport } from '../../transformers/firebase/transformer.js';
 import { CognitoClient } from '../../providers/cognito/index.js';
-import type { FirebaseScryptConfig } from '../../shared/types.js';
+import { exportSupabase } from '../../exporters/supabase/exporter.js';
+import { validateOrgSchemaFlags } from '../../exporters/supabase/org-schema.js';
+import type { FirebaseScryptConfig, OrgSchemaConfig } from '../../shared/types.js';
 
 export async function runExport(state: WizardState): Promise<WizardState> {
   console.log(chalk.cyan('  Step 4: Export / Transform\n'));
@@ -25,6 +27,9 @@ export async function runExport(state: WizardState): Promise<WizardState> {
   }
   if (state.provider === 'cognito') {
     return runCognitoExport(state);
+  }
+  if (state.provider === 'supabase') {
+    return runSupabaseExport(state);
   }
 
   return state;
@@ -217,6 +222,53 @@ async function runCognitoExport(state: WizardState): Promise<WizardState> {
   } catch (err) {
     console.error(chalk.red(`\n  Cognito export failed: ${(err as Error).message}`));
     console.log(chalk.gray('  You can retry with: workos-migrate export-cognito\n'));
+    state.cancelled = true;
+  }
+
+  return state;
+}
+
+async function runSupabaseExport(state: WizardState): Promise<WizardState> {
+  console.log(chalk.blue('  Exporting Supabase migration package...\n'));
+
+  let orgSchema: OrgSchemaConfig | null;
+  try {
+    orgSchema = validateOrgSchemaFlags({
+      orgTable: state.supabaseOrgTable,
+      orgIdColumn: state.supabaseOrgIdColumn,
+      orgNameColumn: state.supabaseOrgNameColumn,
+      orgExternalIdColumn: state.supabaseOrgExternalIdColumn,
+      orgDomainsColumn: state.supabaseOrgDomainsColumn,
+      membersTable: state.supabaseMembersTable,
+      membershipUserColumn: state.supabaseMembershipUserColumn,
+      membershipOrgColumn: state.supabaseMembershipOrgColumn,
+      membershipRoleColumn: state.supabaseMembershipRoleColumn,
+      roleSlugMapPath: state.supabaseRoleSlugMapPath,
+    });
+  } catch (err) {
+    console.error(chalk.red(`\n  Invalid org schema flags: ${(err as Error).message}`));
+    state.cancelled = true;
+    return state;
+  }
+
+  try {
+    await exportSupabase({
+      url: state.supabaseUrl!,
+      serviceRoleKey: state.supabaseServiceRoleKey!,
+      dbUrl: state.supabaseDbUrl,
+      outputDir: state.supabasePackageDir!,
+      entities: state.supabaseEntities ?? ['users'],
+      rateLimit: 50,
+      pageSize: 1000,
+      totpIssuer: state.supabaseTotpIssuer,
+      orgSchema: orgSchema ?? undefined,
+      quiet: false,
+    });
+
+    console.log(chalk.green(`\n  Package export complete: ${state.supabasePackageDir}\n`));
+  } catch (err) {
+    console.error(chalk.red(`\n  Supabase export failed: ${(err as Error).message}`));
+    console.log(chalk.gray('  You can retry with: workos-migrate export-supabase --package\n'));
     state.cancelled = true;
   }
 

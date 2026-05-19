@@ -342,6 +342,73 @@ Continue to [Validation](#validation), [Import](#importing-users), and [Post-Imp
 
 ---
 
+## Migrating from Supabase Auth
+
+Full Supabase Auth migration support: users + OAuth identities via the Admin API; bcrypt password hashes, TOTP MFA factors, SAML SSO connections, and organizations + role assignments via direct Postgres. Available end-to-end via the interactive wizard (`workos-migrate wizard` → choose Supabase Auth) or the individual CLI commands below.
+
+### 1. Set up Supabase credentials
+
+You will need:
+
+- **Project URL** — `https://<project-ref>.supabase.co` (Settings → API in the Supabase dashboard).
+- **Service Role Key** — the `service_role` JWT (Settings → API → Project API keys). This is _not_ the `anon` key; the service-role key is required for the Admin API.
+- **Postgres connection string** (optional, but required for passwords/MFA/SSO) — the **direct** connection string (Settings → Database → Connection string). Use the direct connection on port `5432`, not the pooler on `6543`; PgBouncer in transaction mode breaks prepared statements.
+
+```bash
+export SUPABASE_URL=https://your-project.supabase.co
+export SUPABASE_SERVICE_ROLE_KEY=eyJ...
+export SUPABASE_DB_URL="postgresql://postgres:...@db.your-project.supabase.co:5432/postgres?sslmode=require"
+```
+
+### 2. Export users (and MFA + SSO if `--db-url` is provided)
+
+```bash
+workos-migrate export-supabase \
+  --url "$SUPABASE_URL" \
+  --service-role-key "$SUPABASE_SERVICE_ROLE_KEY" \
+  --db-url "$SUPABASE_DB_URL" \
+  --entities users,identities,mfa,sso \
+  --package \
+  --output-dir ./migration-supabase
+```
+
+This produces a migration package directory with `users.csv`, `totp_secrets.csv`, `sso/saml_connections.csv`, `manifest.json`, `warnings.jsonl`, and `skipped_users.jsonl`. Linked OAuth identities (Google, GitHub, etc.) are preserved on each user row as `metadata.supabase_identities`. Users without an email and users currently banned (`banned_until` in the future) are skipped and recorded in `skipped_users.jsonl`.
+
+If you omit `--db-url`, the export still produces `users.csv` (with `metadata.supabase_identities`) but `mfa` and `sso` are skipped with warnings.
+
+| Flag                     | Default    | Description                                                                                                                                                                                     |
+| ------------------------ | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--rate-limit <n>`       | 50         | Admin API requests per second                                                                                                                                                                   |
+| `--page-size <n>`        | 1000       | Users per Admin API page                                                                                                                                                                        |
+| `--entities <list>`      | `users`    | Comma-separated entities — `users`, `identities`, `mfa`, `sso`, `organizations`                                                                                                                 |
+| `--db-url <conn-string>` | —          | Postgres connection string (required for `mfa`/`sso`/`organizations`); also reads `SUPABASE_DB_URL`                                                                                             |
+| `--totp-issuer <name>`   | `Supabase` | Issuer label written into `totp_secrets.csv`                                                                                                                                                    |
+| Org schema flags         | —          | See [docs/supabase-org-schema.md](./docs/supabase-org-schema.md) for the full schema-flag reference (`--org-table`, `--org-members-table`, `--membership-role-column`, `--role-slug-map`, etc.) |
+
+### 3. Merge bcrypt password hashes (optional)
+
+The Admin API does not expose `auth.users.encrypted_password`. Run `merge-passwords-supabase` to pull bcrypt hashes from Postgres and merge them into the package's `users.csv`:
+
+```bash
+workos-migrate merge-passwords-supabase \
+  --package ./migration-supabase \
+  --db-url "$SUPABASE_DB_URL"
+```
+
+Only bcrypt prefixes (`$2a$`, `$2b$`, `$2y$`) are accepted — other algorithms are skipped and recorded in the manifest's warnings.
+
+### 4. Validate, import, and post-import
+
+```bash
+workos-migrate validate --csv ./migration-supabase/users.csv
+workos-migrate import-package ./migration-supabase
+workos-migrate enroll-totp --input ./migration-supabase/totp_secrets.csv
+```
+
+SAML SSO connections in `sso/saml_connections.csv` are imported manually via the WorkOS dashboard (Settings → SSO → Import). Continue to [Validation](#validation), [Import](#importing-users), and [Post-Import](#post-import-totp-and-roles) below.
+
+---
+
 ## Custom CSV
 
 If you already have a CSV in WorkOS format (see [CSV Format](#csv-format) above), skip straight to validation:

@@ -129,6 +129,45 @@ export interface Auth0ExportOptions {
   quiet: boolean;
 }
 
+// --- Supabase Types ---
+
+export interface QualifiedIdentifier {
+  schema?: string;
+  name: string;
+}
+
+export interface OrgSchemaConfig {
+  orgTable: QualifiedIdentifier;
+  orgIdColumn: string;
+  orgNameColumn: string;
+  orgExternalIdColumn?: string;
+  orgDomainsColumn?: string;
+  membersTable: QualifiedIdentifier;
+  membershipUserColumn: string;
+  membershipOrgColumn: string;
+  membershipRoleColumn?: string;
+  roleSlugMapPath?: string;
+}
+
+export interface SupabaseExportOptions {
+  url: string;
+  serviceRoleKey: string;
+  dbUrl?: string;
+  outputDir: string;
+  entities: string[];
+  rateLimit: number;
+  pageSize: number;
+  totpIssuer?: string;
+  orgSchema?: OrgSchemaConfig;
+  quiet: boolean;
+}
+
+export interface SupabasePasswordMergeOptions {
+  packageDir: string;
+  dbUrl: string;
+  quiet?: boolean;
+}
+
 export interface ExportSummary {
   totalUsers: number;
   totalOrgs: number;

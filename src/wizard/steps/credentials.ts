@@ -111,5 +111,65 @@ export async function enterCredentials(state: WizardState): Promise<WizardState>
     );
   }
 
+  if (state.provider === 'supabase') {
+    const envDbUrl = process.env.SUPABASE_DB_URL || '';
+
+    const supabaseCreds = await prompts(
+      [
+        {
+          type: 'text',
+          name: 'url',
+          message: 'Supabase project URL (e.g. https://xxxx.supabase.co)',
+          initial: process.env.SUPABASE_URL || '',
+          validate: (v: string) =>
+            /^https:\/\/.+\.supabase\.co\/?$/.test(v) || 'Expected https://xxxx.supabase.co',
+        },
+        {
+          type: 'password',
+          name: 'serviceRoleKey',
+          message: 'Supabase Service Role Key (JWT)',
+          initial: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
+          validate: (v: string) => v.length > 0 || 'Required',
+        },
+        {
+          type: 'confirm',
+          name: 'hasDb',
+          message:
+            'Provide a Postgres connection string (enables passwords, MFA, SSO, organizations)?',
+          initial: Boolean(envDbUrl),
+        },
+        {
+          type: (prev: boolean) => (prev ? 'password' : null),
+          name: 'dbUrl',
+          message: 'Postgres connection string (postgres://...)',
+          initial: envDbUrl,
+          validate: (v: string) =>
+            v.startsWith('postgres://') ||
+            v.startsWith('postgresql://') ||
+            'Expected postgres:// or postgresql:// URL',
+        },
+      ],
+      {
+        onCancel: () => {
+          state.cancelled = true;
+        },
+      },
+    );
+
+    if (state.cancelled) return state;
+
+    state.supabaseUrl = supabaseCreds.url;
+    state.supabaseServiceRoleKey = supabaseCreds.serviceRoleKey;
+    state.supabaseDbUrl = supabaseCreds.hasDb ? supabaseCreds.dbUrl : undefined;
+    console.log(chalk.green('  Supabase credentials configured.\n'));
+    if (!state.supabaseDbUrl) {
+      console.log(
+        chalk.gray(
+          '  No DB URL provided — passwords, MFA, SSO, and organizations will be skipped.\n',
+        ),
+      );
+    }
+  }
+
   return state;
 }

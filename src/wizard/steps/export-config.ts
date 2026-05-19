@@ -18,6 +18,9 @@ export async function configureExport(state: WizardState): Promise<WizardState> 
   if (state.provider === 'cognito') {
     return configureCognitoExport(state);
   }
+  if (state.provider === 'supabase') {
+    return configureSupabaseExport(state);
+  }
   if (state.provider === 'csv') {
     return configureCustomCsv(state);
   }
@@ -359,5 +362,149 @@ async function configureCustomCsv(state: WizardState): Promise<WizardState> {
 
   state.customCsvPath = response.csvPath;
   state.csvFilePath = response.csvPath;
+  return state;
+}
+
+async function configureSupabaseExport(state: WizardState): Promise<WizardState> {
+  const hasDb = Boolean(state.supabaseDbUrl);
+
+  const response = await prompts(
+    [
+      {
+        type: 'multiselect',
+        name: 'entities',
+        message: 'Which entities should be exported?',
+        choices: [
+          { title: 'Users', value: 'users', selected: true },
+          {
+            title: 'OAuth identities (stored in user metadata)',
+            value: 'identities',
+            selected: true,
+          },
+          { title: 'TOTP MFA factors (requires SUPABASE_DB_URL)', value: 'mfa', selected: hasDb },
+          {
+            title: 'SAML SSO connections (requires SUPABASE_DB_URL)',
+            value: 'sso',
+            selected: hasDb,
+          },
+          {
+            title: 'Organizations + memberships (requires SUPABASE_DB_URL + schema flags)',
+            value: 'organizations',
+            selected: false,
+          },
+        ],
+        min: 1,
+      },
+      {
+        type: 'text',
+        name: 'outputDir',
+        message: 'Output directory for the migration package',
+        initial: './migration-supabase',
+      },
+      {
+        type: (_: unknown, values: Record<string, unknown>) =>
+          Array.isArray(values.entities) && (values.entities as string[]).includes('mfa')
+            ? 'text'
+            : null,
+        name: 'totpIssuer',
+        message: 'TOTP issuer label (shown in authenticator apps)',
+        initial: 'Supabase',
+      },
+      {
+        type: (_: unknown, values: Record<string, unknown>) =>
+          Array.isArray(values.entities) && (values.entities as string[]).includes('organizations')
+            ? 'text'
+            : null,
+        name: 'orgTable',
+        message: 'Org table (e.g., public.organizations)',
+        validate: (v: string) => v.length > 0 || 'Required',
+      },
+      {
+        type: (_: unknown, values: Record<string, unknown>) => (values.orgTable ? 'text' : null),
+        name: 'orgIdColumn',
+        message: 'Org id column',
+        initial: 'id',
+      },
+      {
+        type: (_: unknown, values: Record<string, unknown>) => (values.orgTable ? 'text' : null),
+        name: 'orgNameColumn',
+        message: 'Org name column',
+        initial: 'name',
+      },
+      {
+        type: (_: unknown, values: Record<string, unknown>) => (values.orgTable ? 'text' : null),
+        name: 'orgExternalIdColumn',
+        message: 'Org external_id column (leave blank to use the id column)',
+        initial: '',
+      },
+      {
+        type: (_: unknown, values: Record<string, unknown>) => (values.orgTable ? 'text' : null),
+        name: 'orgDomainsColumn',
+        message: 'Org domains column (leave blank if not stored)',
+        initial: '',
+      },
+      {
+        type: (_: unknown, values: Record<string, unknown>) => (values.orgTable ? 'text' : null),
+        name: 'membersTable',
+        message: 'Members table (e.g., public.org_members)',
+        validate: (v: string) => v.length > 0 || 'Required',
+      },
+      {
+        type: (_: unknown, values: Record<string, unknown>) =>
+          values.membersTable ? 'text' : null,
+        name: 'membershipUserColumn',
+        message: 'Membership user_id column',
+        initial: 'user_id',
+      },
+      {
+        type: (_: unknown, values: Record<string, unknown>) =>
+          values.membersTable ? 'text' : null,
+        name: 'membershipOrgColumn',
+        message: 'Membership org_id column',
+        initial: 'organization_id',
+      },
+      {
+        type: (_: unknown, values: Record<string, unknown>) =>
+          values.membersTable ? 'text' : null,
+        name: 'membershipRoleColumn',
+        message: 'Membership role column (leave blank if not stored)',
+        initial: 'role',
+      },
+      {
+        type: (_: unknown, values: Record<string, unknown>) =>
+          values.membershipRoleColumn ? 'text' : null,
+        name: 'roleSlugMapPath',
+        message:
+          'Path to --role-slug-map JSON or CSV (leave blank to pass DB roles through verbatim)',
+        initial: '',
+        validate: (v: string) => !v || fs.existsSync(v) || 'File not found',
+      },
+    ],
+    {
+      onCancel: () => {
+        state.cancelled = true;
+      },
+    },
+  );
+
+  if (state.cancelled) return state;
+
+  // Force-include 'users' — without it there's no users.csv to drive downstream validation.
+  const entities = Array.isArray(response.entities) ? response.entities : [];
+  state.supabaseEntities = entities.includes('users') ? entities : ['users', ...entities];
+  state.supabasePackageDir = response.outputDir;
+  state.supabaseTotpIssuer = response.totpIssuer || undefined;
+  state.supabaseOrgTable = response.orgTable || undefined;
+  state.supabaseOrgIdColumn = response.orgIdColumn || undefined;
+  state.supabaseOrgNameColumn = response.orgNameColumn || undefined;
+  state.supabaseOrgExternalIdColumn = response.orgExternalIdColumn || undefined;
+  state.supabaseOrgDomainsColumn = response.orgDomainsColumn || undefined;
+  state.supabaseMembersTable = response.membersTable || undefined;
+  state.supabaseMembershipUserColumn = response.membershipUserColumn || undefined;
+  state.supabaseMembershipOrgColumn = response.membershipOrgColumn || undefined;
+  state.supabaseMembershipRoleColumn = response.membershipRoleColumn || undefined;
+  state.supabaseRoleSlugMapPath = response.roleSlugMapPath || undefined;
+  state.csvFilePath = `${response.outputDir}/users.csv`;
+
   return state;
 }

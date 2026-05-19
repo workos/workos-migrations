@@ -12,8 +12,9 @@ jest.unstable_mockModule('../../shared/logger.js', () => ({
   debug: jest.fn(),
 }));
 
-const { transformFirebaseExport, splitDisplayName } = await import('../firebase/transformer.js');
+const { transformFirebaseExport } = await import('../firebase/transformer.js');
 const { encodeFirebaseScryptPHC } = await import('../firebase/scrypt.js');
+const { splitDisplayName } = await import('../../shared/name-split.js');
 
 describe('Firebase Transformer', () => {
   let tmpDir: string;
