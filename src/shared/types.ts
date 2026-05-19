@@ -129,6 +129,19 @@ export interface Auth0ExportOptions {
   quiet: boolean;
 }
 
+// --- Supabase Types ---
+
+export interface SupabaseExportOptions {
+  url: string;
+  serviceRoleKey: string;
+  dbUrl?: string;
+  outputDir: string;
+  entities: string[];
+  rateLimit: number;
+  pageSize: number;
+  quiet: boolean;
+}
+
 export interface ExportSummary {
   totalUsers: number;
   totalOrgs: number;

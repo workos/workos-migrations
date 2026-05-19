@@ -342,6 +342,51 @@ Continue to [Validation](#validation), [Import](#importing-users), and [Post-Imp
 
 ---
 
+## Migrating from Supabase Auth
+
+> **Status — Phase 1**: users-only export via the Supabase Admin API. Password hashes, MFA TOTP factors, SAML SSO connections, and organization/role extraction land in later phases.
+
+### 1. Set up Supabase credentials
+
+You will need:
+
+- **Project URL** — `https://<project-ref>.supabase.co` (Settings → API in the Supabase dashboard).
+- **Service Role Key** — the `service_role` JWT (Settings → API → Project API keys). This is _not_ the `anon` key; the service-role key is required for the Admin API.
+
+```bash
+export SUPABASE_URL=https://your-project.supabase.co
+export SUPABASE_SERVICE_ROLE_KEY=eyJ...
+```
+
+### 2. Export users
+
+```bash
+workos-migrate export-supabase \
+  --url "$SUPABASE_URL" \
+  --service-role-key "$SUPABASE_SERVICE_ROLE_KEY" \
+  --package \
+  --output-dir ./migration-supabase
+```
+
+This produces a migration package directory with `users.csv`, `manifest.json`, `warnings.jsonl`, and `skipped_users.jsonl`. Linked OAuth identities (Google, GitHub, etc.) are preserved on each user row as `metadata.supabase_identities`. Users without an email and users currently banned (`banned_until` in the future) are skipped and recorded in `skipped_users.jsonl`.
+
+| Flag                  | Default | Description                                                       |
+| --------------------- | ------- | ----------------------------------------------------------------- |
+| `--rate-limit <n>`    | 50      | Admin API requests per second                                     |
+| `--page-size <n>`     | 1000    | Users per Admin API page                                          |
+| `--entities <list>`   | `users` | Comma-separated entities (Phase 1: `users`, `identities` only)    |
+
+### 3. Validate, import, and post-import
+
+```bash
+workos-migrate validate --csv ./migration-supabase/users.csv
+workos-migrate import-package ./migration-supabase
+```
+
+Continue to [Validation](#validation), [Import](#importing-users), and [Post-Import](#post-import-totp-and-roles) below.
+
+---
+
 ## Custom CSV
 
 If you already have a CSV in WorkOS format (see [CSV Format](#csv-format) above), skip straight to validation:

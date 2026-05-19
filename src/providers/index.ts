@@ -3,6 +3,7 @@ import { auth0Provider } from './auth0/index.js';
 import { clerkProvider } from './clerk/index.js';
 import { firebaseProvider } from './firebase/index.js';
 import { cognitoProvider } from './cognito/index.js';
+import { supabaseProvider } from './supabase/index.js';
 import { csvProvider } from './csv/index.js';
 
 export const PROVIDERS: Record<string, Provider> = {
@@ -10,6 +11,7 @@ export const PROVIDERS: Record<string, Provider> = {
   clerk: clerkProvider,
   firebase: firebaseProvider,
   cognito: cognitoProvider,
+  supabase: supabaseProvider,
   csv: csvProvider,
 };
 
