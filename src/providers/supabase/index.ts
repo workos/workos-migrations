@@ -43,13 +43,13 @@ export const supabaseProvider: Provider = {
       key: 'mfa',
       name: 'MFA TOTP factors',
       description: 'Requires Postgres connection',
-      enabled: false,
+      enabled: true,
     },
     {
       key: 'sso',
       name: 'SAML SSO connections',
       description: 'Requires Postgres connection',
-      enabled: false,
+      enabled: true,
     },
     {
       key: 'organizations',

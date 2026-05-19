@@ -48,8 +48,39 @@ export interface SupabaseExportStats {
   totalFetched: number;
   exported: number;
   skipped: number;
+  totpExported: number;
+  samlExported: number;
   warnings: string[];
   skippedRecords: SupabaseSkippedRecord[];
+}
+
+export interface SupabaseMfaFactorRow {
+  email: string;
+  factor_type: string;
+  secret: string;
+  friendly_name?: string | null;
+  status: string;
+}
+
+export interface SupabaseSamlProviderRow {
+  id: string;
+  sso_provider_id: string;
+  entity_id: string | null;
+  metadata_xml: string | null;
+  metadata_url: string | null;
+  attribute_mapping: Record<string, unknown> | null;
+  resource_id: string | null;
+  domains: string[] | null;
+}
+
+export class SupabasePgError extends Error {
+  hint?: string;
+
+  constructor(message: string, hint?: string) {
+    super(hint ? `${message}\n  hint: ${hint}` : message);
+    this.name = 'SupabasePgError';
+    this.hint = hint;
+  }
 }
 
 export class SupabaseAuthError extends Error {

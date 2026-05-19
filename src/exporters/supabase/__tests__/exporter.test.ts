@@ -103,18 +103,18 @@ describe('exportSupabase (end-to-end)', () => {
     expect(fs.existsSync(path.join(tmpDir, 'totp_secrets.csv'))).toBe(true);
   });
 
-  it('throws when Phase 1 receives an unsupported entity', async () => {
+  it('throws when an unsupported entity is requested', async () => {
     await expect(
       exportSupabase({
         url: 'https://demo.supabase.co',
         serviceRoleKey: 'sb-service-role-jwt',
         outputDir: tmpDir,
-        entities: ['users', 'mfa'],
+        entities: ['users', 'organizations'],
         rateLimit: 1000,
         pageSize: 100,
         quiet: true,
       }),
-    ).rejects.toThrow(/Phase 1 supports only/);
+    ).rejects.toThrow(/Unsupported entities for Supabase export/);
   });
 
   it('throws a clear connection error on 401 from the Admin API', async () => {

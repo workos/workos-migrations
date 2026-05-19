@@ -139,7 +139,14 @@ export interface SupabaseExportOptions {
   entities: string[];
   rateLimit: number;
   pageSize: number;
+  totpIssuer?: string;
   quiet: boolean;
+}
+
+export interface SupabasePasswordMergeOptions {
+  packageDir: string;
+  dbUrl: string;
+  quiet?: boolean;
 }
 
 export interface ExportSummary {

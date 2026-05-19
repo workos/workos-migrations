@@ -1,23 +1,31 @@
 import type { ExportSummary, SupabaseExportOptions } from '../../shared/types.js';
 import * as logger from '../../shared/logger.js';
 import { SupabaseAdminClient } from './admin-api-client.js';
+import { SupabasePgClient } from './pg-client.js';
 import { mapSupabaseUser } from './user-mapper.js';
-import { openSupabasePackage } from './package-writer.js';
+import { exportMfaFactors } from './mfa-mapper.js';
+import { exportSamlProviders } from './sso-mapper.js';
+import { openSupabasePackage, type SupabaseWriterContext } from './package-writer.js';
+import type { SupabasePgQueryClient } from './pg-client.js';
 
-const PHASE_1_ALLOWED_ENTITIES = new Set(['users', 'identities']);
+const SUPPORTED_ENTITIES = new Set(['users', 'identities', 'mfa', 'sso']);
+const PG_ENTITIES = new Set(['mfa', 'sso']);
 
-export async function exportSupabase(options: SupabaseExportOptions): Promise<ExportSummary> {
+export interface ExportSupabaseInternal extends SupabaseExportOptions {
+  /** Test seam — replace the Postgres client used for mfa/sso exports. */
+  pgClientFactory?: (dbUrl: string) => SupabasePgQueryClient;
+}
+
+export async function exportSupabase(options: ExportSupabaseInternal): Promise<ExportSummary> {
   if (!options.outputDir) {
     throw new Error('--output-dir is required for Supabase package export');
   }
 
   const requested = options.entities.length > 0 ? options.entities : ['users'];
-  const unsupported = requested.filter((entity) => !PHASE_1_ALLOWED_ENTITIES.has(entity));
+  const unsupported = requested.filter((entity) => !SUPPORTED_ENTITIES.has(entity));
   if (unsupported.length > 0) {
     throw new Error(
-      `Phase 1 supports only 'users' and 'identities' entities; unsupported: ${unsupported.join(
-        ', ',
-      )}. MFA, SSO, and organizations land in later phases.`,
+      `Unsupported entities for Supabase export: ${unsupported.join(', ')}. Supported in Phase 2: users, identities, mfa, sso.`,
     );
   }
 
@@ -40,6 +48,38 @@ export async function exportSupabase(options: SupabaseExportOptions): Promise<Ex
   const startTime = Date.now();
   const pkg = await openSupabasePackage(options.outputDir);
 
+  await exportUsers(client, pkg, options);
+  await exportPgEntities(pkg, options, requested);
+
+  await pkg.finalize({ url: options.url, entitiesRequested: requested });
+
+  const duration = Date.now() - startTime;
+
+  if (!options.quiet) {
+    logger.success(`\nExport complete`);
+    logger.info(`  Total fetched: ${pkg.stats.totalFetched}`);
+    logger.info(`  Exported: ${pkg.stats.exported}`);
+    logger.info(`  Skipped: ${pkg.stats.skipped}`);
+    if (pkg.stats.totpExported > 0) logger.info(`  TOTP factors: ${pkg.stats.totpExported}`);
+    if (pkg.stats.samlExported > 0) logger.info(`  SAML providers: ${pkg.stats.samlExported}`);
+    logger.info(`  Warnings: ${pkg.stats.warnings.length}`);
+    logger.info(`  Duration: ${duration}ms`);
+    logger.info(`  Output: ${pkg.rootDir}`);
+  }
+
+  return {
+    totalUsers: pkg.stats.exported,
+    totalOrgs: 0,
+    skippedUsers: pkg.stats.skipped,
+    duration,
+  };
+}
+
+async function exportUsers(
+  client: SupabaseAdminClient,
+  pkg: SupabaseWriterContext,
+  options: SupabaseExportOptions,
+): Promise<void> {
   const iterator = client.listUsers({
     onDuplicate: (userId) => {
       pkg.stats.warnings.push(`Duplicate user.id encountered during pagination: ${userId}`);
@@ -72,25 +112,56 @@ export async function exportSupabase(options: SupabaseExportOptions): Promise<Ex
       logger.info(`  Processed ${pkg.stats.totalFetched} users (${pkg.stats.exported} exported)`);
     }
   }
+}
 
-  await pkg.finalize({ url: options.url, entitiesRequested: requested });
+async function exportPgEntities(
+  pkg: SupabaseWriterContext,
+  options: ExportSupabaseInternal,
+  requested: string[],
+): Promise<void> {
+  const pgRequested = requested.filter((entity) => PG_ENTITIES.has(entity));
+  if (pgRequested.length === 0) return;
 
-  const duration = Date.now() - startTime;
-
-  if (!options.quiet) {
-    logger.success(`\nExport complete`);
-    logger.info(`  Total fetched: ${pkg.stats.totalFetched}`);
-    logger.info(`  Exported: ${pkg.stats.exported}`);
-    logger.info(`  Skipped: ${pkg.stats.skipped}`);
-    logger.info(`  Warnings: ${pkg.stats.warnings.length}`);
-    logger.info(`  Duration: ${duration}ms`);
-    logger.info(`  Output: ${pkg.rootDir}`);
+  if (!options.dbUrl) {
+    pkg.stats.warnings.push(
+      `Requested entities ${pgRequested.join(', ')} require --db-url; skipping (users.csv still produced).`,
+    );
+    return;
   }
 
-  return {
-    totalUsers: pkg.stats.exported,
-    totalOrgs: 0,
-    skippedUsers: pkg.stats.skipped,
-    duration,
-  };
+  if (!options.quiet) logger.info('Connecting to Supabase Postgres...');
+
+  const pg: SupabasePgQueryClient = options.pgClientFactory
+    ? options.pgClientFactory(options.dbUrl)
+    : new SupabasePgClient({ connectionString: options.dbUrl });
+  if (pg.poolerWarning) pkg.stats.warnings.push(pg.poolerWarning);
+
+  try {
+    try {
+      await pg.testConnection();
+    } catch (error: unknown) {
+      pkg.stats.warnings.push(
+        `Supabase Postgres connection failed: ${(error as Error).message}. mfa/sso export skipped.`,
+      );
+      return;
+    }
+
+    if (!options.quiet) logger.success('Connected to Supabase Postgres');
+
+    if (requested.includes('mfa')) {
+      if (!options.quiet) logger.info('  Exporting MFA factors...');
+      const mfa = await exportMfaFactors(pg, { totpIssuer: options.totpIssuer });
+      if (mfa.warnings.length > 0) pkg.stats.warnings.push(...mfa.warnings);
+      await pkg.writeTotpRecords(mfa.records);
+    }
+
+    if (requested.includes('sso')) {
+      if (!options.quiet) logger.info('  Exporting SAML SSO providers...');
+      const saml = await exportSamlProviders(pg);
+      if (saml.warnings.length > 0) pkg.stats.warnings.push(...saml.warnings);
+      await pkg.writeSamlConnections(saml.rows);
+    }
+  } finally {
+    await pg.close();
+  }
 }
