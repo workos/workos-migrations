@@ -120,6 +120,9 @@ async function isFlagEnabled(slug, orgId, env, ctx) {
       const json = await res.json();
       const flags = json.data || [];
       enabled = flags.some((flag) => flag.slug === slug);
+    } else {
+      // On HTTP errors (5xx, 429, etc.), fail-open to Auth0 without caching.
+      return false;
     }
   } catch {
     // On network or parsing errors, fail-open to Auth0.
