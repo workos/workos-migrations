@@ -14,3 +14,15 @@ routes = [
 WORKOS_CUSTOM_DOMAIN = "workos.example.com"
 WORKOS_CLIENT_ID = "client_000000000000000000000000"
 AUTH0_FALLBACK_ORIGIN = "https://my-tenant.us.auth0.com"
+FEATURE_FLAG_SLUG = "enable-connection"
+FLAG_CACHE_TTL_SECONDS = "60"
+
+# WORKOS_SECRET_KEY should be set as a secret, not a plaintext var:
+#   npx wrangler secret put WORKOS_SECRET_KEY
+
+# KV namespace for mapping Auth0 connections to WorkOS organization IDs.
+# Create the namespace and bind it:
+#   npx wrangler kv namespace create CONNECTION_ORG_MAP
+[[kv_namespaces]]
+binding = "CONNECTION_ORG_MAP"
+id = "00000000000000000000000000000000"
