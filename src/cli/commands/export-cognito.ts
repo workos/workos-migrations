@@ -61,7 +61,7 @@ export function registerExportCognitoCommand(program: Command): void {
             samlCustomEntityId: opts.samlCustomEntityIdTemplate ?? null,
             oidcCustomRedirectUri: opts.oidcCustomRedirectUriTemplate ?? null,
           },
-          skipExternalProviderUsers: opts.skipExternalProviderUsers ?? false,
+          skipExternalProviderUsers: opts.skipExternalProviderUsers,
         };
 
         const client = new CognitoClient(credentials, clientOptions);
