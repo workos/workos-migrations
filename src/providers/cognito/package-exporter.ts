@@ -460,10 +460,18 @@ function buildProxyRoute(provider: CognitoProvider, proxy: ProxyTemplates): Prox
     protocol,
     sourceAcsUrl: '',
     sourceEntityId: isSaml(provider) ? (provider.providerDetails.EntityId ?? '') : '',
-    sourceRedirectUri: isSaml(provider) ? (provider.providerDetails.SSORedirectBindingURI ?? '') : '',
-    customAcsUrl: isSaml(provider) ? renderProxyTemplate(proxy.samlCustomAcsUrl ?? null, provider) : '',
-    customEntityId: isSaml(provider) ? renderProxyTemplate(proxy.samlCustomEntityId ?? null, provider) : '',
-    customRedirectUri: isOidc(provider) ? renderProxyTemplate(proxy.oidcCustomRedirectUri ?? null, provider) : '',
+    sourceRedirectUri: isSaml(provider)
+      ? (provider.providerDetails.SSORedirectBindingURI ?? '')
+      : '',
+    customAcsUrl: isSaml(provider)
+      ? renderProxyTemplate(proxy.samlCustomAcsUrl ?? null, provider)
+      : '',
+    customEntityId: isSaml(provider)
+      ? renderProxyTemplate(proxy.samlCustomEntityId ?? null, provider)
+      : '',
+    customRedirectUri: isOidc(provider)
+      ? renderProxyTemplate(proxy.oidcCustomRedirectUri ?? null, provider)
+      : '',
     cutoverState: 'legacy',
     notes: '',
   });
