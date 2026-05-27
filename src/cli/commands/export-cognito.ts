@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import { CognitoClient, type CognitoClientOptions } from '../../providers/cognito/index.js';
 import type { ProviderCredentials } from '../../shared/types.js';
+import type { CognitoOrgStrategy } from '../../providers/cognito/package-exporter.js';
 
 export function registerExportCognitoCommand(program: Command): void {
   program
@@ -15,10 +16,16 @@ export function registerExportCognitoCommand(program: Command): void {
     )
     .option(
       '--entities <entities>',
-      'Comma-separated entities to export (connections,users)',
+      'Comma-separated entities (loose mode: connections,users; package mode: users,organizations,memberships,sso)',
       'connections,users',
     )
     .option('--output-dir <dir>', 'Output directory for CSV files', '.')
+    .option('--package', 'Write a provider-neutral migration package instead of loose CSVs')
+    .option(
+      '--org-strategy <strategy>',
+      'Org mapping for package mode: user-pool (default), connection, or none',
+      'user-pool',
+    )
     .option('--access-key-id <id>', 'AWS Access Key ID (uses default credential chain if omitted)')
     .option('--secret-access-key <secret>', 'AWS Secret Access Key')
     .option('--session-token <token>', 'AWS Session Token')
@@ -35,6 +42,7 @@ export function registerExportCognitoCommand(program: Command): void {
       '--skip-external-provider-users',
       'Skip federated Cognito users (userStatus=EXTERNAL_PROVIDER) — they will be JIT-provisioned by WorkOS on first SSO login',
     )
+    .option('--quiet', 'Suppress progress output')
     .action(async (opts) => {
       try {
         const credentials: ProviderCredentials = {
@@ -53,7 +61,7 @@ export function registerExportCognitoCommand(program: Command): void {
             samlCustomEntityId: opts.samlCustomEntityIdTemplate ?? null,
             oidcCustomRedirectUri: opts.oidcCustomRedirectUriTemplate ?? null,
           },
-          skipExternalProviderUsers: opts.skipExternalProviderUsers ?? false,
+          skipExternalProviderUsers: opts.skipExternalProviderUsers,
         };
 
         const client = new CognitoClient(credentials, clientOptions);
@@ -63,8 +71,25 @@ export function registerExportCognitoCommand(program: Command): void {
         console.log(chalk.green('Successfully authenticated with AWS'));
 
         const entities = opts.entities.split(',').map((e: string) => e.trim());
-        console.log(chalk.blue(`\nExporting entities: ${entities.join(', ')}`));
 
+        if (opts.package) {
+          const packageEntities =
+            opts.entities === 'connections,users'
+              ? ['users', 'organizations', 'memberships']
+              : entities;
+          console.log(
+            chalk.blue(`\nWriting Cognito migration package: ${packageEntities.join(', ')}`),
+          );
+          await client.exportPackage({
+            entities: packageEntities,
+            outputDir: opts.outputDir,
+            orgStrategy: parseOrgStrategy(opts.orgStrategy),
+            quiet: opts.quiet ?? false,
+          });
+          return;
+        }
+
+        console.log(chalk.blue(`\nExporting entities: ${entities.join(', ')}`));
         const result = await client.exportEntities(entities);
 
         console.log(chalk.green('\nExport complete'));
@@ -76,4 +101,12 @@ export function registerExportCognitoCommand(program: Command): void {
         process.exit(1);
       }
     });
+}
+
+function parseOrgStrategy(value: string | undefined): CognitoOrgStrategy {
+  const normalized = (value ?? 'user-pool').trim();
+  if (normalized === 'user-pool' || normalized === 'connection' || normalized === 'none') {
+    return normalized;
+  }
+  throw new Error(`--org-strategy must be one of: user-pool, connection, none. Got "${value}"`);
 }
