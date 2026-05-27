@@ -15,6 +15,10 @@ export function registerTransformClerkCommand(program: Command): void {
     .option('--source-tenant <name>', 'Optional source tenant identifier to record in the manifest')
     .option('--org-mapping <path>', 'Org mapping CSV (clerk_user_id,org_external_id,org_name)')
     .option('--role-mapping <path>', 'Role mapping CSV (clerk_user_id,role_slug)')
+    .option(
+      '--clerk-secret-key <key>',
+      'Clerk Backend API secret key for fetching enterprise connections (SAML + OIDC) (env: CLERK_SECRET_KEY). Package mode only.',
+    )
     .option('--quiet', 'Suppress progress output')
     .action(async (opts) => {
       try {
@@ -31,6 +35,8 @@ export function registerTransformClerkCommand(program: Command): void {
           process.exit(1);
         }
 
+        const clerkSecretKey = opts.clerkSecretKey ?? process.env.CLERK_SECRET_KEY;
+
         if (opts.package) {
           if (!opts.outputDir) {
             console.error(chalk.red('--output-dir is required when --package is set'));
@@ -42,6 +48,7 @@ export function registerTransformClerkCommand(program: Command): void {
             orgMapping: opts.orgMapping,
             roleMapping: opts.roleMapping,
             sourceTenant: opts.sourceTenant,
+            clerkSecretKey,
             quiet: opts.quiet ?? false,
           });
           if (!opts.quiet) {
@@ -50,10 +57,20 @@ export function registerTransformClerkCommand(program: Command): void {
             console.log(`  Orgs:         ${stats.totalOrgs}`);
             console.log(`  Memberships:  ${stats.totalMemberships}`);
             console.log(`  Roles:        ${stats.roleDefinitions}`);
+            if (clerkSecretKey) {
+              console.log(`  SAML connections: ${stats.samlConnections}`);
+              console.log(`  OIDC connections: ${stats.oidcConnections}`);
+              console.log(`  Custom attrs:     ${stats.customAttributeMappings}`);
+            }
             console.log(`  Skipped:      ${stats.skippedUsers}`);
             console.log(`  Warnings:     ${stats.warnings.length}`);
           }
           return;
+        }
+
+        if (opts.clerkSecretKey) {
+          console.error(chalk.red('--clerk-secret-key is only supported in --package mode'));
+          process.exit(1);
         }
 
         if (!opts.output) {

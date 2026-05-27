@@ -21,6 +21,17 @@ import * as logger from '../../shared/logger.js';
 import type { ClerkUserRow } from '../../shared/types.js';
 import { loadOrgMapping, type OrgMappingRow } from '../shared/org-mapper.js';
 import { loadRoleMapping } from '../shared/role-mapper.js';
+import {
+  writeCustomAttributeMappingsCsv,
+  writeOidcConnectionsCsv,
+  writeSamlConnectionsCsv,
+  type CustomAttrRow,
+  type OidcRow,
+  type SamlRow,
+  type SsoHandoffWarning,
+} from '../../sso/handoff.js';
+import { ClerkClient, type ClerkClientOptions } from './client.js';
+import { mapClerkEnterpriseConnection, type ClerkEnterpriseConnection } from './sso-mapper.js';
 
 export interface ClerkPackageExportOptions {
   /** Path to the Clerk dashboard CSV export. */
@@ -35,6 +46,17 @@ export interface ClerkPackageExportOptions {
   sourceTenant?: string;
   /** Suppress progress output. */
   quiet?: boolean;
+  /**
+   * Clerk Backend API secret key (e.g. `sk_live_...`). When provided, the
+   * exporter fetches enterprise connections (SAML + OIDC) via
+   * `/v1/enterprise_connections` and writes them to `sso/saml_connections.csv`,
+   * `sso/oidc_connections.csv`, and `sso/custom_attribute_mappings.csv`.
+   */
+  clerkSecretKey?: string;
+  /** Override the Clerk Backend API base URL (default `https://api.clerk.com/v1`). */
+  clerkApiBaseUrl?: string;
+  /** Inject a fetch implementation (used by tests). */
+  clerkFetchImpl?: ClerkClientOptions['fetchImpl'];
 }
 
 export interface ClerkPackageWarning {
@@ -62,6 +84,9 @@ export interface ClerkPackageStats {
   uploadOrganizations: number;
   uploadMemberships: number;
   skippedUsers: number;
+  samlConnections: number;
+  oidcConnections: number;
+  customAttributeMappings: number;
   warnings: ClerkPackageWarning[];
   skipped: ClerkPackageSkipped[];
 }
@@ -296,14 +321,38 @@ export async function exportClerkPackage(
     roleAssignWriter.end(),
   ]);
 
+  let ssoHandoffNotes: string | null = null;
+  if (options.clerkSecretKey) {
+    const ssoResult = await exportClerkSsoConnections({
+      outputDir,
+      stats,
+      secretKey: options.clerkSecretKey,
+      baseUrl: options.clerkApiBaseUrl,
+      fetchImpl: options.clerkFetchImpl,
+      quiet: options.quiet,
+    });
+    ssoHandoffNotes = ssoResult.handoffNotes;
+  }
+
   await writePackageJsonlRecords(outputDir, 'warnings', stats.warnings);
   await writePackageJsonlRecords(outputDir, 'skippedUsers', stats.skipped);
+
+  if (ssoHandoffNotes) {
+    await fs.promises.writeFile(
+      getPackageFilePath(outputDir, 'handoffNotes'),
+      ssoHandoffNotes,
+      'utf-8',
+    );
+  }
+
+  const entitiesRequested = ['users', 'organizations', 'memberships', 'roles'];
+  if (options.clerkSecretKey) entitiesRequested.push('sso');
 
   const manifest = createMigrationPackageManifest({
     provider: 'clerk',
     sourceTenant: options.sourceTenant,
     generatedAt: new Date(),
-    entitiesRequested: ['users', 'organizations', 'memberships', 'roles'],
+    entitiesRequested,
     entitiesExported: {
       users: stats.totalUsers,
       organizations: stats.totalOrgs,
@@ -313,6 +362,9 @@ export async function exportClerkPackage(
       uploadUsers: stats.uploadUsers,
       uploadOrganizations: stats.uploadOrganizations,
       uploadMemberships: stats.uploadMemberships,
+      samlConnections: stats.samlConnections,
+      oidcConnections: stats.oidcConnections,
+      customAttributeMappings: stats.customAttributeMappings,
       warnings: stats.warnings.length,
       skippedUsers: stats.skipped.length,
     },
@@ -320,7 +372,10 @@ export async function exportClerkPackage(
     secretRedaction: {
       mode: 'not-applicable',
       redacted: true,
-      notes: ['Clerk dashboard CSV does not include connection secrets.'],
+      notes: [
+        'Clerk dashboard CSV does not include connection secrets.',
+        'Clerk enterprise connections (SAML + OIDC) expose only public material via the Backend API — IdP certificates for SAML and client_id + discovery_url for OIDC. No secret material is fetched.',
+      ],
     },
     warnings: stats.warnings.map((w) => w.message),
   });
@@ -332,11 +387,108 @@ export async function exportClerkPackage(
     logger.info(`  Users: ${stats.totalUsers}`);
     logger.info(`  Orgs:  ${stats.totalOrgs}`);
     logger.info(`  Memberships: ${stats.totalMemberships}`);
+    if (options.clerkSecretKey) {
+      logger.info(`  SAML connections: ${stats.samlConnections}`);
+      logger.info(`  OIDC connections: ${stats.oidcConnections}`);
+      if (stats.customAttributeMappings > 0) {
+        logger.info(`  Custom attribute mappings: ${stats.customAttributeMappings}`);
+      }
+    }
     if (stats.skipped.length > 0) logger.warn(`  Skipped: ${stats.skipped.length}`);
     if (stats.warnings.length > 0) logger.warn(`  Warnings: ${stats.warnings.length}`);
   }
 
   return stats;
+}
+
+interface ExportClerkSsoOptions {
+  outputDir: string;
+  stats: ClerkPackageStats;
+  secretKey: string;
+  baseUrl?: string;
+  fetchImpl?: ClerkClientOptions['fetchImpl'];
+  quiet?: boolean;
+}
+
+async function exportClerkSsoConnections(
+  options: ExportClerkSsoOptions,
+): Promise<{ handoffNotes: string }> {
+  const client = new ClerkClient({
+    secretKey: options.secretKey,
+    baseUrl: options.baseUrl,
+    fetchImpl: options.fetchImpl,
+  });
+
+  let connections: ClerkEnterpriseConnection[];
+  try {
+    connections = await client.listEnterpriseConnections();
+  } catch (error) {
+    const message = `Failed to fetch Clerk enterprise connections: ${(error as Error).message}`;
+    options.stats.warnings.push({
+      timestamp: new Date().toISOString(),
+      code: 'sso_fetch_failed',
+      message,
+    });
+    if (!options.quiet) logger.warn(`  ${message}`);
+    return {
+      handoffNotes: buildHandoffNotes({
+        attempted: true,
+        fetched: 0,
+        samlMapped: 0,
+        oidcMapped: 0,
+      }),
+    };
+  }
+
+  const samlRows: SamlRow[] = [];
+  const oidcRows: OidcRow[] = [];
+  const customAttrRows: CustomAttrRow[] = [];
+  const handoffWarnings: SsoHandoffWarning[] = [];
+  let skippedConnections = 0;
+
+  for (const connection of connections) {
+    const result = mapClerkEnterpriseConnection({ connection });
+    handoffWarnings.push(...result.warnings);
+    if (result.status === 'mapped') {
+      if (result.protocol === 'saml') {
+        samlRows.push(result.samlRow);
+        customAttrRows.push(...result.customAttributeRows);
+      } else {
+        oidcRows.push(result.oidcRow);
+      }
+    } else {
+      skippedConnections += 1;
+    }
+  }
+
+  await writeSamlConnectionsCsv(getPackageFilePath(options.outputDir, 'samlConnections'), samlRows);
+  await writeOidcConnectionsCsv(getPackageFilePath(options.outputDir, 'oidcConnections'), oidcRows);
+  await writeCustomAttributeMappingsCsv(
+    getPackageFilePath(options.outputDir, 'customAttributeMappings'),
+    customAttrRows,
+  );
+
+  options.stats.samlConnections = samlRows.length;
+  options.stats.oidcConnections = oidcRows.length;
+  options.stats.customAttributeMappings = customAttrRows.length;
+
+  for (const warning of handoffWarnings) {
+    options.stats.warnings.push({
+      timestamp: new Date().toISOString(),
+      code: warning.code,
+      message: warning.message,
+    });
+  }
+
+  return {
+    handoffNotes: buildHandoffNotes({
+      attempted: true,
+      fetched: connections.length,
+      samlMapped: samlRows.length,
+      oidcMapped: oidcRows.length,
+      skipped: skippedConnections,
+    }),
+  };
 }
 
 function parseClerkPassword(row: ClerkUserRow): {
@@ -383,18 +535,50 @@ function createEmptyStats(): ClerkPackageStats {
     uploadOrganizations: 0,
     uploadMemberships: 0,
     skippedUsers: 0,
+    samlConnections: 0,
+    oidcConnections: 0,
+    customAttributeMappings: 0,
     warnings: [],
     skipped: [],
   };
 }
 
-function buildHandoffNotes(): string {
-  return [
-    '# Clerk handoff notes',
+function buildHandoffNotes(ssoSummary?: {
+  attempted: boolean;
+  fetched: number;
+  samlMapped: number;
+  oidcMapped: number;
+  skipped?: number;
+}): string {
+  const lines = ['# Clerk handoff notes', ''];
+
+  if (!ssoSummary?.attempted) {
+    lines.push(
+      'Clerk dashboard CSV export does not surface SAML/OIDC connection material.',
+      'Re-run with `--clerk-secret-key <sk_...>` to fetch enterprise connections',
+      'via the Clerk Backend API (`/v1/enterprise_connections`), or populate the',
+      'sso/ CSVs manually and run `validate-package` before importing.',
+      '',
+    );
+    return lines.join('\n');
+  }
+
+  lines.push(
+    `Clerk Backend API returned ${ssoSummary.fetched} enterprise connection(s) from /v1/enterprise_connections.`,
+    `${ssoSummary.samlMapped} SAML connection(s) were mapped to sso/saml_connections.csv.`,
+    `${ssoSummary.oidcMapped} OIDC connection(s) were mapped to sso/oidc_connections.csv.`,
+  );
+  if (ssoSummary.skipped && ssoSummary.skipped > 0) {
+    lines.push(
+      `${ssoSummary.skipped} were skipped because required fields were missing — see warnings.jsonl.`,
+    );
+  }
+  lines.push(
     '',
-    'Clerk dashboard CSV export does not surface SAML/OIDC connection material.',
-    'When you have SAML connections to migrate, populate sso/saml_connections.csv',
-    'manually and run `validate-package` before importing.',
+    'No connection secrets were fetched — Clerk exposes only public IdP certificates',
+    'for SAML and client_id + discovery_url for OIDC via the Backend API. Customers',
+    'will need to re-enter OIDC client secrets in the WorkOS dashboard regardless.',
     '',
-  ].join('\n');
+  );
+  return lines.join('\n');
 }
