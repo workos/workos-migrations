@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.3](https://github.com/workos/workos-migrations/compare/v2.1.2...v2.1.3) (2026-05-27)
+
+
+### Bug Fixes
+
+* update npm for release management ([#85](https://github.com/workos/workos-migrations/issues/85)) ([ebf7973](https://github.com/workos/workos-migrations/commit/ebf79735929dc9c4fec7af5b719f5f7748cc3091))
+
 ## [2.1.2](https://github.com/workos/workos-migrations/compare/v2.1.1...v2.1.2) (2026-05-27)
 
 
