@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.2](https://github.com/workos/workos-migrations/compare/v2.1.1...v2.1.2) (2026-05-27)
+
+
+### Bug Fixes
+
+* use OIDC provenance for npm publish ([#72](https://github.com/workos/workos-migrations/issues/72)) ([bbad524](https://github.com/workos/workos-migrations/commit/bbad524697cabb2d6ac6a966c0f58be11a785a45))
+
 ## [2.1.1](https://github.com/workos/workos-migrations/compare/v2.1.0...v2.1.1) (2026-05-13)
 
 
