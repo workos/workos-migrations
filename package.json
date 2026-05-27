@@ -46,6 +46,7 @@
     "csv-stringify": "^6.4.5",
     "dotenv": "^17.4.2",
     "fast-xml-parser": "^5.7.2",
+    "google-auth-library": "^10.6.2",
     "prompts": "^2.4.2"
   },
   "devDependencies": {

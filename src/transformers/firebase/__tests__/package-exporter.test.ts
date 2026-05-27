@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -177,6 +178,187 @@ describe('exportFirebasePackage', () => {
       quiet: true,
     });
     expect(stats.totalUsers).toBe(2);
+  });
+
+  it('fetches Identity Platform SAML+OIDC configs when accessTokenProvider is provided', async () => {
+    const inputJson = path.join(tempRoot, 'firebase.json');
+    fs.writeFileSync(
+      inputJson,
+      JSON.stringify({ users: [{ localId: 'fb_u', email: 'u@acme.com' }] }),
+    );
+    const pkgDir = path.join(tempRoot, 'pkg');
+
+    const fetchImpl = jest.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url.includes('/tenants?')) {
+        return new Response(
+          JSON.stringify({
+            tenants: [{ name: 'projects/acme/tenants/t1', displayName: 'Tenant One' }],
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.includes('/tenants/t1/inboundSamlConfigs')) {
+        return new Response(
+          JSON.stringify({
+            inboundSamlConfigs: [
+              {
+                name: 'projects/acme/tenants/t1/inboundSamlConfigs/saml.okta',
+                displayName: 'Tenant One Okta',
+                idpConfig: {
+                  idpEntityId: 'https://okta.example/exk',
+                  ssoUrl: 'https://okta.example/sso',
+                  idpCertificates: [{ x509Certificate: 'TENANT-CERT' }],
+                },
+                spConfig: {
+                  spEntityId: 'sp-entity',
+                  callbackUri: 'https://callback',
+                },
+              },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.includes('/tenants/t1/oauthIdpConfigs')) {
+        return new Response(
+          JSON.stringify({
+            oauthIdpConfigs: [
+              {
+                name: 'projects/acme/tenants/t1/oauthIdpConfigs/oidc.azure',
+                displayName: 'Tenant One Azure',
+                clientId: 'cid',
+                clientSecret: 'super-secret',
+                issuer: 'https://login.example/tenant',
+              },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.includes('/inboundSamlConfigs')) {
+        return new Response(
+          JSON.stringify({
+            inboundSamlConfigs: [
+              {
+                name: 'projects/acme/inboundSamlConfigs/saml.project',
+                displayName: 'Project SAML',
+                idpConfig: {
+                  idpEntityId: 'https://proj-idp/exk',
+                  ssoUrl: 'https://proj-idp/sso',
+                  idpCertificates: [{ x509Certificate: 'PROJ-CERT' }],
+                },
+                spConfig: { spEntityId: 'sp-proj', callbackUri: 'https://proj-callback' },
+              },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.includes('/oauthIdpConfigs')) {
+        return new Response(JSON.stringify({ oauthIdpConfigs: [] }), { status: 200 });
+      }
+      throw new Error(`unexpected url: ${url}`);
+    });
+
+    const stats = await exportFirebasePackage({
+      input: inputJson,
+      outputDir: pkgDir,
+      nameSplitStrategy: 'first-space',
+      quiet: true,
+      gcpProjectId: 'acme',
+      accessTokenProvider: { getAccessToken: async () => 'token' },
+      identityPlatformFetchImpl: fetchImpl as typeof fetch,
+    });
+
+    expect(stats.samlConnections).toBe(2);
+    expect(stats.oidcConnections).toBe(1);
+    expect(stats.warnings.some((w) => w.code === 'secrets_redacted')).toBe(true);
+
+    const samlRows = await readCsv(path.join(pkgDir, 'sso', 'saml_connections.csv'));
+    expect(samlRows).toHaveLength(2);
+    const tenantRow = samlRows.find((r) => r.importedId === 'firebase:t1:saml.okta');
+    expect(tenantRow).toMatchObject({
+      organizationExternalId: 't1',
+      organizationName: 'Tenant One',
+      idpEntityId: 'https://okta.example/exk',
+    });
+
+    const oidcRows = await readCsv(path.join(pkgDir, 'sso', 'oidc_connections.csv'));
+    expect(oidcRows).toHaveLength(1);
+    expect(oidcRows[0].clientSecret).toBe('');
+    expect(oidcRows[0].discoveryEndpoint).toBe(
+      'https://login.example/tenant/.well-known/openid-configuration',
+    );
+
+    const validation = await validateMigrationPackage(pkgDir);
+    expect(validation.valid).toBe(true);
+    expect(validation.manifest?.entitiesExported.samlConnections).toBe(2);
+    expect(validation.manifest?.entitiesExported.oidcConnections).toBe(1);
+    expect(validation.manifest?.entitiesRequested).toContain('sso');
+    expect(validation.manifest?.secretRedaction?.mode).toBe('redacted');
+
+    const handoff = fs.readFileSync(path.join(pkgDir, 'sso', 'handoff_notes.md'), 'utf-8');
+    expect(handoff).toContain('Identity Platform admin API returned 3 provider config(s)');
+    expect(handoff).toContain('OIDC client secrets are redacted');
+  });
+
+  it('respects skipTenantSsoScopes (project-only)', async () => {
+    const inputJson = path.join(tempRoot, 'firebase.json');
+    fs.writeFileSync(inputJson, JSON.stringify({ users: [{ localId: 'u', email: 'u@x.com' }] }));
+    const pkgDir = path.join(tempRoot, 'pkg');
+
+    const fetchImpl = jest.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url.includes('/tenants')) {
+        throw new Error('tenants endpoint should not be called when skipTenantSsoScopes=true');
+      }
+      if (url.includes('/inboundSamlConfigs')) {
+        return new Response(JSON.stringify({ inboundSamlConfigs: [] }), { status: 200 });
+      }
+      if (url.includes('/oauthIdpConfigs')) {
+        return new Response(JSON.stringify({ oauthIdpConfigs: [] }), { status: 200 });
+      }
+      throw new Error(`unexpected url: ${url}`);
+    });
+
+    const stats = await exportFirebasePackage({
+      input: inputJson,
+      outputDir: pkgDir,
+      nameSplitStrategy: 'first-space',
+      quiet: true,
+      gcpProjectId: 'acme',
+      accessTokenProvider: { getAccessToken: async () => 'token' },
+      identityPlatformFetchImpl: fetchImpl as typeof fetch,
+      skipTenantSsoScopes: true,
+    });
+
+    expect(stats.samlConnections).toBe(0);
+    expect(stats.oidcConnections).toBe(0);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it('records a warning when an Identity Platform call fails', async () => {
+    const inputJson = path.join(tempRoot, 'firebase.json');
+    fs.writeFileSync(inputJson, JSON.stringify({ users: [{ localId: 'u', email: 'u@x.com' }] }));
+    const pkgDir = path.join(tempRoot, 'pkg');
+
+    const fetchImpl = jest.fn(async () => new Response('permission denied', { status: 403 }));
+
+    const stats = await exportFirebasePackage({
+      input: inputJson,
+      outputDir: pkgDir,
+      nameSplitStrategy: 'first-space',
+      quiet: true,
+      gcpProjectId: 'acme',
+      accessTokenProvider: { getAccessToken: async () => 'token' },
+      identityPlatformFetchImpl: fetchImpl as typeof fetch,
+      skipTenantSsoScopes: true,
+    });
+
+    expect(stats.warnings.filter((w) => w.code === 'sso_fetch_failed').length).toBeGreaterThan(0);
+    const validation = await validateMigrationPackage(pkgDir);
+    expect(validation.valid).toBe(true);
   });
 });
 
