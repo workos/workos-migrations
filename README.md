@@ -31,20 +31,22 @@ workos-migrate <command>
 
 ## Commands
 
-| Command                    | Description                                            |
-| -------------------------- | ------------------------------------------------------ |
-| `wizard`                   | Interactive step-by-step migration wizard              |
-| `export-auth0`             | Export users from Auth0 via Management API             |
-| `export-cognito`           | Export users + SSO connections from AWS Cognito        |
-| `merge-passwords`          | Merge Auth0 password hashes into the export CSV        |
-| `transform-clerk`          | Transform a Clerk CSV export to WorkOS format          |
-| `transform-firebase`       | Transform a Firebase Auth JSON export to WorkOS format |
-| `validate`                 | Validate a CSV file before import                      |
-| `import`                   | Import users from CSV into WorkOS                      |
-| `import-package`           | Import a migration package directory into WorkOS       |
-| `analyze`                  | Analyze import errors and generate retry CSV           |
-| `enroll-totp`              | Enroll TOTP MFA factors for imported users             |
-| `process-role-definitions` | Create roles and assign permissions in WorkOS          |
+| Command                     | Description                                            |
+| --------------------------- | ------------------------------------------------------ |
+| `wizard`                    | Interactive step-by-step migration wizard              |
+| `export-auth0`              | Export users from Auth0 via Management API             |
+| `export-cognito`            | Export users + SSO connections from AWS Cognito        |
+| `merge-passwords`           | Merge Auth0 password hashes into the export CSV        |
+| `transform-clerk`           | Transform a Clerk CSV export to WorkOS format          |
+| `transform-firebase`        | Transform a Firebase Auth JSON export to WorkOS format |
+| `validate`                  | Validate a CSV file before import                      |
+| `import`                    | Import users from CSV into WorkOS                      |
+| `import-package`            | Import a migration package directory into WorkOS       |
+| `generate-package-template` | Generate an empty migration package skeleton           |
+| `validate-package`          | Validate a migration package against the contract      |
+| `analyze`                   | Analyze import errors and generate retry CSV           |
+| `enroll-totp`               | Enroll TOTP MFA factors for imported users             |
+| `process-role-definitions`  | Create roles and assign permissions in WorkOS          |
 
 Run `npx @workos/migrations <command> --help` for full option details on any command.
 
@@ -373,6 +375,27 @@ If you already have a CSV in WorkOS format (see [CSV Format](#csv-format) above)
 workos-migrate validate --csv my-users.csv
 workos-migrate import --csv my-users.csv
 ```
+
+### CSV migration package (manual provider path)
+
+For unsupported providers, you can hand-build a [migration package](docs/migration-package.md) and run it through the same `import-package` orchestrator the dedicated providers use:
+
+```bash
+# Scaffold an empty package skeleton
+workos-migrate generate-package-template --output-dir ./migration-csv
+
+# Populate users.csv (and optionally organizations.csv, organization_memberships.csv,
+# role_definitions.csv, user_role_assignments.csv) with the canonical headers from
+# docs/migration-package.md.
+
+# Validate the package against the contract
+workos-migrate validate-package ./migration-csv
+
+# Run it through the importer (or --plan / --dry-run first)
+workos-migrate import-package ./migration-csv
+```
+
+`validate-package` checks the manifest schema, every canonical CSV header, every required file, manifest count consistency, and JSONL parseability. It's safe to run repeatedly — exit 0 means the package is ready for `import-package`.
 
 ---
 
