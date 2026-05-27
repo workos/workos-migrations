@@ -349,6 +349,17 @@ function mapFirebaseUser(
     }
   }
   if (user.providerUserInfo?.length) metadata.provider_info = user.providerUserInfo;
+  if (user.mfaInfo?.length) metadata.mfa_info = user.mfaInfo;
+
+  if (user.createdAt) {
+    const ms = parseInt(user.createdAt, 10);
+    if (!isNaN(ms)) metadata.created_at = new Date(ms).toISOString();
+  }
+  if (user.lastSignedInAt) {
+    const ms = parseInt(user.lastSignedInAt, 10);
+    if (!isNaN(ms)) metadata.last_signed_in_at = new Date(ms).toISOString();
+  }
+
   if (user.disabled && options.includeDisabled) metadata.disabled = true;
 
   const orgInfo = user.localId && orgMap ? orgMap.get(user.localId) : undefined;
