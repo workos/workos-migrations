@@ -360,6 +360,14 @@ function buildClerkMetadata(row: ClerkUserRow): Record<string, string> {
   if (row.primary_phone_number?.trim()) {
     metadata.primary_phone_number = row.primary_phone_number.trim();
   }
+  if (row.verified_phone_numbers?.trim())
+    metadata.verified_phone_numbers = row.verified_phone_numbers.trim();
+  if (row.unverified_phone_numbers?.trim())
+    metadata.unverified_phone_numbers = row.unverified_phone_numbers.trim();
+  if (row.verified_email_addresses?.trim())
+    metadata.verified_email_addresses = row.verified_email_addresses.trim();
+  if (row.unverified_email_addresses?.trim())
+    metadata.unverified_email_addresses = row.unverified_email_addresses.trim();
   if (row.totp_secret?.trim()) metadata.totp_secret = row.totp_secret.trim();
   return metadata;
 }
