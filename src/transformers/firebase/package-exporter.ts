@@ -362,8 +362,9 @@ function mapFirebaseUser(
 
   if (user.disabled && options.includeDisabled) metadata.disabled = true;
 
-  const orgInfo = user.localId && orgMap ? orgMap.get(user.localId) : undefined;
-  const roleSlugs = user.localId && roleMap ? (roleMap.get(user.localId) ?? []) : [];
+  const uid = user.localId?.trim();
+  const orgInfo = uid && orgMap ? orgMap.get(uid) : undefined;
+  const roleSlugs = uid && roleMap ? (roleMap.get(uid) ?? []) : [];
 
   const userRow: Record<string, string> = {
     email,
@@ -373,7 +374,7 @@ function mapFirebaseUser(
     first_name: firstName,
     last_name: lastName,
     email_verified: user.emailVerified === true ? 'true' : 'false',
-    external_id: user.localId ?? '',
+    external_id: uid ?? '',
     metadata: Object.keys(metadata).length > 0 ? JSON.stringify(metadata) : '',
     org_id: '',
     org_external_id: orgInfo?.orgExternalId ?? '',
@@ -386,11 +387,27 @@ function mapFirebaseUser(
 
 function parseFirebaseExport(filePath: string): FirebaseUserRecord[] {
   const raw = readFileSync(filePath, 'utf8');
-  const parsed = JSON.parse(raw) as { users?: FirebaseUserRecord[] };
-  if (!parsed.users || !Array.isArray(parsed.users)) {
-    throw new Error('Firebase export must have a "users" array at the top level.');
+  let parsed: unknown;
+
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error(`Invalid JSON in Firebase export file: ${filePath}`);
   }
-  return parsed.users;
+
+  if (!parsed || typeof parsed !== 'object') {
+    throw new Error('Firebase export must be a JSON object with a "users" array');
+  }
+
+  const data = parsed as Record<string, unknown>;
+
+  if (!Array.isArray(data.users)) {
+    throw new Error(
+      `Firebase export must have a "users" array at the top level. Found keys: ${Object.keys(data).join(', ')}`,
+    );
+  }
+
+  return data.users as FirebaseUserRecord[];
 }
 
 function createEmptyStats(): FirebasePackageStats {

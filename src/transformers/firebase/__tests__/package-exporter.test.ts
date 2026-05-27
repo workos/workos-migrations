@@ -111,6 +111,52 @@ describe('exportFirebasePackage', () => {
     expect(stats.warnings.some((w) => w.code === 'missing_scrypt_parameters')).toBe(true);
   });
 
+  it('preserves mfaInfo, createdAt, and lastSignedInAt in user metadata', async () => {
+    const inputJson = path.join(tempRoot, 'firebase.json');
+    fs.writeFileSync(
+      inputJson,
+      JSON.stringify({
+        users: [
+          {
+            localId: 'fb_meta',
+            email: 'meta@acme.com',
+            displayName: 'Meta User',
+            emailVerified: true,
+            createdAt: '1700000000000',
+            lastSignedInAt: '1700100000000',
+            mfaInfo: [
+              {
+                mfaEnrollmentId: 'mfa_123',
+                phoneInfo: '+15551234567',
+                enrolledAt: '2023-11-15T00:00:00Z',
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    const pkgDir = path.join(tempRoot, 'pkg');
+    await exportFirebasePackage({
+      input: inputJson,
+      outputDir: pkgDir,
+      nameSplitStrategy: 'first-space',
+      quiet: true,
+    });
+
+    const users = await readCsv(path.join(pkgDir, 'users.csv'));
+    expect(users).toHaveLength(1);
+    const metadata = JSON.parse(users[0].metadata) as Record<string, unknown>;
+    expect(metadata.created_at).toBe(new Date(1700000000000).toISOString());
+    expect(metadata.last_signed_in_at).toBe(new Date(1700100000000).toISOString());
+    expect(metadata.mfa_info).toEqual([
+      {
+        mfaEnrollmentId: 'mfa_123',
+        phoneInfo: '+15551234567',
+        enrolledAt: '2023-11-15T00:00:00Z',
+      },
+    ]);
+  });
+
   it('respects include-disabled', async () => {
     const inputJson = path.join(tempRoot, 'firebase.json');
     fs.writeFileSync(
