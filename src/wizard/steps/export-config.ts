@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import prompts from 'prompts';
 import chalk from 'chalk';
 import type { WizardState } from '../wizard.js';
@@ -341,6 +342,29 @@ async function configureCognitoExport(state: WizardState): Promise<WizardState> 
 async function configureCustomCsv(state: WizardState): Promise<WizardState> {
   console.log(chalk.gray('  Provide a CSV already in WorkOS import format.\n'));
 
+  const modeResponse = await prompts(
+    {
+      type: 'select',
+      name: 'mode',
+      message: 'Do you have a CSV ready or do you need a blank template?',
+      choices: [
+        { title: 'I have a CSV file', value: 'existing' },
+        { title: 'Generate a blank CSV template', value: 'template' },
+      ],
+    },
+    {
+      onCancel: () => {
+        state.cancelled = true;
+      },
+    },
+  );
+
+  if (state.cancelled) return state;
+
+  if (modeResponse.mode === 'template') {
+    return generateCsvTemplate(state);
+  }
+
   const response = await prompts(
     {
       type: 'text',
@@ -359,5 +383,58 @@ async function configureCustomCsv(state: WizardState): Promise<WizardState> {
 
   state.customCsvPath = response.csvPath;
   state.csvFilePath = response.csvPath;
+  return state;
+}
+
+async function generateCsvTemplate(state: WizardState): Promise<WizardState> {
+  const { getAllTemplates, generateTemplateExample } =
+    await import('../../providers/csv/templates.js');
+  const templates = getAllTemplates();
+
+  const response = await prompts(
+    [
+      {
+        type: 'select',
+        name: 'template',
+        message: 'Which template do you need?',
+        choices: templates.map((t) => ({
+          title: t.name,
+          value: t.name.toLowerCase().replace(/ /g, '_'),
+          description: `${t.description} (${t.filename})`,
+        })),
+      },
+      {
+        type: 'text',
+        name: 'output',
+        message: 'Output file path',
+        initial: (_: unknown, values: Record<string, unknown>) => {
+          const tmpl = templates.find(
+            (t) => t.name.toLowerCase().replace(/ /g, '_') === values.template,
+          );
+          return tmpl?.filename ?? 'template.csv';
+        },
+      },
+    ],
+    {
+      onCancel: () => {
+        state.cancelled = true;
+      },
+    },
+  );
+
+  if (state.cancelled) return state;
+
+  const content = generateTemplateExample(response.template) + '\n';
+  const outputPath = path.resolve(response.output);
+  const dir = path.dirname(outputPath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  fs.writeFileSync(outputPath, content, 'utf-8');
+
+  console.log(chalk.green(`\n  Template written to ${outputPath}`));
+  console.log(chalk.gray('  Fill in the template, then re-run the wizard with "Custom CSV".\n'));
+
+  state.cancelled = true;
   return state;
 }
