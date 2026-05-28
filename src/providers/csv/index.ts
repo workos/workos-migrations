@@ -32,9 +32,15 @@ export const csvProvider: Provider = {
       enabled: true,
     },
     {
-      key: 'connections',
-      name: 'Connections',
-      description: 'Authentication connections (SSO configurations)',
+      key: 'saml_connections',
+      name: 'SAML Connections',
+      description: 'SAML SSO connections',
+      enabled: true,
+    },
+    {
+      key: 'oidc_connections',
+      name: 'OIDC Connections',
+      description: 'OIDC SSO connections',
       enabled: true,
     },
   ],

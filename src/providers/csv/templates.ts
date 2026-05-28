@@ -60,38 +60,58 @@ export const CSV_TEMPLATES: Record<string, CSVTemplate> = {
     example: ['org_123,user_123', 'org_123,user_456', 'org_456,user_456'],
   },
 
-  connections: {
-    name: 'Connections',
-    description: 'Authentication connections (SSO configurations)',
-    filename: 'connections.csv',
+  saml_connections: {
+    name: 'SAML Connections',
+    description: 'SAML SSO connections',
+    filename: 'saml_connections.csv',
     headers: [
       'organizationName',
       'organizationId',
+      'organizationExternalId',
       'domains',
       'idpEntityId',
       'idpUrl',
       'x509Cert',
-      'idpIdAttribute',
       'idpMetadataUrl',
       'customEntityId',
       'customAcsUrl',
-      'requestSigningCert',
+      'idpIdAttribute',
+      'emailAttribute',
+      'firstNameAttribute',
+      'lastNameAttribute',
+      'name',
+      'customAttributes',
+      'idpInitiatedEnabled',
+      'requestSigningKey',
+      'assertionEncryptionKey',
+      'nameIdEncryptionKey',
+      'importedId',
     ],
     required: ['organizationName', 'organizationId'],
     optional: [
+      'organizationExternalId',
       'domains',
       'idpEntityId',
       'idpUrl',
       'x509Cert',
-      'idpIdAttribute',
       'idpMetadataUrl',
       'customEntityId',
       'customAcsUrl',
-      'requestSigningCert',
+      'idpIdAttribute',
+      'emailAttribute',
+      'firstNameAttribute',
+      'lastNameAttribute',
+      'name',
+      'customAttributes',
+      'idpInitiatedEnabled',
+      'requestSigningKey',
+      'assertionEncryptionKey',
+      'nameIdEncryptionKey',
+      'importedId',
     ],
     example: [
-      'Acme Corporation,org_123,acme.com;app.acme.com,https://acme.okta.com,https://acme.okta.com/app/saml,MIICXjCCAcegAwIBAgIBADANBgkqhkiG9w0BAQ0FADCBhzELMAkGA1UEBhMCVVMx...,email,https://acme.okta.com/app/metadata,,https://acme.com/saml/acs,',
-      'Example Industries,org_456,example.com,https://example.auth0.com/,https://example.auth0.com/saml,,uid,https://example.auth0.com/samlp/metadata,,,',
+      'Acme Corporation,org_123,,acme.com;app.acme.com,https://acme.okta.com,https://acme.okta.com/app/saml,MIICXjCCAcegAwIBAgIBADANBgkqhkiG9w0BAQ0FADCBhzELMAkGA1UEBhMCVVMx...,https://acme.okta.com/app/metadata,,https://acme.com/saml/acs,email,,,,,,,,',
+      'Example Industries,org_456,,example.com,https://example.auth0.com/,https://example.auth0.com/saml,,https://example.auth0.com/samlp/metadata,,,uid,,,,,,,,',
     ],
     validation: {
       organizationName: (value: string) => {
@@ -101,8 +121,7 @@ export const CSV_TEMPLATES: Record<string, CSVTemplate> = {
         return value.length > 0 || 'Organization ID cannot be empty';
       },
       domains: (value: string) => {
-        if (!value) return true; // Optional field
-        // Check if domains are separated by semicolons and are valid domain format
+        if (!value) return true;
         const domains = value.split(';');
         const domainRegex =
           /^[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]*\.([a-zA-Z]{2,}|[a-zA-Z]{2,}\.[a-zA-Z]{2,})$/;
@@ -112,7 +131,7 @@ export const CSV_TEMPLATES: Record<string, CSVTemplate> = {
         return invalidDomains.length === 0 || `Invalid domain format: ${invalidDomains.join(', ')}`;
       },
       idpUrl: (value: string) => {
-        if (!value) return true; // Optional field
+        if (!value) return true;
         try {
           new URL(value);
           return true;
@@ -121,7 +140,7 @@ export const CSV_TEMPLATES: Record<string, CSVTemplate> = {
         }
       },
       idpMetadataUrl: (value: string) => {
-        if (!value) return true; // Optional field
+        if (!value) return true;
         try {
           new URL(value);
           return true;
@@ -130,7 +149,78 @@ export const CSV_TEMPLATES: Record<string, CSVTemplate> = {
         }
       },
       customAcsUrl: (value: string) => {
-        if (!value) return true; // Optional field
+        if (!value) return true;
+        try {
+          new URL(value);
+          return true;
+        } catch {
+          return 'Invalid URL format';
+        }
+      },
+    },
+  },
+
+  oidc_connections: {
+    name: 'OIDC Connections',
+    description: 'OIDC SSO connections',
+    filename: 'oidc_connections.csv',
+    headers: [
+      'organizationName',
+      'organizationId',
+      'organizationExternalId',
+      'domains',
+      'clientId',
+      'clientSecret',
+      'discoveryEndpoint',
+      'customRedirectUri',
+      'name',
+      'customAttributes',
+      'importedId',
+    ],
+    required: ['organizationName', 'organizationId'],
+    optional: [
+      'organizationExternalId',
+      'domains',
+      'clientId',
+      'clientSecret',
+      'discoveryEndpoint',
+      'customRedirectUri',
+      'name',
+      'customAttributes',
+      'importedId',
+    ],
+    example: [
+      'Acme Corporation,org_123,,acme.com,client_abc123,secret_xyz789,https://accounts.google.com/.well-known/openid-configuration,,Acme Google OIDC,,',
+      'Example Industries,org_456,,example.com,client_def456,secret_uvw321,https://login.microsoftonline.com/tenant-id/v2.0/.well-known/openid-configuration,,Example Entra OIDC,,',
+    ],
+    validation: {
+      organizationName: (value: string) => {
+        return value.length > 0 || 'Organization name cannot be empty';
+      },
+      organizationId: (value: string) => {
+        return value.length > 0 || 'Organization ID cannot be empty';
+      },
+      domains: (value: string) => {
+        if (!value) return true;
+        const domains = value.split(';');
+        const domainRegex =
+          /^[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]*\.([a-zA-Z]{2,}|[a-zA-Z]{2,}\.[a-zA-Z]{2,})$/;
+        const invalidDomains = domains.filter(
+          (domain) => domain.trim() && !domainRegex.test(domain.trim()),
+        );
+        return invalidDomains.length === 0 || `Invalid domain format: ${invalidDomains.join(', ')}`;
+      },
+      discoveryEndpoint: (value: string) => {
+        if (!value) return true;
+        try {
+          new URL(value);
+          return true;
+        } catch {
+          return 'Invalid URL format';
+        }
+      },
+      customRedirectUri: (value: string) => {
+        if (!value) return true;
         try {
           new URL(value);
           return true;

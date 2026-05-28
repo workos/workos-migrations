@@ -3,7 +3,7 @@ import { CSV_TEMPLATES } from '../templates.js';
 describe('CSV_TEMPLATES', () => {
   it('exposes the expected templates', () => {
     expect(Object.keys(CSV_TEMPLATES).sort()).toEqual(
-      ['connections', 'organization_memberships', 'organizations', 'users'].sort(),
+      ['oidc_connections', 'organization_memberships', 'organizations', 'saml_connections', 'users'].sort(),
     );
   });
 
