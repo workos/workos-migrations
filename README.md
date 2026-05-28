@@ -22,6 +22,12 @@ Run directly with `npx` (no install needed):
 npx @workos/migrations <command>
 ```
 
+Or via the [WorkOS CLI](https://github.com/workos/cli):
+
+```bash
+npx workos migrations <command>
+```
+
 Or install globally:
 
 ```bash
