@@ -14,7 +14,7 @@ export function registerExportTemplateCommand(program: Command): void {
     .description('Export a blank CSV template with headers and example rows')
     .argument(
       '[template]',
-      'Template name (users, organizations, organization_memberships, connections)',
+      'Template name (users, organizations, organization_memberships, saml_connections, oidc_connections)',
     )
     .option('--output <file>', 'Output file path (defaults to stdout)')
     .option('--list', 'List all available templates')
