@@ -16,7 +16,15 @@ export const CSV_TEMPLATES: Record<string, CSVTemplate> = {
     name: 'Users',
     description: 'User accounts with authentication details',
     filename: 'users.csv',
-    headers: ['user_id', 'email', 'email_verified', 'first_name', 'last_name', 'name', 'password_hash'],
+    headers: [
+      'user_id',
+      'email',
+      'email_verified',
+      'first_name',
+      'last_name',
+      'name',
+      'password_hash',
+    ],
     required: ['user_id', 'email'],
     optional: ['email_verified', 'first_name', 'last_name', 'name', 'password_hash'],
     example: [

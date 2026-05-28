@@ -31,23 +31,23 @@ workos-migrate <command>
 
 ## Commands
 
-| Command                     | Description                                            |
-| --------------------------- | ------------------------------------------------------ |
-| `wizard`                    | Interactive step-by-step migration wizard              |
-| `export-auth0`              | Export users from Auth0 via Management API             |
-| `export-cognito`            | Export users + SSO connections from AWS Cognito        |
+| Command                     | Description                                                                   |
+| --------------------------- | ----------------------------------------------------------------------------- |
+| `wizard`                    | Interactive step-by-step migration wizard                                     |
+| `export-auth0`              | Export users from Auth0 via Management API                                    |
+| `export-cognito`            | Export users + SSO connections from AWS Cognito                               |
 | `export-template`           | Export a blank CSV template (users, saml_connections, oidc_connections, etc.) |
-| `merge-passwords`           | Merge Auth0 password hashes into the export CSV        |
-| `transform-clerk`           | Transform a Clerk CSV export to WorkOS format          |
-| `transform-firebase`        | Transform a Firebase Auth JSON export to WorkOS format |
-| `validate`                  | Validate a CSV file before import                      |
-| `import`                    | Import users from CSV into WorkOS                      |
-| `import-package`            | Import a migration package directory into WorkOS       |
-| `generate-package-template` | Generate an empty migration package skeleton           |
-| `validate-package`          | Validate a migration package against the contract      |
-| `analyze`                   | Analyze import errors and generate retry CSV           |
-| `enroll-totp`               | Enroll TOTP MFA factors for imported users             |
-| `process-role-definitions`  | Create roles and assign permissions in WorkOS          |
+| `merge-passwords`           | Merge Auth0 password hashes into the export CSV                               |
+| `transform-clerk`           | Transform a Clerk CSV export to WorkOS format                                 |
+| `transform-firebase`        | Transform a Firebase Auth JSON export to WorkOS format                        |
+| `validate`                  | Validate a CSV file before import                                             |
+| `import`                    | Import users from CSV into WorkOS                                             |
+| `import-package`            | Import a migration package directory into WorkOS                              |
+| `generate-package-template` | Generate an empty migration package skeleton                                  |
+| `validate-package`          | Validate a migration package against the contract                             |
+| `analyze`                   | Analyze import errors and generate retry CSV                                  |
+| `enroll-totp`               | Enroll TOTP MFA factors for imported users                                    |
+| `process-role-definitions`  | Create roles and assign permissions in WorkOS                                 |
 
 Run `npx @workos/migrations <command> --help` for full option details on any command.
 
