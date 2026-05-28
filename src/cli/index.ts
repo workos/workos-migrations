@@ -1,4 +1,5 @@
 import { Command } from 'commander';
+import { registerExportTemplateCommand } from './commands/export-template.js';
 import { registerGeneratePackageTemplateCommand } from './commands/generate-package-template.js';
 import { registerImportCommand } from './commands/import.js';
 import { registerImportPackageCommand } from './commands/import-package.js';
@@ -25,6 +26,7 @@ registerImportCommand(program);
 registerImportPackageCommand(program);
 registerValidateCommand(program);
 registerValidatePackageCommand(program);
+registerExportTemplateCommand(program);
 registerGeneratePackageTemplateCommand(program);
 registerExportAuth0Command(program);
 registerExportCognitoCommand(program);
