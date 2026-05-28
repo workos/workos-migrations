@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.3.0](https://github.com/workos/workos-migrations/compare/v2.2.0...v2.3.0) (2026-05-28)
+
+
+### Features
+
+* Split connections template into SAML/OIDC and add name to users ([#91](https://github.com/workos/workos-migrations/issues/91)) ([7605c70](https://github.com/workos/workos-migrations/commit/7605c70544a94d40c575e754ce89e7aa5eabcf7d))
+
 ## [2.2.0](https://github.com/workos/workos-migrations/compare/v2.1.3...v2.2.0) (2026-05-28)
 
 
