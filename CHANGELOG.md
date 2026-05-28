@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.2.0](https://github.com/workos/workos-migrations/compare/v2.1.3...v2.2.0) (2026-05-28)
+
+
+### Features
+
+* Add export-template command for CSV templates ([#90](https://github.com/workos/workos-migrations/issues/90)) ([11a74b8](https://github.com/workos/workos-migrations/commit/11a74b8dfa44573fbbcbbc2d2f3f7d2bc17382c3))
+* add generate-package-template and validate-package commands ([#58](https://github.com/workos/workos-migrations/issues/58)) ([d0f97d0](https://github.com/workos/workos-migrations/commit/d0f97d0467f937ef3eceea90ae46230bc2425878))
+* clerk package parity ([#59](https://github.com/workos/workos-migrations/issues/59)) ([904f39c](https://github.com/workos/workos-migrations/commit/904f39cbf41b4fe14f690d41064e03e31852eaf4))
+* cognito package parity ([#57](https://github.com/workos/workos-migrations/issues/57)) ([b15e5c1](https://github.com/workos/workos-migrations/commit/b15e5c10710efc2de9fc09d206591363af2a93ea))
+* firebase package parity ([#60](https://github.com/workos/workos-migrations/issues/60)) ([6b5daa3](https://github.com/workos/workos-migrations/commit/6b5daa3dbd06a27301c41b0735c25b0a01943fe3))
+
 ## [2.1.3](https://github.com/workos/workos-migrations/compare/v2.1.2...v2.1.3) (2026-05-27)
 
 
