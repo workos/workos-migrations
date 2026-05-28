@@ -79,8 +79,6 @@ export const CSV_TEMPLATES: Record<string, CSVTemplate> = {
       'emailAttribute',
       'firstNameAttribute',
       'lastNameAttribute',
-      'name',
-      'customAttributes',
       'idpInitiatedEnabled',
       'requestSigningKey',
       'assertionEncryptionKey',
@@ -101,8 +99,6 @@ export const CSV_TEMPLATES: Record<string, CSVTemplate> = {
       'emailAttribute',
       'firstNameAttribute',
       'lastNameAttribute',
-      'name',
-      'customAttributes',
       'idpInitiatedEnabled',
       'requestSigningKey',
       'assertionEncryptionKey',
@@ -111,7 +107,7 @@ export const CSV_TEMPLATES: Record<string, CSVTemplate> = {
     ],
     example: [
       'Acme Corporation,org_123,,acme.com;app.acme.com,https://acme.okta.com,https://acme.okta.com/app/saml,MIICXjCCAcegAwIBAgIBADANBgkqhkiG9w0BAQ0FADCBhzELMAkGA1UEBhMCVVMx...,https://acme.okta.com/app/metadata,,https://acme.com/saml/acs,email,,,,,,,,',
-      'Example Industries,org_456,,example.com,https://example.auth0.com/,https://example.auth0.com/saml,,https://example.auth0.com/samlp/metadata,,,uid,,,,,,,,',
+      'Example Industries,org_456,,example.com,https://example.auth0.com/,https://example.auth0.com/saml,,https://example.auth0.com/samlp/metadata,,,uid,,,,,,,',
     ],
     validation: {
       organizationName: (value: string) => {
@@ -173,8 +169,6 @@ export const CSV_TEMPLATES: Record<string, CSVTemplate> = {
       'clientSecret',
       'discoveryEndpoint',
       'customRedirectUri',
-      'name',
-      'customAttributes',
       'importedId',
     ],
     required: ['organizationName', 'organizationId'],
@@ -185,13 +179,11 @@ export const CSV_TEMPLATES: Record<string, CSVTemplate> = {
       'clientSecret',
       'discoveryEndpoint',
       'customRedirectUri',
-      'name',
-      'customAttributes',
       'importedId',
     ],
     example: [
-      'Acme Corporation,org_123,,acme.com,client_abc123,secret_xyz789,https://accounts.google.com/.well-known/openid-configuration,,Acme Google OIDC,,',
-      'Example Industries,org_456,,example.com,client_def456,secret_uvw321,https://login.microsoftonline.com/tenant-id/v2.0/.well-known/openid-configuration,,Example Entra OIDC,,',
+      'Acme Corporation,org_123,,acme.com,client_abc123,secret_xyz789,https://accounts.google.com/.well-known/openid-configuration,,',
+      'Example Industries,org_456,,example.com,client_def456,secret_uvw321,https://login.microsoftonline.com/tenant-id/v2.0/.well-known/openid-configuration,,',
     ],
     validation: {
       organizationName: (value: string) => {
