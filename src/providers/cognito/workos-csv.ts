@@ -181,8 +181,7 @@ export function toSamlRow(p: CognitoProvider, proxy: ProxyTemplates = {}): SamlR
     emailAttribute: attrs[UP_EMAIL] ?? '',
     firstNameAttribute: attrs[UP_GIVEN_NAME] ?? '',
     lastNameAttribute: attrs[UP_FAMILY_NAME] ?? '',
-    name: attrs[UP_NAME] ?? '',
-    customAttributes: buildCustomAttributesJson(attrs),
+    nameAttribute: attrs[UP_NAME] ?? '',
     idpInitiatedEnabled: 'TRUE',
     requestSigningKey: '',
     assertionEncryptionKey: '',
@@ -193,7 +192,6 @@ export function toSamlRow(p: CognitoProvider, proxy: ProxyTemplates = {}): SamlR
 
 export function toOidcRow(p: CognitoProvider, proxy: ProxyTemplates = {}): OidcRow {
   const details = p.providerDetails;
-  const attrs = p.attributeMapping;
 
   return createOidcConnectionRow({
     organizationName: p.providerName,
@@ -202,8 +200,6 @@ export function toOidcRow(p: CognitoProvider, proxy: ProxyTemplates = {}): OidcR
     clientSecret: details.client_secret ?? '',
     discoveryEndpoint: normalizeDiscoveryEndpoint(details.oidc_issuer) ?? '',
     customRedirectUri: renderTemplate(proxy.oidcCustomRedirectUri ?? null, p),
-    name: attrs[UP_NAME] ?? '',
-    customAttributes: buildCustomAttributesJson(attrs),
     importedId: importedId(p),
   });
 }

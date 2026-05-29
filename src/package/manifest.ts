@@ -102,8 +102,7 @@ export const SAML_CONNECTION_CSV_HEADERS = [
   'emailAttribute',
   'firstNameAttribute',
   'lastNameAttribute',
-  'name',
-  'customAttributes',
+  'nameAttribute',
   'idpInitiatedEnabled',
   'requestSigningKey',
   'assertionEncryptionKey',
@@ -120,8 +119,6 @@ export const OIDC_CONNECTION_CSV_HEADERS = [
   'clientSecret',
   'discoveryEndpoint',
   'customRedirectUri',
-  'name',
-  'customAttributes',
   'importedId',
 ] as const;
 

@@ -116,7 +116,6 @@ describe('Auth0 SSO handoff mapper', () => {
       clientId: 'client_123',
       clientSecret: '',
       discoveryEndpoint: 'https://issuer.example.com/.well-known/openid-configuration',
-      name: 'name',
       importedId: 'auth0:con_oidc',
     });
     expect(result.customAttributeRows).toMatchObject([

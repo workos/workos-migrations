@@ -65,21 +65,9 @@ describe('toSamlRow', () => {
     );
   });
 
-  it('packs custom:* attributes into customAttributes JSON with the prefix stripped', () => {
+  it('emits the `nameAttribute` column when the IdP uses a full-name attribute mapping', () => {
     const row = toSamlRow(loadProvider('saml-name-only-mapping.json'));
-    const parsed = JSON.parse(row.customAttributes);
-    expect(parsed).toEqual({
-      department: 'department',
-      location: 'location',
-      title: 'jobTitle',
-      user_status: 'userStatus',
-      user_type: 'userType',
-    });
-  });
-
-  it('emits the `name` column when the IdP uses a full-name attribute mapping', () => {
-    const row = toSamlRow(loadProvider('saml-name-only-mapping.json'));
-    expect(row.name).toBe('fullName');
+    expect(row.nameAttribute).toBe('fullName');
     expect(row.firstNameAttribute).toBe('');
     expect(row.lastNameAttribute).toBe('');
   });
