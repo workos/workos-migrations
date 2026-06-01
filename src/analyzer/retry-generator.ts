@@ -33,9 +33,10 @@ export async function generateRetryCsv(
     try {
       const error: ErrorRecord = JSON.parse(line);
 
-      // Retryable: rate limit (429), server errors (500+), no HTTP status
+      // Retryable: rate limit (429), timeout (408), server errors (500+), no HTTP status
       const retryable =
         error.httpStatus === 429 ||
+        error.httpStatus === 408 ||
         (error.httpStatus !== undefined && error.httpStatus >= 500) ||
         !error.httpStatus;
 

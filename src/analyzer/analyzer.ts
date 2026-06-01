@@ -42,6 +42,8 @@ function normalizeMessage(message: string): string {
 function classifyRetryability(error: ErrorRecord): { retryable: boolean; reason: string } {
   if (error.httpStatus === 429)
     return { retryable: true, reason: 'Rate limited — retry with lower concurrency' };
+  if (error.httpStatus === 408)
+    return { retryable: true, reason: 'Request timeout — retry (server may have processed the write)' };
   if (error.httpStatus && error.httpStatus >= 500)
     return { retryable: true, reason: 'Server error — retry after service recovery' };
   if (!error.httpStatus)
@@ -62,6 +64,8 @@ function suggestFix(pattern: string, errorType: string, httpStatus?: number): st
   const lower = pattern.toLowerCase();
 
   if (httpStatus === 429) return 'Reduce --concurrency value (try 5 or lower) and retry';
+  if (httpStatus === 408)
+    return 'Request timed out — retry with the generated retry CSV (duplicates will be skipped)';
   if (httpStatus && httpStatus >= 500)
     return 'Wait a few minutes and retry with the generated retry CSV';
   if (httpStatus === 409 && errorType === 'user_create')

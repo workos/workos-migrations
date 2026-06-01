@@ -17,6 +17,7 @@ export function registerEnrollTotpCommand(program: Command): void {
     .option('--errors <path>', 'Error output file', 'totp-errors.jsonl')
     .option('--totp-issuer <name>', 'Issuer name shown in authenticator apps')
     .option('--dry-run', 'Validate input without enrolling')
+    .option('--endpoint <url>', 'WorkOS API endpoint URL (overrides WORKOS_API_URL)')
     .option('--quiet', 'Suppress progress output')
     .action(async (opts) => {
       try {
@@ -51,7 +52,13 @@ export function registerEnrollTotpCommand(program: Command): void {
           console.log();
         }
 
-        const workos = opts.dryRun ? createWorkOSClient('dry-run-key') : createWorkOSClient();
+        if (opts.endpoint) {
+          process.env.WORKOS_API_URL = opts.endpoint;
+        }
+
+        const workos = opts.dryRun
+          ? createWorkOSClient({ apiKey: 'dry-run-key', endpoint: opts.endpoint })
+          : createWorkOSClient({ endpoint: opts.endpoint });
 
         const { summary } = await enrollTotp(workos, {
           inputPath,

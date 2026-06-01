@@ -10,6 +10,7 @@ import type {
   ChunkSummary,
 } from '../shared/types.js';
 import { RateLimiter } from '../shared/rate-limiter.js';
+import { isDuplicateUserError } from '../shared/workos-client.js';
 import { OrgCache } from './org-cache.js';
 import { CheckpointManager } from './checkpoint.js';
 import { ErrorWriter } from './error-writer.js';
@@ -209,9 +210,10 @@ async function retryCreateUser(
     } catch (err: any) {
       const status: number | undefined = err?.status ?? err?.httpStatus ?? err?.response?.status;
       const message: string = err?.message || 'Unknown error';
-      const isRateLimited = status === 429 || /rate.?limit/i.test(message);
+      const isRetryable =
+        status === 429 || status === 408 || /rate.?limit/i.test(message);
       attempt += 1;
-      if (isRateLimited && attempt <= maxRetries) {
+      if (isRetryable && attempt <= maxRetries) {
         let delay = baseDelayMs * Math.pow(2, attempt - 1);
         const retryAfter =
           err?.response?.headers?.['retry-after'] ?? err?.response?.headers?.['Retry-After'];
@@ -262,7 +264,7 @@ async function retryCreateMembership(
       const status: number | undefined = err?.status ?? err?.httpStatus ?? err?.response?.status;
       const message: string = err?.message || 'Unknown error';
       const errorCode: string = err?.code || '';
-      const isRateLimited = status === 429 || /rate.?limit/i.test(message);
+      const isRetryable = status === 429 || status === 408 || /rate.?limit/i.test(message);
 
       // Fall back to single role if multiple roles not enabled
       if (
@@ -288,9 +290,10 @@ async function retryCreateMembership(
               const retryStatus =
                 retryErr?.status ?? retryErr?.httpStatus ?? retryErr?.response?.status;
               const retryMsg = retryErr?.message || '';
-              const retryIsRateLimited = retryStatus === 429 || /rate.?limit/i.test(retryMsg);
+              const retryIsRetryable =
+                retryStatus === 429 || retryStatus === 408 || /rate.?limit/i.test(retryMsg);
               retryAttempt += 1;
-              if (retryIsRateLimited && retryAttempt <= maxRetries) {
+              if (retryIsRetryable && retryAttempt <= maxRetries) {
                 await new Promise((r) =>
                   setTimeout(r, baseDelayMs * Math.pow(2, retryAttempt - 1)),
                 );
@@ -304,7 +307,7 @@ async function retryCreateMembership(
       }
 
       attempt += 1;
-      if (isRateLimited && attempt <= maxRetries) {
+      if (isRetryable && attempt <= maxRetries) {
         let delay = baseDelayMs * Math.pow(2, attempt - 1);
         const retryAfter =
           err?.response?.headers?.['retry-after'] ?? err?.response?.headers?.['Retry-After'];
@@ -498,6 +501,10 @@ async function runStreamingMode(options: ImporterOptions): Promise<ImportSummary
               createdUsers.set(userEmail, createdUserId!);
               summary.usersCreated += 1;
             } catch (err: any) {
+              if (isDuplicateUserError(err)) {
+                summary.duplicateUsers += 1;
+                return;
+              }
               const status = err?.status ?? err?.httpStatus ?? err?.response?.status;
               errorWriter.write({
                 recordNumber: currentRecord,
@@ -779,6 +786,10 @@ async function processChunk(
                 createdUsers.set(userEmail, createdUserId);
                 usersCreated += 1;
               } catch (userErr: any) {
+                if (isDuplicateUserError(userErr)) {
+                  duplicateUsers += 1;
+                  return;
+                }
                 failures += 1;
                 recordError({
                   recordNumber: currentRecordNumber,

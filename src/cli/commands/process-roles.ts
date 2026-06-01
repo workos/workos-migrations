@@ -13,6 +13,7 @@ export function registerProcessRolesCommand(program: Command): void {
     .option('--user-mapping <path>', 'User-role mapping CSV for bulk assignment')
     .option('--org-id <id>', 'Target organization ID')
     .option('--dry-run', 'Show what would be created without making changes')
+    .option('--endpoint <url>', 'WorkOS API endpoint URL (overrides WORKOS_API_URL)')
     .option('--quiet', 'Suppress progress output')
     .action(async (opts) => {
       try {
@@ -40,6 +41,10 @@ export function registerProcessRolesCommand(program: Command): void {
           if (opts.userMapping) console.log(`  User mapping: ${opts.userMapping}`);
           if (opts.dryRun) console.log(chalk.yellow('  Mode: DRY RUN'));
           console.log();
+        }
+
+        if (opts.endpoint) {
+          process.env.WORKOS_API_URL = opts.endpoint;
         }
 
         // Process role definitions
@@ -77,7 +82,9 @@ export function registerProcessRolesCommand(program: Command): void {
             console.log(chalk.blue('\nAssigning roles to users...'));
           }
 
-          const workos = opts.dryRun ? createWorkOSClient('dry-run-key') : createWorkOSClient();
+          const workos = opts.dryRun
+            ? createWorkOSClient({ apiKey: 'dry-run-key', endpoint: opts.endpoint })
+            : createWorkOSClient({ endpoint: opts.endpoint });
 
           const assignResult = await assignRolesToUsers(path.resolve(opts.userMapping), workos, {
             orgId: opts.orgId,
