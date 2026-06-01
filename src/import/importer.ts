@@ -210,8 +210,7 @@ async function retryCreateUser(
     } catch (err: any) {
       const status: number | undefined = err?.status ?? err?.httpStatus ?? err?.response?.status;
       const message: string = err?.message || 'Unknown error';
-      const isRetryable =
-        status === 429 || status === 408 || /rate.?limit/i.test(message);
+      const isRetryable = status === 429 || status === 408 || /rate.?limit/i.test(message);
       attempt += 1;
       if (isRetryable && attempt <= maxRetries) {
         let delay = baseDelayMs * Math.pow(2, attempt - 1);

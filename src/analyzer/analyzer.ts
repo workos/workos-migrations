@@ -43,7 +43,10 @@ function classifyRetryability(error: ErrorRecord): { retryable: boolean; reason:
   if (error.httpStatus === 429)
     return { retryable: true, reason: 'Rate limited — retry with lower concurrency' };
   if (error.httpStatus === 408)
-    return { retryable: true, reason: 'Request timeout — retry (server may have processed the write)' };
+    return {
+      retryable: true,
+      reason: 'Request timeout — retry (server may have processed the write)',
+    };
   if (error.httpStatus && error.httpStatus >= 500)
     return { retryable: true, reason: 'Server error — retry after service recovery' };
   if (!error.httpStatus)
