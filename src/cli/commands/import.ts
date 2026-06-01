@@ -24,6 +24,7 @@ export function registerImportCommand(program: Command): void {
     .option('--org-external-id <id>', 'External org ID for single-org mode')
     .option('--create-org-if-missing', 'Auto-create orgs not found in WorkOS')
     .option('--dedupe', 'Deduplicate rows by email')
+    .option('--endpoint <url>', 'WorkOS API endpoint URL (overrides WORKOS_API_URL)')
     .option('--errors <path>', 'Error output file path', 'errors.jsonl')
     .option('--quiet', 'Suppress progress output')
     .action(async (opts) => {
@@ -65,8 +66,15 @@ export function registerImportCommand(program: Command): void {
           return;
         }
 
+        // Set endpoint env var so all subsystems (including roles/api-client) pick it up
+        if (opts.endpoint) {
+          process.env.WORKOS_API_URL = opts.endpoint;
+        }
+
         // Initialize WorkOS client (not needed for dry-run)
-        const workos = opts.dryRun ? createWorkOSClient('dry-run-key') : createWorkOSClient();
+        const workos = opts.dryRun
+          ? createWorkOSClient({ apiKey: 'dry-run-key', endpoint: opts.endpoint })
+          : createWorkOSClient({ endpoint: opts.endpoint });
 
         // Handle checkpoint
         let checkpointManager: CheckpointManager | undefined;

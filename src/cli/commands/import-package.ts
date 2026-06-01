@@ -16,6 +16,7 @@ export function registerImportPackageCommand(program: Command): void {
     .option('--rate-limit <n>', 'Max requests per second during user import', '50')
     .option('--errors <path>', 'Path for per-row import errors')
     .option('--summary <path>', 'Path for the workos_import_summary.json file')
+    .option('--endpoint <url>', 'WorkOS API endpoint URL (overrides WORKOS_API_URL)')
     .option('--quiet', 'Suppress progress output')
     .action(async (dir, opts) => {
       try {
@@ -64,8 +65,12 @@ export function registerImportPackageCommand(program: Command): void {
           return;
         }
 
+        if (opts.endpoint) {
+          process.env.WORKOS_API_URL = opts.endpoint;
+        }
+
         const dryRun = Boolean(opts.dryRun);
-        const workos = dryRun ? undefined : createWorkOSClient();
+        const workos = dryRun ? undefined : createWorkOSClient({ endpoint: opts.endpoint });
         const summary = await importPackage({
           packageDir: dir,
           dryRun,

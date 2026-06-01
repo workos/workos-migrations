@@ -1,6 +1,9 @@
 import { withRetry, isRateLimitError } from '../shared/rate-limiter.js';
+import { resolveEndpoint } from '../shared/workos-client.js';
 
-const WORKOS_BASE_URL = 'https://api.workos.com';
+function getBaseUrl(): string {
+  return resolveEndpoint() || 'https://api.workos.com';
+}
 
 export interface Role {
   id: string;
@@ -32,7 +35,7 @@ export async function listRolesForOrganization(organizationId: string): Promise<
     if (after) params.set('after', after);
 
     const response = await fetch(
-      `${WORKOS_BASE_URL}/organizations/${organizationId}/roles?${params}`,
+      `${getBaseUrl()}/organizations/${organizationId}/roles?${params}`,
       {
         headers: { Authorization: `Bearer ${apiKey}` },
       },
@@ -90,7 +93,7 @@ export async function createEnvironmentRole(options: {
       };
       if (options.description) body.description = options.description;
 
-      const response = await fetch(`${WORKOS_BASE_URL}/authorization/roles`, {
+      const response = await fetch(`${getBaseUrl()}/authorization/roles`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -141,7 +144,7 @@ export async function createOrganizationRole(options: {
       if (options.description) body.description = options.description;
 
       const response = await fetch(
-        `${WORKOS_BASE_URL}/authorization/organizations/${options.organizationId}/roles`,
+        `${getBaseUrl()}/authorization/organizations/${options.organizationId}/roles`,
         {
           method: 'POST',
           headers: {
@@ -192,7 +195,7 @@ export async function createPermission(options: {
       };
       if (options.description) body.description = options.description;
 
-      const response = await fetch(`${WORKOS_BASE_URL}/authorization/permissions`, {
+      const response = await fetch(`${getBaseUrl()}/authorization/permissions`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -235,8 +238,8 @@ export async function assignPermissionsToRole(options: {
     async () => {
       const apiKey = getApiKey();
       const url = options.organizationId
-        ? `${WORKOS_BASE_URL}/authorization/organizations/${options.organizationId}/roles/${options.roleSlug}/permissions`
-        : `${WORKOS_BASE_URL}/authorization/roles/${options.roleSlug}/permissions`;
+        ? `${getBaseUrl()}/authorization/organizations/${options.organizationId}/roles/${options.roleSlug}/permissions`
+        : `${getBaseUrl()}/authorization/roles/${options.roleSlug}/permissions`;
 
       const response = await fetch(url, {
         method: 'PUT',
