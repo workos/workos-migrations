@@ -374,8 +374,7 @@ function mapSamlConnection(
     emailAttribute: lookupMapping(attributeMappings, ['email']),
     firstNameAttribute: lookupMapping(attributeMappings, ['given_name', 'first_name']),
     lastNameAttribute: lookupMapping(attributeMappings, ['family_name', 'last_name']),
-    name: lookupMapping(attributeMappings, ['name']),
-    customAttributes: buildCustomAttributesJson(attributeMappings),
+    nameAttribute: lookupMapping(attributeMappings, ['name']),
     idpInitiatedEnabled: boolishString(getOptionValue(options, ['idpinitiated', 'idpInitiated'])),
     requestSigningKey: input.includeSecrets
       ? getFirstString(options, ['requestSigningKey', 'request_signing_key'])
@@ -479,8 +478,6 @@ function mapOidcConnection(
     clientSecret: input.includeSecrets ? clientSecret : '',
     discoveryEndpoint: discoveryEndpoint ?? '',
     customRedirectUri,
-    name: lookupMapping(attributeMappings, ['name']),
-    customAttributes: buildCustomAttributesJson(attributeMappings),
     importedId,
   });
 
@@ -695,16 +692,6 @@ function toCustomAttributeRows(
         idpClaim: claim,
       }),
     );
-}
-
-function buildCustomAttributesJson(attributeMappings: Record<string, string>): string {
-  const customMappings = Object.fromEntries(
-    Object.entries(attributeMappings)
-      .filter(([attribute, claim]) => Boolean(claim) && !COMMON_PROFILE_ATTRIBUTES.has(attribute))
-      .sort(([a], [b]) => a.localeCompare(b)),
-  );
-
-  return Object.keys(customMappings).length > 0 ? JSON.stringify(customMappings) : '';
 }
 
 function lookupMapping(attributeMappings: Record<string, string>, keys: string[]): string {
