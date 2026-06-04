@@ -86,6 +86,16 @@ export interface WizardState {
 export class MigrationWizard {
   state: WizardState = {};
 
+  private isSsoHandoffOnly(): boolean {
+    const entities = this.state.auth0PackageEntities;
+    return (
+      this.state.auth0Package === true &&
+      Array.isArray(entities) &&
+      entities.length === 1 &&
+      entities[0] === 'sso'
+    );
+  }
+
   async run(): Promise<void> {
     console.log(chalk.blue.bold('\n  WorkOS Migration Wizard\n'));
     console.log(chalk.gray('  This wizard will guide you through migrating users to WorkOS.\n'));
@@ -107,6 +117,12 @@ export class MigrationWizard {
       // Step 4: Run export/transform
       this.state = await runExport(this.state);
       if (this.state.cancelled) return this.onCancel();
+
+      // If SSO handoff only, skip remaining steps (no connection import API yet)
+      if (this.isSsoHandoffOnly()) {
+        await showSummary(this.state);
+        return;
+      }
 
       // Step 5: Password merge (Auth0 only)
       if (this.state.provider === 'auth0') {

@@ -88,6 +88,7 @@ export const TOTP_SECRET_CSV_HEADERS = [
 ] as const;
 
 export const SAML_CONNECTION_CSV_HEADERS = [
+  'name',
   'organizationName',
   'organizationId',
   'organizationExternalId',
@@ -111,6 +112,7 @@ export const SAML_CONNECTION_CSV_HEADERS = [
 ] as const;
 
 export const OIDC_CONNECTION_CSV_HEADERS = [
+  'name',
   'organizationName',
   'organizationId',
   'organizationExternalId',

@@ -27,22 +27,9 @@ export async function configureExport(state: WizardState): Promise<WizardState> 
 }
 
 async function configureAuth0Export(state: WizardState): Promise<WizardState> {
-  const response = await prompts(
+  // Ask mode and entities first so we can streamline the flow for SSO-only
+  const modeResponse = await prompts(
     [
-      {
-        type: 'number',
-        name: 'rateLimit',
-        message: 'Auth0 API rate limit (requests/sec)',
-        initial: 50,
-        min: 1,
-        max: 100,
-      },
-      {
-        type: 'confirm',
-        name: 'useMetadata',
-        message: 'Use user_metadata for org discovery (instead of Auth0 Organizations API)?',
-        initial: false,
-      },
       {
         type: 'select',
         name: 'mode',
@@ -70,9 +57,39 @@ async function configureAuth0Export(state: WizardState): Promise<WizardState> {
         ],
         min: 1,
       },
+    ],
+    {
+      onCancel: () => {
+        state.cancelled = true;
+      },
+    },
+  );
+
+  if (state.cancelled) return state;
+
+  const entities: string[] = modeResponse.entities ?? [];
+  const isSsoOnly =
+    modeResponse.mode === 'package' && entities.length === 1 && entities[0] === 'sso';
+
+  // For SSO-only, skip user-export-related questions
+  const detailsResponse = await prompts(
+    [
       {
-        type: (_: unknown, values: Record<string, unknown>) =>
-          values.mode === 'package' ? 'select' : null,
+        type: isSsoOnly ? null : 'number',
+        name: 'rateLimit',
+        message: 'Auth0 API rate limit (requests/sec)',
+        initial: 50,
+        min: 1,
+        max: 100,
+      },
+      {
+        type: isSsoOnly ? null : 'confirm',
+        name: 'useMetadata',
+        message: 'Use user_metadata for org discovery (instead of Auth0 Organizations API)?',
+        initial: false,
+      },
+      {
+        type: modeResponse.mode === 'package' && !isSsoOnly ? 'select' : null,
         name: 'engine',
         message: 'User export engine',
         choices: [
@@ -82,15 +99,13 @@ async function configureAuth0Export(state: WizardState): Promise<WizardState> {
         initial: 0,
       },
       {
-        type: (_: unknown, values: Record<string, unknown>) =>
-          values.mode === 'package' ? 'text' : null,
+        type: modeResponse.mode === 'package' ? 'text' : null,
         name: 'outputDir',
         message: 'Output directory for the migration package',
         initial: './migration-auth0',
       },
       {
-        type: (_: unknown, values: Record<string, unknown>) =>
-          values.mode === 'csv' ? 'text' : null,
+        type: modeResponse.mode === 'csv' ? 'text' : null,
         name: 'output',
         message: 'Output CSV file path',
         initial: 'auth0-export.csv',
@@ -105,17 +120,17 @@ async function configureAuth0Export(state: WizardState): Promise<WizardState> {
 
   if (state.cancelled) return state;
 
-  state.auth0RateLimit = response.rateLimit;
-  state.auth0UseMetadata = response.useMetadata;
-  if (response.mode === 'package') {
+  state.auth0RateLimit = detailsResponse.rateLimit ?? 50;
+  state.auth0UseMetadata = detailsResponse.useMetadata ?? false;
+  if (modeResponse.mode === 'package') {
     state.auth0Package = true;
-    state.auth0PackageDir = response.outputDir;
-    state.auth0PackageEntities = response.entities ?? [];
-    state.auth0PackageEngine = response.engine ?? 'management-api';
-    state.csvFilePath = `${response.outputDir}/users.csv`;
+    state.auth0PackageDir = detailsResponse.outputDir;
+    state.auth0PackageEntities = entities;
+    state.auth0PackageEngine = detailsResponse.engine ?? 'management-api';
+    state.csvFilePath = `${detailsResponse.outputDir}/users.csv`;
   } else {
     state.auth0Package = false;
-    state.csvFilePath = response.output;
+    state.csvFilePath = detailsResponse.output;
   }
   return state;
 }
