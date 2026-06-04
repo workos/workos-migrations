@@ -4,6 +4,10 @@ import chalk from 'chalk';
 import type { FirebaseScryptConfig } from '../../shared/types.js';
 import { transformFirebaseExport } from '../../transformers/firebase/transformer.js';
 import { exportFirebasePackage } from '../../transformers/firebase/package-exporter.js';
+import {
+  createGoogleAccessTokenProvider,
+  detectGoogleProjectId,
+} from '../../transformers/firebase/google-auth.js';
 
 export function registerTransformFirebaseCommand(program: Command): void {
   program
@@ -29,6 +33,18 @@ export function registerTransformFirebaseCommand(program: Command): void {
     .option('--rounds <n>', 'Firebase scrypt rounds', '8')
     .option('--memory-cost <n>', 'Firebase scrypt memory cost', '14')
     .option('--skip-passwords', 'Skip password hash extraction')
+    .option(
+      '--service-account <path>',
+      'Path to a Google service account JSON key (env: GOOGLE_APPLICATION_CREDENTIALS). When set, fetches Identity Platform SAML/OIDC configs. Package mode only.',
+    )
+    .option(
+      '--project-id <id>',
+      'Google Cloud project ID (env: GOOGLE_CLOUD_PROJECT or GCLOUD_PROJECT). Required when fetching SSO configs unless inferable from credentials.',
+    )
+    .option(
+      '--skip-tenant-sso',
+      'Skip per-tenant inboundSamlConfigs/oauthIdpConfigs and export project-scoped configs only',
+    )
     .option('--quiet', 'Suppress progress output')
     .action(async (opts) => {
       try {
@@ -56,11 +72,37 @@ export function registerTransformFirebaseCommand(program: Command): void {
           };
         }
 
+        const serviceAccount = opts.serviceAccount ?? process.env.GOOGLE_APPLICATION_CREDENTIALS;
+
         if (opts.package) {
           if (!opts.outputDir) {
             console.error(chalk.red('--output-dir is required when --package is set'));
             process.exit(1);
           }
+
+          let accessTokenProvider;
+          let gcpProjectId: string | undefined;
+          if (serviceAccount) {
+            if (!fs.existsSync(serviceAccount)) {
+              console.error(chalk.red(`Service account key not found: ${serviceAccount}`));
+              process.exit(1);
+            }
+            accessTokenProvider = createGoogleAccessTokenProvider({ keyFile: serviceAccount });
+            gcpProjectId =
+              opts.projectId ??
+              process.env.GOOGLE_CLOUD_PROJECT ??
+              process.env.GCLOUD_PROJECT ??
+              (await detectGoogleProjectId({ keyFile: serviceAccount }));
+            if (!gcpProjectId) {
+              console.error(
+                chalk.red(
+                  '--project-id is required when fetching Identity Platform SSO configs (or set GOOGLE_CLOUD_PROJECT).',
+                ),
+              );
+              process.exit(1);
+            }
+          }
+
           const stats = await exportFirebasePackage({
             input: opts.input,
             outputDir: opts.outputDir,
@@ -71,6 +113,9 @@ export function registerTransformFirebaseCommand(program: Command): void {
             orgMapping: opts.orgMapping,
             roleMapping: opts.roleMapping,
             sourceTenant: opts.sourceTenant,
+            gcpProjectId,
+            accessTokenProvider,
+            skipTenantSsoScopes: opts.skipTenantSso ?? false,
             quiet: opts.quiet ?? false,
           });
           if (!opts.quiet) {
@@ -79,10 +124,19 @@ export function registerTransformFirebaseCommand(program: Command): void {
             console.log(`  Orgs:         ${stats.totalOrgs}`);
             console.log(`  Memberships:  ${stats.totalMemberships}`);
             console.log(`  Roles:        ${stats.roleDefinitions}`);
+            if (accessTokenProvider) {
+              console.log(`  SAML connections: ${stats.samlConnections}`);
+              console.log(`  OIDC connections: ${stats.oidcConnections}`);
+            }
             console.log(`  Skipped:      ${stats.skippedUsers}`);
             console.log(`  Warnings:     ${stats.warnings.length}`);
           }
           return;
+        }
+
+        if (opts.serviceAccount) {
+          console.error(chalk.red('--service-account is only supported in --package mode'));
+          process.exit(1);
         }
 
         if (!opts.output) {

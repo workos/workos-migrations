@@ -26,6 +26,24 @@ import { loadOrgMapping, type OrgMappingRow } from '../shared/org-mapper.js';
 import { loadRoleMapping } from '../shared/role-mapper.js';
 import { encodeFirebaseScryptPHC } from './scrypt.js';
 import { splitDisplayName } from './transformer.js';
+import {
+  writeOidcConnectionsCsv,
+  writeSamlConnectionsCsv,
+  type OidcRow,
+  type SamlRow,
+  type SsoHandoffWarning,
+} from '../../sso/handoff.js';
+import {
+  IdentityPlatformClient,
+  type IdentityPlatformAccessTokenProvider,
+} from './identity-platform-client.js';
+import {
+  mapFirebaseOidcConfig,
+  mapFirebaseSamlConfig,
+  type FirebaseInboundSamlConfig,
+  type FirebaseOAuthIdpConfig,
+} from './sso-mapper.js';
+import { writeFile } from 'node:fs/promises';
 
 export interface FirebasePackageExportOptions {
   input: string;
@@ -38,6 +56,24 @@ export interface FirebasePackageExportOptions {
   roleMapping?: string;
   sourceTenant?: string;
   quiet?: boolean;
+  /**
+   * Google Cloud project ID. Required when SSO export is requested. When
+   * `accessTokenProvider` is supplied (or env vars resolve a default), the
+   * exporter calls the Identity Platform admin API and writes
+   * `sso/saml_connections.csv` and `sso/oidc_connections.csv`.
+   */
+  gcpProjectId?: string;
+  /** Pluggable access token provider — supply for tests or custom auth flows. */
+  accessTokenProvider?: IdentityPlatformAccessTokenProvider;
+  /** Override the Identity Platform base URL (default `https://identitytoolkit.googleapis.com`). */
+  identityPlatformBaseUrl?: string;
+  /** Inject a fetch implementation (used by tests). */
+  identityPlatformFetchImpl?: typeof fetch;
+  /**
+   * Limit the SSO export to the project scope only (skip per-tenant
+   * inboundSamlConfigs / oauthIdpConfigs).
+   */
+  skipTenantSsoScopes?: boolean;
 }
 
 export interface FirebasePackageWarning {
@@ -65,6 +101,8 @@ export interface FirebasePackageStats {
   uploadOrganizations: number;
   uploadMemberships: number;
   skippedUsers: number;
+  samlConnections: number;
+  oidcConnections: number;
   warnings: FirebasePackageWarning[];
   skipped: FirebasePackageSkipped[];
 }
@@ -233,14 +271,53 @@ export async function exportFirebasePackage(
     ]);
   }
 
+  const ssoEnabled = Boolean(options.accessTokenProvider && options.gcpProjectId);
+  let ssoHandoffNotes: string | null = null;
+  let secretRedaction = {
+    mode: 'not-applicable' as 'not-applicable' | 'redacted',
+    redacted: true,
+    notes: ['Firebase Auth export does not include connection secrets.'],
+  };
+
+  if (ssoEnabled) {
+    const ssoResult = await exportFirebaseSsoConnections({
+      outputDir,
+      stats,
+      projectId: options.gcpProjectId!,
+      accessTokenProvider: options.accessTokenProvider!,
+      baseUrl: options.identityPlatformBaseUrl,
+      fetchImpl: options.identityPlatformFetchImpl,
+      skipTenantScopes: options.skipTenantSsoScopes ?? false,
+      quiet: options.quiet,
+    });
+    ssoHandoffNotes = ssoResult.handoffNotes;
+    if (ssoResult.secretsRedacted) {
+      secretRedaction = {
+        mode: 'redacted',
+        redacted: true,
+        notes: [
+          'Firebase OIDC client secrets are intentionally redacted from sso/oidc_connections.csv.',
+          'The customer must re-enter the client secret in the WorkOS dashboard.',
+        ],
+      };
+    }
+  }
+
   await writePackageJsonlRecords(outputDir, 'warnings', stats.warnings);
   await writePackageJsonlRecords(outputDir, 'skippedUsers', stats.skipped);
+
+  if (ssoHandoffNotes) {
+    await writeFile(getPackageFilePath(outputDir, 'handoffNotes'), ssoHandoffNotes, 'utf-8');
+  }
+
+  const entitiesRequested = ['users', 'organizations', 'memberships', 'roles'];
+  if (ssoEnabled) entitiesRequested.push('sso');
 
   const manifest = createMigrationPackageManifest({
     provider: 'firebase',
     sourceTenant: options.sourceTenant,
     generatedAt: new Date(),
-    entitiesRequested: ['users', 'organizations', 'memberships', 'roles'],
+    entitiesRequested,
     entitiesExported: {
       users: stats.totalUsers,
       organizations: stats.totalOrgs,
@@ -250,15 +327,13 @@ export async function exportFirebasePackage(
       uploadUsers: stats.uploadUsers,
       uploadOrganizations: stats.uploadOrganizations,
       uploadMemberships: stats.uploadMemberships,
+      samlConnections: stats.samlConnections,
+      oidcConnections: stats.oidcConnections,
       warnings: stats.warnings.length,
       skippedUsers: stats.skipped.length,
     },
     secretsRedacted: true,
-    secretRedaction: {
-      mode: 'not-applicable',
-      redacted: true,
-      notes: ['Firebase Auth export does not include connection secrets.'],
-    },
+    secretRedaction,
     warnings: stats.warnings.map((w) => w.message),
   });
 
@@ -269,11 +344,172 @@ export async function exportFirebasePackage(
     logger.info(`  Users: ${stats.totalUsers}`);
     logger.info(`  Orgs:  ${stats.totalOrgs}`);
     logger.info(`  Memberships: ${stats.totalMemberships}`);
+    if (ssoEnabled) {
+      logger.info(`  SAML connections: ${stats.samlConnections}`);
+      logger.info(`  OIDC connections: ${stats.oidcConnections}`);
+    }
     if (stats.skipped.length > 0) logger.warn(`  Skipped: ${stats.skipped.length}`);
     if (stats.warnings.length > 0) logger.warn(`  Warnings: ${stats.warnings.length}`);
   }
 
   return stats;
+}
+
+interface ExportFirebaseSsoOptions {
+  outputDir: string;
+  stats: FirebasePackageStats;
+  projectId: string;
+  accessTokenProvider: IdentityPlatformAccessTokenProvider;
+  baseUrl?: string;
+  fetchImpl?: typeof fetch;
+  skipTenantScopes: boolean;
+  quiet?: boolean;
+}
+
+async function exportFirebaseSsoConnections(options: ExportFirebaseSsoOptions): Promise<{
+  handoffNotes: string;
+  secretsRedacted: boolean;
+}> {
+  const client = new IdentityPlatformClient({
+    projectId: options.projectId,
+    accessTokenProvider: options.accessTokenProvider,
+    baseUrl: options.baseUrl,
+    fetchImpl: options.fetchImpl,
+  });
+
+  const samlRows: SamlRow[] = [];
+  const oidcRows: OidcRow[] = [];
+  const handoffWarnings: SsoHandoffWarning[] = [];
+  let secretsRedacted = false;
+  let totalFetched = 0;
+  let totalSkipped = 0;
+  const scopeSummary: string[] = [];
+
+  const scopes: Array<{ tenantId?: string; tenantDisplayName?: string; label: string }> = [
+    { label: 'project' },
+  ];
+
+  if (!options.skipTenantScopes) {
+    try {
+      const tenants = await client.listTenants();
+      for (const tenant of tenants) {
+        const tenantId = extractResourceId(tenant.name);
+        if (!tenantId) continue;
+        scopes.push({
+          tenantId,
+          tenantDisplayName: tenant.displayName ?? undefined,
+          label: `tenant:${tenantId}`,
+        });
+      }
+    } catch (error) {
+      const message = `Failed to list Identity Platform tenants: ${(error as Error).message}`;
+      options.stats.warnings.push({
+        timestamp: new Date().toISOString(),
+        code: 'sso_fetch_failed',
+        message,
+      });
+      if (!options.quiet) logger.warn(`  ${message}`);
+    }
+  }
+
+  for (const scope of scopes) {
+    let samlConfigs: FirebaseInboundSamlConfig[] = [];
+    let oidcConfigs: FirebaseOAuthIdpConfig[] = [];
+    try {
+      samlConfigs = await client.listInboundSamlConfigs(scope.tenantId);
+    } catch (error) {
+      const message = `Failed to fetch inboundSamlConfigs (${scope.label}): ${(error as Error).message}`;
+      options.stats.warnings.push({
+        timestamp: new Date().toISOString(),
+        code: 'sso_fetch_failed',
+        message,
+      });
+      if (!options.quiet) logger.warn(`  ${message}`);
+    }
+    try {
+      oidcConfigs = await client.listOAuthIdpConfigs(scope.tenantId);
+    } catch (error) {
+      const message = `Failed to fetch oauthIdpConfigs (${scope.label}): ${(error as Error).message}`;
+      options.stats.warnings.push({
+        timestamp: new Date().toISOString(),
+        code: 'sso_fetch_failed',
+        message,
+      });
+      if (!options.quiet) logger.warn(`  ${message}`);
+    }
+
+    totalFetched += samlConfigs.length + oidcConfigs.length;
+
+    for (const config of samlConfigs) {
+      const result = mapFirebaseSamlConfig({
+        config,
+        scope: {
+          tenantId: scope.tenantId,
+          tenantDisplayName: scope.tenantDisplayName,
+        },
+      });
+      handoffWarnings.push(...result.warnings);
+      if (result.status === 'mapped') {
+        samlRows.push(result.row);
+      } else {
+        totalSkipped += 1;
+      }
+    }
+
+    for (const config of oidcConfigs) {
+      const result = mapFirebaseOidcConfig({
+        config,
+        scope: {
+          tenantId: scope.tenantId,
+          tenantDisplayName: scope.tenantDisplayName,
+        },
+      });
+      handoffWarnings.push(...result.warnings);
+      if (result.status === 'mapped') {
+        oidcRows.push(result.row);
+      } else {
+        totalSkipped += 1;
+      }
+    }
+
+    if (samlConfigs.length > 0 || oidcConfigs.length > 0) {
+      scopeSummary.push(`${scope.label}: ${samlConfigs.length} SAML, ${oidcConfigs.length} OIDC`);
+    }
+  }
+
+  await writeSamlConnectionsCsv(getPackageFilePath(options.outputDir, 'samlConnections'), samlRows);
+  await writeOidcConnectionsCsv(getPackageFilePath(options.outputDir, 'oidcConnections'), oidcRows);
+
+  options.stats.samlConnections = samlRows.length;
+  options.stats.oidcConnections = oidcRows.length;
+
+  for (const warning of handoffWarnings) {
+    if (warning.code === 'secrets_redacted') secretsRedacted = true;
+    options.stats.warnings.push({
+      timestamp: new Date().toISOString(),
+      code: warning.code,
+      message: warning.message,
+    });
+  }
+
+  return {
+    handoffNotes: buildHandoffNotes({
+      attempted: true,
+      fetched: totalFetched,
+      samlMapped: samlRows.length,
+      oidcMapped: oidcRows.length,
+      skipped: totalSkipped,
+      scopeSummary,
+    }),
+    secretsRedacted,
+  };
+}
+
+function extractResourceId(resourceName: string | null | undefined): string | undefined {
+  if (!resourceName) return undefined;
+  const segments = resourceName.split('/');
+  const last = segments[segments.length - 1];
+  return last && last.length > 0 ? last : undefined;
 }
 
 interface MappedFirebaseUser {
@@ -421,18 +657,53 @@ function createEmptyStats(): FirebasePackageStats {
     uploadOrganizations: 0,
     uploadMemberships: 0,
     skippedUsers: 0,
+    samlConnections: 0,
+    oidcConnections: 0,
     warnings: [],
     skipped: [],
   };
 }
 
-function buildHandoffNotes(): string {
-  return [
-    '# Firebase / Identity Platform handoff notes',
+function buildHandoffNotes(ssoSummary?: {
+  attempted: boolean;
+  fetched: number;
+  samlMapped: number;
+  oidcMapped: number;
+  skipped: number;
+  scopeSummary: string[];
+}): string {
+  const lines = ['# Firebase / Identity Platform handoff notes', ''];
+
+  if (!ssoSummary?.attempted) {
+    lines.push(
+      'Firebase Auth JSON exports do not include SAML/OIDC connection material.',
+      'Re-run with `--service-account <key.json>` and `--project-id <gcp-project>`',
+      'to fetch Identity Platform SAML/OIDC configs via the admin REST API, or',
+      'populate sso/ files manually and run validate-package before importing.',
+      '',
+    );
+    return lines.join('\n');
+  }
+
+  lines.push(
+    `Identity Platform admin API returned ${ssoSummary.fetched} provider config(s) across ${ssoSummary.scopeSummary.length || 1} scope(s).`,
+    `${ssoSummary.samlMapped} SAML provider config(s) were mapped to sso/saml_connections.csv.`,
+    `${ssoSummary.oidcMapped} OIDC provider config(s) were mapped to sso/oidc_connections.csv.`,
+  );
+  if (ssoSummary.skipped > 0) {
+    lines.push(
+      `${ssoSummary.skipped} config(s) were skipped because required fields were missing — see warnings.jsonl.`,
+    );
+  }
+  if (ssoSummary.scopeSummary.length > 0) {
+    lines.push('', 'Scope breakdown:');
+    for (const summary of ssoSummary.scopeSummary) lines.push(`- ${summary}`);
+  }
+  lines.push(
     '',
-    'Firebase Auth JSON exports do not include SAML/OIDC connection material.',
-    'For Identity Platform tenants with SAML providers, populate sso/ files',
-    'manually and run validate-package before importing.',
+    'OIDC client secrets are redacted by design — re-enter them in the WorkOS dashboard.',
+    'SAML responses contain only public IdP certificates; no SP signing private keys are returned by the admin API.',
     '',
-  ].join('\n');
+  );
+  return lines.join('\n');
 }
