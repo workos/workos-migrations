@@ -240,7 +240,7 @@ export function classifyAuth0ConnectionProtocol(
 }
 
 export function buildAuth0ConnectionImportedId(connection: Auth0Connection): string {
-  return `auth0:${connection.id}`;
+  return connection.name;
 }
 
 export function mapAuth0ConnectionToSsoHandoff(
@@ -361,6 +361,7 @@ function mapSamlConnection(
   }
 
   const row = createSamlConnectionRow({
+    name: connection.name,
     organizationName: organization.organizationName,
     organizationExternalId: organization.organizationExternalId,
     domains: organization.domains.join(','),
@@ -471,6 +472,7 @@ function mapOidcConnection(
   }
 
   const row = createOidcConnectionRow({
+    name: connection.name,
     organizationName: organization.organizationName,
     organizationExternalId: organization.organizationExternalId,
     domains: organization.domains.join(','),

@@ -73,6 +73,7 @@ export const CSV_TEMPLATES: Record<string, CSVTemplate> = {
     description: 'SAML SSO connections',
     filename: 'saml_connections.csv',
     headers: [
+      'name',
       'organizationName',
       'organizationId',
       'organizationExternalId',
@@ -96,6 +97,7 @@ export const CSV_TEMPLATES: Record<string, CSVTemplate> = {
     ],
     required: ['organizationName', 'organizationId'],
     optional: [
+      'name',
       'organizationExternalId',
       'domains',
       'idpEntityId',
@@ -116,8 +118,8 @@ export const CSV_TEMPLATES: Record<string, CSVTemplate> = {
       'importedId',
     ],
     example: [
-      'Acme Corporation,org_123,,acme.com;app.acme.com,https://acme.okta.com,https://acme.okta.com/app/saml,MIICXjCCAcegAwIBAgIBADANBgkqhkiG9w0BAQ0FADCBhzELMAkGA1UEBhMCVVMx...,https://acme.okta.com/app/metadata,,https://acme.com/saml/acs,email,,,,,,,,',
-      'Example Industries,org_456,,example.com,https://example.auth0.com/,https://example.auth0.com/saml,,https://example.auth0.com/samlp/metadata,,,uid,,,,,,,',
+      'Acme SAML,Acme Corporation,org_123,,acme.com;app.acme.com,https://acme.okta.com,https://acme.okta.com/app/saml,MIICXjCCAcegAwIBAgIBADANBgkqhkiG9w0BAQ0FADCBhzELMAkGA1UEBhMCVVMx...,https://acme.okta.com/app/metadata,,https://acme.com/saml/acs,email,,,,,,,,',
+      'Example SAML,Example Industries,org_456,,example.com,https://example.auth0.com/,https://example.auth0.com/saml,,https://example.auth0.com/samlp/metadata,,,uid,,,,,,,',
     ],
     validation: {
       organizationName: (value: string) => {
@@ -171,6 +173,7 @@ export const CSV_TEMPLATES: Record<string, CSVTemplate> = {
     description: 'OIDC SSO connections',
     filename: 'oidc_connections.csv',
     headers: [
+      'name',
       'organizationName',
       'organizationId',
       'organizationExternalId',
@@ -183,6 +186,7 @@ export const CSV_TEMPLATES: Record<string, CSVTemplate> = {
     ],
     required: ['organizationName', 'organizationId'],
     optional: [
+      'name',
       'organizationExternalId',
       'domains',
       'clientId',
@@ -192,8 +196,8 @@ export const CSV_TEMPLATES: Record<string, CSVTemplate> = {
       'importedId',
     ],
     example: [
-      'Acme Corporation,org_123,,acme.com,client_abc123,secret_xyz789,https://accounts.google.com/.well-known/openid-configuration,,',
-      'Example Industries,org_456,,example.com,client_def456,secret_uvw321,https://login.microsoftonline.com/tenant-id/v2.0/.well-known/openid-configuration,,',
+      'Acme OIDC,Acme Corporation,org_123,,acme.com,client_abc123,secret_xyz789,https://accounts.google.com/.well-known/openid-configuration,,',
+      'Example OIDC,Example Industries,org_456,,example.com,client_def456,secret_uvw321,https://login.microsoftonline.com/tenant-id/v2.0/.well-known/openid-configuration,,',
     ],
     validation: {
       organizationName: (value: string) => {

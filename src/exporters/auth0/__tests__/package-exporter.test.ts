@@ -551,7 +551,7 @@ describe('exportAuth0PackageWithClient', () => {
         idpUrl: 'https://idp.example.com/sso',
         x509Cert: 'CERTDATA',
         emailAttribute: 'mail',
-        importedId: 'auth0:con_saml',
+        importedId: 'okta',
       },
     ]);
 
@@ -561,7 +561,7 @@ describe('exportAuth0PackageWithClient', () => {
         clientId: 'client_123',
         clientSecret: '',
         discoveryEndpoint: 'https://issuer.example.com/.well-known/openid-configuration',
-        importedId: 'auth0:con_oidc',
+        importedId: 'oidc-idp',
       },
     ]);
 
@@ -569,12 +569,12 @@ describe('exportAuth0PackageWithClient', () => {
       await readCsv(path.join(tempRoot, 'sso', 'custom_attribute_mappings.csv')),
     ).toMatchObject([
       {
-        importedId: 'auth0:con_saml',
+        importedId: 'okta',
         userPoolAttribute: 'department',
         idpClaim: 'department',
       },
       {
-        importedId: 'auth0:con_oidc',
+        importedId: 'oidc-idp',
         userPoolAttribute: 'title',
         idpClaim: 'title',
       },
