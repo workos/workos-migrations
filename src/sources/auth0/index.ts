@@ -1,4 +1,3 @@
-import fs from 'node:fs/promises';
 import path from 'node:path';
 import { Auth0Client } from '../../exporters/auth0/client.js';
 import {
@@ -7,7 +6,6 @@ import {
   type Auth0ExportClient,
 } from '../../exporters/auth0/package-exporter.js';
 import { auth0Provider } from '../../providers/auth0/index.js';
-import type { MigrationPackageManifest } from '../../package/manifest.js';
 import type { Auth0ExportEngine, Auth0ExportOptions } from '../../shared/types.js';
 import type {
   MigrationPackageResult,
@@ -15,6 +13,7 @@ import type {
   OptionSchema,
   SourceContext,
 } from '../types.js';
+import { readManifest, toNumber } from '../util.js';
 
 /**
  * Declarative mirror of the `export-auth0` CLI flags (package mode). The legacy
@@ -204,14 +203,4 @@ function toExportOptions(ctx: SourceContext): Auth0ExportOptions {
       o.bulkMaxPollAttempts == null ? undefined : toNumber(o.bulkMaxPollAttempts, 0),
     quiet: ctx.quiet ?? false,
   };
-}
-
-function toNumber(value: unknown, fallback: number): number {
-  const parsed = typeof value === 'number' ? value : Number(value);
-  return Number.isFinite(parsed) ? parsed : fallback;
-}
-
-async function readManifest(outputDir: string): Promise<MigrationPackageManifest> {
-  const raw = await fs.readFile(path.join(outputDir, 'manifest.json'), 'utf-8');
-  return JSON.parse(raw) as MigrationPackageManifest;
 }
