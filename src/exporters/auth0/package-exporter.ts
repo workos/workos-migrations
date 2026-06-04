@@ -1403,17 +1403,13 @@ function addSsoWarning(stats: Auth0PackageStats, warning: SsoHandoffWarning): vo
     code: warning.code,
     message: warning.message,
     ...(warning.organizationExternalId ? { org_id: warning.organizationExternalId } : {}),
-    ...(warning.importedId
-      ? { connection_id: auth0ConnectionIdFromImportedId(warning.importedId) }
-      : {}),
+    ...(warning.importedId ? { connection_name: warning.importedId } : {}),
     ...(warning.protocol ? { protocol: warning.protocol } : {}),
     ...(warning.details ? { details: warning.details } : {}),
   });
 }
 
-function auth0ConnectionIdFromImportedId(importedId: string): string {
-  return importedId.startsWith('auth0:') ? importedId.slice('auth0:'.length) : importedId;
-}
+
 
 function extractDomains(metadata: Record<string, unknown> | undefined): string[] {
   const raw = metadata?.domains ?? metadata?.domain;
