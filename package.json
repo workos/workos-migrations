@@ -1,6 +1,6 @@
 {
   "name": "@workos/migrations",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "CLI tool to migrate data from various identity providers to WorkOS",
   "type": "module",
   "main": "dist/index.js",

@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.4.0](https://github.com/workos/workos-migrations/compare/v2.3.0...v2.4.0) (2026-06-04)
+
+
+### Features
+
+* Add nameAttribute to SAML connections CSV template ([#94](https://github.com/workos/workos-migrations/issues/94)) ([bb669c6](https://github.com/workos/workos-migrations/commit/bb669c6d97795867ea71ac6c4abbd53286df793c))
+* clerk SAML + OIDC enterprise connection handoff via Backend API ([#88](https://github.com/workos/workos-migrations/issues/88)) ([35d6e24](https://github.com/workos/workos-migrations/commit/35d6e245b4cfc2e9d3fc0a65aed43ac9e57126eb))
+* firebase identity platform SAML/OIDC handoff via admin REST ([#89](https://github.com/workos/workos-migrations/issues/89)) ([d7d15d7](https://github.com/workos/workos-migrations/commit/d7d15d7ecc9cd989cf74ce70cf7a7142d0c7ed23))
+* Rename name to nameAttribute in SAML CSV and remove customAttributes ([#95](https://github.com/workos/workos-migrations/issues/95)) ([853a3bb](https://github.com/workos/workos-migrations/commit/853a3bb186617a68196e6c00909ac114ab077a61))
+
+
+### Bug Fixes
+
+* Fix CLI gaps found in 200k import load test ([#106](https://github.com/workos/workos-migrations/issues/106)) ([3f9b388](https://github.com/workos/workos-migrations/commit/3f9b38855f25b6493b858e06910d40b372e62383))
+* Improve Auth0 SSO wizard flow and CSV connection format ([#111](https://github.com/workos/workos-migrations/issues/111)) ([4f1f161](https://github.com/workos/workos-migrations/commit/4f1f16127e54af60729f983fb31a5e97e334457a))
+
 ## [2.3.0](https://github.com/workos/workos-migrations/compare/v2.2.0...v2.3.0) (2026-05-28)
 
 
