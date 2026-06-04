@@ -1409,8 +1409,6 @@ function addSsoWarning(stats: Auth0PackageStats, warning: SsoHandoffWarning): vo
   });
 }
 
-
-
 function extractDomains(metadata: Record<string, unknown> | undefined): string[] {
   const raw = metadata?.domains ?? metadata?.domain;
   if (!raw) return [];
