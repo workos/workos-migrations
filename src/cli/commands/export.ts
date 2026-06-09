@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { listSources } from '../../sources/registry.js';
-import type { MigrationSource, SourceOption } from '../../sources/types.js';
+import type { MigrationSource, SourceCapabilities, SourceOption } from '../../sources/types.js';
 
 /**
  * Registry-driven `export <provider>` command. One subcommand per registered
@@ -11,12 +11,12 @@ import type { MigrationSource, SourceOption } from '../../sources/types.js';
 export function registerExportCommand(program: Command): void {
   const exportCmd = program
     .command('export')
-    .description('Export a provider into a WorkOS migration package');
+    .description(
+      'Export identity data (users, organizations, memberships, roles, password hashes, SSO connections) FROM a source provider into a WorkOS migration package',
+    );
 
   for (const source of listSources()) {
-    const sub = exportCmd
-      .command(source.id)
-      .description(`Export ${source.displayName} into a WorkOS migration package`);
+    const sub = exportCmd.command(source.id).description(describeExport(source));
 
     sub.requiredOption('--output-dir <dir>', 'Output directory for the migration package');
     sub.option('--quiet', 'Suppress progress output');
@@ -75,7 +75,7 @@ async function runExport(source: MigrationSource, opts: Record<string, unknown>)
   const quiet = Boolean(opts.quiet ?? false);
 
   if (!quiet) {
-    console.log(chalk.blue(`Exporting ${source.displayName} → ${outputDir}`));
+    console.log(chalk.blue(`Exporting from ${source.displayName} → ${outputDir}`));
   }
 
   const result = await source.export({ credentials, options, outputDir, quiet });
@@ -110,6 +110,29 @@ function coerce(opt: SourceOption, raw: unknown): unknown {
     default:
       return String(value);
   }
+}
+
+/** Build a subcommand description that names the source and exactly the entities it carries. */
+function describeExport(source: MigrationSource): string {
+  const entities = entitySummary(source.capabilities);
+  // CSV has no upstream provider — it writes a fillable skeleton.
+  if (source.id === 'csv') {
+    return `Generate a WorkOS migration package skeleton (${entities}) to populate from CSV data`;
+  }
+  return `Export ${entities} FROM ${source.displayName} into a WorkOS migration package`;
+}
+
+/** Human-readable list of the entity types a source can produce, from its capabilities. */
+function entitySummary(caps: SourceCapabilities): string {
+  const parts: string[] = [];
+  if (caps.users) parts.push('users');
+  if (caps.organizations) parts.push('organizations');
+  if (caps.memberships) parts.push('memberships');
+  if (caps.roles) parts.push('roles');
+  if (caps.passwords !== 'none') parts.push('password hashes');
+  if (caps.totp) parts.push('TOTP factors');
+  if (caps.saml || caps.oidc) parts.push('SSO connections (handoff)');
+  return parts.join(', ');
 }
 
 /** camelCase option/credential id → kebab-case CLI flag (clientId → client-id). */

@@ -13,7 +13,7 @@ export function registerTransformFirebaseCommand(program: Command): void {
   program
     .command('transform-firebase')
     .description(
-      'Transform Firebase Auth JSON export to WorkOS-compatible CSV or migration package',
+      'Export users, organizations, memberships, roles, password hashes + SSO handoff from a Firebase Auth export (deprecated; use "export firebase")',
     )
     .requiredOption('--input <path>', 'Firebase Auth JSON export file')
     .option('--output <path>', 'Output WorkOS CSV file (legacy single-CSV mode)')

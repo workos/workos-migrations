@@ -6,7 +6,9 @@ import { exportAuth0 } from '../../exporters/auth0/exporter.js';
 export function registerExportAuth0Command(program: Command): void {
   program
     .command('export-auth0')
-    .description('Export users from Auth0 to WorkOS-compatible CSV')
+    .description(
+      'Export users, organizations, memberships, roles, password hashes + SSO handoff from Auth0 (deprecated; use "export auth0")',
+    )
     .requiredOption('--domain <domain>', 'Auth0 tenant domain')
     .requiredOption('--client-id <id>', 'M2M application Client ID')
     .requiredOption('--client-secret <secret>', 'M2M application Client Secret')

@@ -7,7 +7,9 @@ import { exportClerkPackage } from '../../transformers/clerk/package-exporter.js
 export function registerTransformClerkCommand(program: Command): void {
   program
     .command('transform-clerk')
-    .description('Transform Clerk export CSV to WorkOS-compatible CSV or migration package')
+    .description(
+      'Export users, organizations, memberships, roles, password hashes + SSO handoff from a Clerk export (deprecated; use "export clerk")',
+    )
     .requiredOption('--input <path>', 'Clerk export CSV file')
     .option('--output <path>', 'Output WorkOS CSV file (legacy single-CSV mode)')
     .option('--package', 'Write a migration package instead of a single CSV')

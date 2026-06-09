@@ -10,7 +10,9 @@ import { CheckpointManager, calculateCsvHash, findLastJob } from '../../import/c
 export function registerImportCommand(program: Command): void {
   program
     .command('import')
-    .description('Import users from CSV into WorkOS')
+    .description(
+      'Import users, organization memberships, and role assignments from a single CSV into WorkOS (legacy; prefer import-package for full migrations)',
+    )
     .requiredOption('--csv <path>', 'Path to CSV file')
     .option('--concurrency <n>', 'Concurrent API requests', '10')
     .option('--rate-limit <n>', 'Max requests per second', '50')

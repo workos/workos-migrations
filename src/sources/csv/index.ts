@@ -39,7 +39,7 @@ const CSV_OPTIONS: OptionSchema = [
  */
 export const csvSource: MigrationSource = {
   id: 'csv',
-  displayName: 'CSV Import to WorkOS',
+  displayName: 'Generic CSV',
   capabilities: {
     users: true,
     organizations: true,
