@@ -6,7 +6,7 @@ import type {
   OptionSchema,
   SourceContext,
 } from '../types.js';
-import { readManifest } from '../util.js';
+import { readManifest, validateSourceContext } from '../util.js';
 
 /**
  * Test/DI seam for `SourceContext.client`: a `fetch` implementation injected into
@@ -24,18 +24,21 @@ const CLERK_OPTIONS: OptionSchema = [
     description: 'Path to the Clerk dashboard CSV export',
     type: 'string',
     required: true,
+    file: true,
   },
   {
     id: 'orgMapping',
     label: 'Org mapping CSV',
     description: 'Org mapping CSV (clerk_user_id,org_external_id,org_name)',
     type: 'string',
+    file: true,
   },
   {
     id: 'roleMapping',
     label: 'Role mapping CSV',
     description: 'Role mapping CSV (clerk_user_id,role_slug)',
     type: 'string',
+    file: true,
   },
   {
     id: 'sourceTenant',
@@ -92,6 +95,7 @@ export const clerkSource: MigrationSource = {
   },
 
   async export(ctx: SourceContext): Promise<MigrationPackageResult> {
+    validateSourceContext(clerkSource, ctx);
     const seam = ctx.client as ClerkAdapterClient | undefined;
     const start = Date.now();
     await exportClerkPackage({

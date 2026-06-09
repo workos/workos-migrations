@@ -46,6 +46,8 @@ export interface SourceOption {
   default?: string | number | boolean | readonly string[];
   /** Restrict the value to a fixed set (e.g. an engine selector). */
   choices?: readonly string[];
+  /** The value is a local file path that must exist at export time. */
+  file?: boolean;
 }
 
 export type OptionSchema = readonly SourceOption[];

@@ -12,7 +12,7 @@ import type {
   OptionSchema,
   SourceContext,
 } from '../types.js';
-import { readManifest } from '../util.js';
+import { readManifest, validateSourceContext } from '../util.js';
 
 /**
  * Minimal slice of `CognitoClient` the adapter drives. The real client satisfies
@@ -108,6 +108,7 @@ export const cognitoSource: MigrationSource = {
   },
 
   async export(ctx: SourceContext): Promise<MigrationPackageResult> {
+    validateSourceContext(cognitoSource, ctx);
     const client: CognitoExportClient = ctx.client
       ? (ctx.client as CognitoExportClient)
       : buildClient(ctx);

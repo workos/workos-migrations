@@ -13,7 +13,7 @@ import type {
   OptionSchema,
   SourceContext,
 } from '../types.js';
-import { readManifest, toNumber } from '../util.js';
+import { readManifest, toNumber, validateSourceContext } from '../util.js';
 
 /**
  * Declarative mirror of the `export-auth0` CLI flags (package mode). The legacy
@@ -163,6 +163,7 @@ export const auth0Source: MigrationSource = {
   },
 
   async export(ctx: SourceContext): Promise<MigrationPackageResult> {
+    validateSourceContext(auth0Source, ctx);
     const options = toExportOptions(ctx);
     const summary = ctx.client
       ? await exportAuth0PackageWithClient(ctx.client as Auth0ExportClient, options)

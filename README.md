@@ -332,7 +332,8 @@ workos-migrate export firebase \
 
 To also pull Identity Platform SAML/OIDC configs into the `sso/` handoff CSVs, pass a
 service-account key file with `--service-account-key <path>` and `--project-id <id>` (or set
-`GOOGLE_APPLICATION_CREDENTIALS` / `GOOGLE_CLOUD_PROJECT`).
+`GOOGLE_APPLICATION_CREDENTIALS` and `GOOGLE_CLOUD_PROJECT` / `GCLOUD_PROJECT`). If the
+project ID cannot be resolved, the export fails rather than silently skipping SSO.
 
 Options:
 

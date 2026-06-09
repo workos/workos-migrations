@@ -6,6 +6,7 @@ import type {
   OptionSchema,
   SourceContext,
 } from '../types.js';
+import { validateSourceContext } from '../util.js';
 
 /** Declarative mirror of the `generate-package-template` flags. */
 const CSV_OPTIONS: OptionSchema = [
@@ -61,6 +62,7 @@ export const csvSource: MigrationSource = {
   },
 
   async export(ctx: SourceContext): Promise<MigrationPackageResult> {
+    validateSourceContext(csvSource, ctx);
     const start = Date.now();
     const pkg = await createMigrationPackage({
       provider: (ctx.options.provider as string | undefined) ?? 'csv',

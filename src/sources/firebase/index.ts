@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { existsSync } from 'node:fs';
 import { exportFirebasePackage } from '../../transformers/firebase/package-exporter.js';
 import {
   createGoogleAccessTokenProvider,
@@ -12,7 +13,7 @@ import type {
   OptionSchema,
   SourceContext,
 } from '../types.js';
-import { readManifest, toNumber } from '../util.js';
+import { readManifest, toNumber, validateSourceContext } from '../util.js';
 
 /**
  * Test/DI seam for `SourceContext.client`: a pre-built access-token provider and
@@ -32,6 +33,7 @@ const FIREBASE_OPTIONS: OptionSchema = [
     description: 'Path to the Firebase Auth JSON export file',
     type: 'string',
     required: true,
+    file: true,
   },
   {
     id: 'nameSplit',
@@ -86,12 +88,14 @@ const FIREBASE_OPTIONS: OptionSchema = [
     label: 'Org mapping CSV',
     description: 'Org mapping CSV (firebase_uid,org_external_id,org_name)',
     type: 'string',
+    file: true,
   },
   {
     id: 'roleMapping',
     label: 'Role mapping CSV',
     description: 'Role mapping CSV (firebase_uid,role_slug)',
     type: 'string',
+    file: true,
   },
   {
     id: 'sourceTenant',
@@ -157,16 +161,33 @@ export const firebaseSource: MigrationSource = {
   },
 
   async export(ctx: SourceContext): Promise<MigrationPackageResult> {
+    validateSourceContext(firebaseSource, ctx);
     const seam = ctx.client as FirebaseAdapterClient | undefined;
 
-    let accessTokenProvider = seam?.accessTokenProvider;
-    let gcpProjectId = ctx.credentials.projectId || undefined;
     const serviceAccountKey = ctx.credentials.serviceAccountKey || undefined;
-    // Mirror the CLI: when a service-account key file is supplied, build the
-    // access-token provider and auto-detect the project ID if not provided.
+    if (serviceAccountKey && !existsSync(serviceAccountKey)) {
+      throw new Error(`Service account key not found: ${serviceAccountKey}`);
+    }
+
+    let accessTokenProvider = seam?.accessTokenProvider;
+    // Mirror the legacy CLI's resolution chain: explicit credential, then the
+    // standard Google env vars, then detection from the key file.
+    let gcpProjectId =
+      ctx.credentials.projectId ||
+      process.env.GOOGLE_CLOUD_PROJECT ||
+      process.env.GCLOUD_PROJECT ||
+      undefined;
     if (!accessTokenProvider && serviceAccountKey) {
       accessTokenProvider = createGoogleAccessTokenProvider({ keyFile: serviceAccountKey });
       gcpProjectId = gcpProjectId ?? (await detectGoogleProjectId({ keyFile: serviceAccountKey }));
+    }
+    // SSO export was requested (token provider available) but no project could
+    // be resolved — fail loudly rather than silently writing a package with no
+    // sso/ data, matching the legacy CLI.
+    if (accessTokenProvider && !gcpProjectId) {
+      throw new Error(
+        'A GCP project ID is required when fetching Identity Platform SSO configs — pass --project-id or set GOOGLE_CLOUD_PROJECT / GCLOUD_PROJECT',
+      );
     }
 
     const skipPasswords = Boolean(ctx.options.skipPasswords ?? false);

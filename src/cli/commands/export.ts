@@ -98,11 +98,17 @@ function coerce(opt: SourceOption, raw: unknown): unknown {
   switch (opt.type) {
     case 'boolean':
       return value === true || value === 'true';
-    case 'number':
-      return typeof value === 'number' ? value : Number(value);
+    case 'number': {
+      const parsed = typeof value === 'number' ? value : Number(value);
+      if ((typeof value === 'string' && value.trim() === '') || !Number.isFinite(parsed)) {
+        throw new Error(`--${kebab(opt.id)} must be a number, got "${String(value)}"`);
+      }
+      return parsed;
+    }
     case 'string[]':
+      // Copy arrays so a shared schema default is never handed out by reference.
       return Array.isArray(value)
-        ? value
+        ? [...value]
         : String(value)
             .split(',')
             .map((item) => item.trim())
