@@ -1,6 +1,6 @@
 # WorkOS Migrations
 
-A CLI tool for migrating users from identity providers into WorkOS. Supports Auth0, Clerk, Firebase Auth, and custom CSV imports with password hashes, organization memberships, roles, and TOTP MFA factors.
+A CLI tool for migrating from identity providers into WorkOS. Supports Auth0, AWS Cognito, Clerk, Firebase Auth, and custom CSV — moving users, organizations, memberships, roles + permissions, password hashes, and TOTP MFA factors, with SAML/OIDC SSO connections surfaced as handoff artifacts.
 
 ## Quick Start
 
@@ -76,7 +76,35 @@ workos-migrate export <provider> --output-dir <dir> [provider options]
 
 Credentials and options are generated per provider — run `workos-migrate export <provider> --help` to see them. SSO handoff (SAML/OIDC) is opt-in where supported: pass `--secret-key` for Clerk, or `--service-account-key` + `--project-id` for Firebase.
 
-The legacy `export-auth0`, `export-cognito`, `transform-clerk`, and `transform-firebase` commands still work but print a deprecation notice and will be removed in v4.0. The per-provider guides below use the legacy names; substitute `export <provider>` as shown above.
+The legacy `export-auth0`, `export-cognito`, `transform-clerk`, and `transform-firebase` commands still work but print a deprecation notice and will be removed in v4.0.
+
+### End-to-end: generate and import a package
+
+Every migration is the same four steps — generate the package, validate it, optionally merge password hashes, then import:
+
+```bash
+# 1. Generate a migration package FROM your source provider
+workos-migrate export auth0 \
+  --domain my-tenant.us.auth0.com \
+  --client-id <M2M_CLIENT_ID> \
+  --client-secret <M2M_CLIENT_SECRET> \
+  --output-dir ./migration
+
+# 2. Validate it against the package contract
+workos-migrate validate-package ./migration
+
+# 3. (Auth0 only) Merge the password-hash export from Auth0 support
+workos-migrate merge-passwords --package ./migration --passwords auth0-passwords.ndjson
+
+# 4. Import users, organizations, memberships, roles, and TOTP factors into WorkOS
+#    (add --plan or --dry-run first to preview)
+export WORKOS_SECRET_KEY=sk_...
+workos-migrate import-package ./migration
+```
+
+The package itself is a provider-neutral directory (`users.csv`, `organizations.csv`, `organization_memberships.csv`, `role_definitions.csv`, `user_role_assignments.csv`, `totp_secrets.csv`, `sso/` handoff CSVs, `workos_upload/`, and `manifest.json`) — see [`docs/migration-package.md`](docs/migration-package.md) for the full contract. Swap `export auth0` for `export cognito`, `export clerk --from-file …`, `export firebase --from-file …`, or `export csv` to generate from a different source; steps 2–4 are identical.
+
+The per-provider guides below cover provider-specific credential setup and options.
 
 ## Prerequisites
 
@@ -110,7 +138,7 @@ The export and transform commands produce CSVs in this format automatically.
 
 Auth0 is a parity-complete migration source. The end-to-end flow is:
 
-1. Run `export-auth0 --package` to produce a [migration package](docs/migration-package.md) with users, organizations, memberships, roles, SSO handoff files, warnings, and the upload-compatible projection. For very large tenants, `--engine bulk-job` is available; see step 3b.
+1. Run `export auth0` to produce a [migration package](docs/migration-package.md) with users, organizations, memberships, roles, SSO handoff files, warnings, and the upload-compatible projection. For very large tenants, `--engine bulk-job` is available; see step 3b.
 2. Optionally run `merge-passwords --package <dir>` to merge the Auth0 password export into the package. Unsupported hash algorithms are skipped with warnings instead of failing the merge.
 3. Run `import-package <dir>` to push organizations, users, memberships, roles, and TOTP factors into WorkOS in one shot. SSO connections are surfaced as **handoff-only**; see [`docs/auth0-sso-handoff.md`](docs/auth0-sso-handoff.md).
 
@@ -131,41 +159,29 @@ Create a Machine-to-Machine application in Auth0, authorize it for the Managemen
 connection configuration inside the `options` object. If this scope is missing, later package phases
 will warn and omit fields that cannot be read.
 
-### 2. Export users
+### 2. Export
 
 ```bash
-workos-migrate export-auth0 \
+workos-migrate export auth0 \
   --domain my-tenant.us.auth0.com \
   --client-id <M2M_CLIENT_ID> \
   --client-secret <M2M_CLIENT_SECRET> \
-  --output auth0-export.csv
-```
-
-To write a migration package with users, organizations, memberships, warnings, and skipped-user
-sidecars:
-
-```bash
-workos-migrate export-auth0 \
-  --domain my-tenant.us.auth0.com \
-  --client-id <M2M_CLIENT_ID> \
-  --client-secret <M2M_CLIENT_SECRET> \
-  --package \
   --output-dir ./migration-auth0
 ```
 
-Package mode also writes `workos_upload/users.csv`, `workos_upload/organizations.csv`, and
-`workos_upload/organization_memberships.csv` using the narrower WorkOS upload templates. SSO
-connection files remain under `sso/` as handoff artifacts.
+This writes the full migration package: `users.csv`, `organizations.csv`,
+`organization_memberships.csv`, warnings, and skipped-user sidecars, plus the
+`workos_upload/` projection (narrower WorkOS upload templates) and any `sso/` handoff
+artifacts.
 
 To include the Auth0 role catalog and per-org role assignments alongside users, organizations, and
 memberships:
 
 ```bash
-workos-migrate export-auth0 \
+workos-migrate export auth0 \
   --domain my-tenant.us.auth0.com \
   --client-id <M2M_CLIENT_ID> \
   --client-secret <M2M_CLIENT_SECRET> \
-  --package \
   --entities users,organizations,memberships,roles \
   --output-dir ./migration-auth0
 ```
@@ -179,11 +195,10 @@ assignments from Auth0, so it writes the role catalog only and emits a warning.
 To write only SSO handoff files:
 
 ```bash
-workos-migrate export-auth0 \
+workos-migrate export auth0 \
   --domain my-tenant.us.auth0.com \
   --client-id <M2M_CLIENT_ID> \
   --client-secret <M2M_CLIENT_SECRET> \
-  --package \
   --entities sso \
   --output-dir ./migration-auth0-sso
 ```
@@ -228,11 +243,10 @@ Package mode warns and omits credentials for users whose hash algorithm is not s
 For tenants where the Management API per-user fetch is too slow, package mode can use Auth0's `users-exports` job engine instead. This engine returns users without organization membership, so you'll typically run it alongside a Management API run that captured org/membership data, or follow up with a CSV-driven membership reconciliation.
 
 ```bash
-workos-migrate export-auth0 \
+workos-migrate export auth0 \
   --domain my-tenant.us.auth0.com \
   --client-id <M2M_CLIENT_ID> \
   --client-secret <M2M_CLIENT_SECRET> \
-  --package \
   --engine bulk-job \
   --output-dir ./migration-auth0-bulk
 ```
@@ -251,37 +265,31 @@ Continue to [Validation](#validation), [Import](#importing-users), and [Post-Imp
 
 Export your users from the Clerk Dashboard as a CSV file. The export includes columns like `id`, `first_name`, `last_name`, `primary_email_address`, `password_digest`, `password_hasher`, etc.
 
-### 2. Transform to a migration package (recommended)
+### 2. Export to a migration package
 
 ```bash
-workos-migrate transform-clerk \
-  --input clerk-export.csv \
-  --package \
+workos-migrate export clerk \
+  --from-file clerk-export.csv \
   --output-dir ./migration-clerk \
   --org-mapping orgs.csv \
   --role-mapping roles.csv
 ```
 
-Package mode writes the canonical layout (`users.csv`, `organizations.csv`,
+This writes the canonical layout (`users.csv`, `organizations.csv`,
 `organization_memberships.csv`, `role_definitions.csv`, `user_role_assignments.csv`,
 `workos_upload/`, manifest, warnings, skipped users) so the result can be fed
 straight into `import-package`. Unsupported password hashers are recorded as
 warnings instead of failing the export.
 
-The legacy single-CSV mode is still available for back-compat:
-
-```bash
-workos-migrate transform-clerk \
-  --input clerk-export.csv \
-  --output clerk-transformed.csv
-```
+To also pull Clerk enterprise SAML/OIDC connections into the `sso/` handoff CSVs, pass
+your Clerk Backend API key with `--secret-key <sk_…>` (or set `CLERK_SECRET_KEY`).
 
 Options:
 
-- `--package` - Write a migration package instead of a single CSV.
-- `--output-dir <dir>` - Required when `--package` is set.
+- `--from-file <path>` - Path to the Clerk dashboard CSV export (required)
 - `--org-mapping <path>` - CSV mapping Clerk user IDs to organizations (`clerk_user_id,org_external_id,org_name`)
 - `--role-mapping <path>` - CSV mapping Clerk user IDs to roles (`clerk_user_id,role_slug`)
+- `--secret-key <key>` - Clerk Backend API key; enables enterprise SSO connection export
 - `--source-tenant <name>` - Optional tenant identifier recorded in the manifest.
 
 The transformer handles:
@@ -299,7 +307,7 @@ Continue to [Validation](#validation), [Import](#importing-users), and [Post-Imp
 
 ## Migrating from Firebase Auth
 
-The recommended path is `transform-firebase --package`, which writes a [migration package](docs/migration-package.md) ready for `import-package`. The legacy `--output <csv>` mode still ships for back-compat.
+The recommended path is `export firebase`, which writes a [migration package](docs/migration-package.md) ready for `import-package`.
 
 ### 1. Export from Firebase
 
@@ -309,14 +317,11 @@ Export your users from the Firebase Console or using the Firebase CLI (`firebase
 
 If you want to migrate passwords, get the hash parameters from Firebase Console > Authentication > Users > Password Hash Parameters. You need the signer key, salt separator, rounds, and memory cost.
 
-### 3. Transform to WorkOS format
-
-Migration package (recommended):
+### 3. Export to a migration package
 
 ```bash
-workos-migrate transform-firebase \
-  --input firebase-export.json \
-  --package \
+workos-migrate export firebase \
+  --from-file firebase-export.json \
   --output-dir ./migration-firebase \
   --signer-key <BASE64_KEY> \
   --salt-separator <BASE64_SEP> \
@@ -325,28 +330,20 @@ workos-migrate transform-firebase \
   --org-mapping orgs.csv
 ```
 
-Legacy single CSV (still supported):
-
-```bash
-workos-migrate transform-firebase \
-  --input firebase-export.json \
-  --output firebase-transformed.csv \
-  --signer-key <BASE64_KEY> \
-  --salt-separator <BASE64_SEP> \
-  --rounds 8 \
-  --memory-cost 14
-```
+To also pull Identity Platform SAML/OIDC configs into the `sso/` handoff CSVs, pass a
+service-account key file with `--service-account-key <path>` and `--project-id <id>` (or set
+`GOOGLE_APPLICATION_CREDENTIALS` / `GOOGLE_CLOUD_PROJECT`).
 
 Options:
 
-- `--package` - Write a migration package instead of a single CSV.
-- `--output-dir <dir>` - Required when `--package` is set.
+- `--from-file <path>` - Path to the Firebase Auth JSON export (required)
 - `--source-tenant <name>` - Optional tenant identifier recorded in the manifest.
 - `--name-split <strategy>` - How to split `displayName` into first/last: `first-space` (default), `last-space`, or `first-name-only`
 - `--include-disabled` - Include disabled users (excluded by default)
 - `--skip-passwords` - Skip password hash encoding
 - `--org-mapping <path>` - CSV mapping Firebase UIDs to organizations (`firebase_uid,org_external_id,org_name`)
 - `--role-mapping <path>` - CSV mapping Firebase UIDs to roles (`firebase_uid,role_slug`)
+- `--service-account-key <path>` + `--project-id <id>` - Enable Identity Platform SSO connection export
 
 The transformer handles:
 
@@ -384,45 +381,28 @@ The recommended path is to write a [migration package](docs/migration-package.md
 `import-package` orchestrator can consume in a single step:
 
 ```bash
-workos-migrate export-cognito \
+workos-migrate export cognito \
   --region us-east-1 \
   --user-pool-ids us-east-1_ABC123,us-east-1_DEF456 \
-  --package \
   --output-dir ./migration-cognito \
   --entities users,organizations,memberships,sso
 ```
 
-Package mode writes the canonical layout: `users.csv`, `organizations.csv`,
+This writes the canonical layout: `users.csv`, `organizations.csv`,
 `organization_memberships.csv`, the `sso/` handoff CSVs, and the `workos_upload/` projection.
 By default each Cognito user pool maps to one WorkOS organization; pass
 `--org-strategy connection` for one org per identity provider (memberships then become
 header-only) or `--org-strategy none` to skip organization rows entirely.
 
-The legacy loose-CSV mode is still available for backward compatibility:
-
-```bash
-workos-migrate export-cognito \
-  --region us-east-1 \
-  --user-pool-ids us-east-1_ABC123,us-east-1_DEF456
-```
-
 Options:
 
-- `--package` - Write a migration package (recommended). Without this flag, loose CSVs are written.
-- `--entities <list>` - Loose mode: `connections,users`. Package mode: `users,organizations,memberships,sso`.
-- `--org-strategy <strategy>` - Package mode only: `user-pool` (default), `connection`, or `none`.
-- `--output-dir <dir>` - Output directory for CSV files (default: current directory)
+- `--entities <list>` - `users,organizations,memberships,sso`.
+- `--org-strategy <strategy>` - `user-pool` (default), `connection`, or `none`.
+- `--output-dir <dir>` - Output directory for the migration package
 - `--saml-custom-entity-id-template <url>` - Template for SAML custom Entity ID (default: `urn:amazon:cognito:sp:{user_pool_id}`)
 - `--saml-custom-acs-url-template <url>` - Template for SAML custom ACS URL (placeholders: `{provider_name}`, `{user_pool_id}`, `{region}`)
 - `--oidc-custom-redirect-uri-template <url>` - Template for OIDC custom redirect URI
-- `--skip-external-provider-users` - Skip Cognito users whose `userStatus=EXTERNAL_PROVIDER` (default in package mode; opt-in in loose mode).
-
-Loose mode produces:
-
-- `workos_saml_connections.csv` - SAML SSO connections
-- `workos_oidc_connections.csv` - OIDC SSO connections
-- `custom_attribute_mappings.csv` - Supplementary attribute mappings
-- `workos_users.csv` - Users in WorkOS import format
+- `--skip-external-provider-users` - Skip Cognito users whose `userStatus=EXTERNAL_PROVIDER`.
 
 **Note:** Cognito does not expose password hashes via its API. The `password_hash` column will be blank for all users. Affected users will need to reset their password post-migration or rely on SSO + JIT provisioning via the migration proxy.
 
@@ -450,8 +430,8 @@ workos-migrate import --csv my-users.csv
 For unsupported providers, you can hand-build a [migration package](docs/migration-package.md) and run it through the same `import-package` orchestrator the dedicated providers use:
 
 ```bash
-# Scaffold an empty package skeleton
-workos-migrate generate-package-template --output-dir ./migration-csv
+# Scaffold an empty package skeleton (generate-package-template is an equivalent alias)
+workos-migrate export csv --output-dir ./migration-csv
 
 # Populate users.csv (and optionally organizations.csv, organization_memberships.csv,
 # role_definitions.csv, user_role_assignments.csv) with the canonical headers from
@@ -588,7 +568,7 @@ The analyzer groups errors by pattern, classifies them as retryable or non-retry
 
 ## Importing a migration package
 
-Migration packages produced by `export-auth0 --package` (and other providers as they move onto the package contract) can be imported in one step with `import-package`:
+Migration packages produced by `export <provider>` can be imported in one step with `import-package`:
 
 ```bash
 # Plan only — print what would happen and exit

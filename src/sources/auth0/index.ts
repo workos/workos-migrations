@@ -114,6 +114,18 @@ const AUTH0_OPTIONS: OptionSchema = [
     description: 'Maximum bulk-job poll attempts before timing out',
     type: 'number',
   },
+  {
+    id: 'jobId',
+    label: 'Checkpoint job ID',
+    description: 'Enable export checkpointing for large tenants',
+    type: 'string',
+  },
+  {
+    id: 'resume',
+    label: 'Resume',
+    description: 'Resume a previously checkpointed export',
+    type: 'boolean',
+  },
 ];
 
 /**
@@ -201,6 +213,8 @@ function toExportOptions(ctx: SourceContext): Auth0ExportOptions {
       o.bulkPollIntervalMs == null ? undefined : toNumber(o.bulkPollIntervalMs, 0),
     bulkMaxPollAttempts:
       o.bulkMaxPollAttempts == null ? undefined : toNumber(o.bulkMaxPollAttempts, 0),
+    jobId: o.jobId as string | undefined,
+    resume: Boolean(o.resume ?? false),
     quiet: ctx.quiet ?? false,
   };
 }
