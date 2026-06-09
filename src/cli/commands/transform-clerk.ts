@@ -22,6 +22,9 @@ export function registerTransformClerkCommand(program: Command): void {
     .option('--quiet', 'Suppress progress output')
     .action(async (opts) => {
       try {
+        console.error(
+          chalk.yellow("⚠ 'transform-clerk' is deprecated; use 'export clerk' (removed in v4.0)"),
+        );
         if (!fs.existsSync(opts.input)) {
           console.error(chalk.red(`Clerk CSV file not found: ${opts.input}`));
           process.exit(1);

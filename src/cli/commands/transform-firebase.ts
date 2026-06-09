@@ -48,6 +48,11 @@ export function registerTransformFirebaseCommand(program: Command): void {
     .option('--quiet', 'Suppress progress output')
     .action(async (opts) => {
       try {
+        console.error(
+          chalk.yellow(
+            "⚠ 'transform-firebase' is deprecated; use 'export firebase' (removed in v4.0)",
+          ),
+        );
         if (!fs.existsSync(opts.input)) {
           console.error(chalk.red(`Firebase JSON file not found: ${opts.input}`));
           process.exit(1);

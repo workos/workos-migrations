@@ -52,6 +52,9 @@ export function registerExportAuth0Command(program: Command): void {
     .option('--quiet', 'Suppress progress output')
     .action(async (opts) => {
       try {
+        console.error(
+          chalk.yellow("⚠ 'export-auth0' is deprecated; use 'export auth0' (removed in v4.0)"),
+        );
         if (!opts.package && !opts.output) {
           throw new Error('--output is required unless --package is set');
         }

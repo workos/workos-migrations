@@ -39,13 +39,14 @@ workos-migrate <command>
 
 | Command                     | Description                                                                   |
 | --------------------------- | ----------------------------------------------------------------------------- |
+| `export <provider>`         | **Unified export** — write a migration package from any source (see below)    |
 | `wizard`                    | Interactive step-by-step migration wizard                                     |
-| `export-auth0`              | Export users from Auth0 via Management API                                    |
-| `export-cognito`            | Export users + SSO connections from AWS Cognito                               |
+| `export-auth0`              | _Deprecated alias for `export auth0` (removed in v4.0)_                       |
+| `export-cognito`            | _Deprecated alias for `export cognito` (removed in v4.0)_                     |
 | `export-template`           | Export a blank CSV template (users, saml_connections, oidc_connections, etc.) |
 | `merge-passwords`           | Merge Auth0 password hashes into the export CSV                               |
-| `transform-clerk`           | Transform a Clerk CSV export to WorkOS format                                 |
-| `transform-firebase`        | Transform a Firebase Auth JSON export to WorkOS format                        |
+| `transform-clerk`           | _Deprecated alias for `export clerk` (removed in v4.0)_                       |
+| `transform-firebase`        | _Deprecated alias for `export firebase` (removed in v4.0)_                    |
 | `validate`                  | Validate a CSV file before import                                             |
 | `import`                    | Import users from CSV into WorkOS                                             |
 | `import-package`            | Import a migration package directory into WorkOS                              |
@@ -56,6 +57,26 @@ workos-migrate <command>
 | `process-role-definitions`  | Create roles and assign permissions in WorkOS                                 |
 
 Run `npx @workos/migrations <command> --help` for full option details on any command.
+
+## Exporting (unified command)
+
+Every source is exported through one verb that always writes a [migration package](docs/migration-package.md):
+
+```bash
+workos-migrate export <provider> --output-dir <dir> [provider options]
+```
+
+| Provider   | Ingest | Example                                                                      |
+| ---------- | ------ | ---------------------------------------------------------------------------- |
+| `auth0`    | API    | `export auth0 --domain … --client-id … --client-secret … --output-dir ./pkg` |
+| `cognito`  | API    | `export cognito --region … --user-pool-ids … --output-dir ./pkg`             |
+| `clerk`    | file   | `export clerk --from-file clerk.csv --output-dir ./pkg`                      |
+| `firebase` | file   | `export firebase --from-file firebase.json --output-dir ./pkg`               |
+| `csv`      | file   | `export csv --output-dir ./pkg` (writes a fillable skeleton)                 |
+
+Credentials and options are generated per provider — run `workos-migrate export <provider> --help` to see them. SSO handoff (SAML/OIDC) is opt-in where supported: pass `--secret-key` for Clerk, or `--service-account-key` + `--project-id` for Firebase.
+
+The legacy `export-auth0`, `export-cognito`, `transform-clerk`, and `transform-firebase` commands still work but print a deprecation notice and will be removed in v4.0. The per-provider guides below use the legacy names; substitute `export <provider>` as shown above.
 
 ## Prerequisites
 

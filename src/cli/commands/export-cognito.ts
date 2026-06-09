@@ -45,6 +45,9 @@ export function registerExportCognitoCommand(program: Command): void {
     .option('--quiet', 'Suppress progress output')
     .action(async (opts) => {
       try {
+        console.error(
+          chalk.yellow("⚠ 'export-cognito' is deprecated; use 'export cognito' (removed in v4.0)"),
+        );
         const credentials: ProviderCredentials = {
           region: opts.region,
           userPoolIds: opts.userPoolIds,
