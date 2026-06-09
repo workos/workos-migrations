@@ -119,6 +119,7 @@ export const cognitoSource: MigrationSource = {
       entities: ctx.options.entities as string[] | undefined,
       outputDir: ctx.outputDir,
       orgStrategy: ctx.options.orgStrategy as CognitoOrgStrategy | undefined,
+      skipExternalProviderUsers: ctx.options.skipExternalProviderUsers as boolean | undefined,
       quiet: ctx.quiet ?? false,
     });
 
