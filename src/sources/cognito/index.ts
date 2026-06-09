@@ -25,6 +25,7 @@ export interface CognitoExportClient {
     entities?: string[];
     outputDir?: string;
     orgStrategy?: CognitoOrgStrategy;
+    skipExternalProviderUsers?: boolean;
     quiet?: boolean;
   }): Promise<ExportCognitoPackageResult>;
 }
