@@ -8,7 +8,9 @@ import * as logger from '../../shared/logger.js';
 export function registerImportPackageCommand(program: Command): void {
   program
     .command('import-package')
-    .description('Import a migration package directory into WorkOS')
+    .description(
+      'Import a migration package into WorkOS — users, organizations, memberships, roles, and TOTP factors (SSO connections are handoff-only, never auto-created)',
+    )
     .argument('<dir>', 'Migration package directory')
     .option('--dry-run', 'Validate and plan without contacting WorkOS')
     .option('--plan', 'Print the import plan only and exit')

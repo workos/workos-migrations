@@ -1,4 +1,5 @@
 import { Command } from 'commander';
+import { registerExportCommand } from './commands/export.js';
 import { registerExportTemplateCommand } from './commands/export-template.js';
 import { registerGeneratePackageTemplateCommand } from './commands/generate-package-template.js';
 import { registerImportCommand } from './commands/import.js';
@@ -22,6 +23,7 @@ program
   .description('WorkOS Migration Tool — migrate users from identity providers to WorkOS')
   .version('2.0.0');
 
+registerExportCommand(program);
 registerImportCommand(program);
 registerImportPackageCommand(program);
 registerValidateCommand(program);

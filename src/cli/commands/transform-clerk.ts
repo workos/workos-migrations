@@ -7,7 +7,9 @@ import { exportClerkPackage } from '../../transformers/clerk/package-exporter.js
 export function registerTransformClerkCommand(program: Command): void {
   program
     .command('transform-clerk')
-    .description('Transform Clerk export CSV to WorkOS-compatible CSV or migration package')
+    .description(
+      'Export users, organizations, memberships, roles, password hashes + SSO handoff from a Clerk export (deprecated; use "export clerk")',
+    )
     .requiredOption('--input <path>', 'Clerk export CSV file')
     .option('--output <path>', 'Output WorkOS CSV file (legacy single-CSV mode)')
     .option('--package', 'Write a migration package instead of a single CSV')
@@ -22,6 +24,9 @@ export function registerTransformClerkCommand(program: Command): void {
     .option('--quiet', 'Suppress progress output')
     .action(async (opts) => {
       try {
+        console.error(
+          chalk.yellow("⚠ 'transform-clerk' is deprecated; use 'export clerk' (removed in v4.0)"),
+        );
         if (!fs.existsSync(opts.input)) {
           console.error(chalk.red(`Clerk CSV file not found: ${opts.input}`));
           process.exit(1);

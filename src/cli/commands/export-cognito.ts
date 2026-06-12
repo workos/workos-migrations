@@ -7,7 +7,9 @@ import type { CognitoOrgStrategy } from '../../providers/cognito/package-exporte
 export function registerExportCognitoCommand(program: Command): void {
   program
     .command('export-cognito')
-    .description('Export users and SSO connections from AWS Cognito user pools')
+    .description(
+      'Export users, organizations, memberships + SSO handoff from AWS Cognito user pools (deprecated; use "export cognito")',
+    )
     .requiredOption('--region <region>', 'AWS region (e.g. us-east-1)', process.env.AWS_REGION)
     .requiredOption(
       '--user-pool-ids <ids>',
@@ -45,6 +47,9 @@ export function registerExportCognitoCommand(program: Command): void {
     .option('--quiet', 'Suppress progress output')
     .action(async (opts) => {
       try {
+        console.error(
+          chalk.yellow("⚠ 'export-cognito' is deprecated; use 'export cognito' (removed in v4.0)"),
+        );
         const credentials: ProviderCredentials = {
           region: opts.region,
           userPoolIds: opts.userPoolIds,
