@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.5.0](https://github.com/workos/workos-migrations/compare/v2.4.0...v2.5.0) (2026-06-12)
+
+
+### Features
+
+* registry-driven source layer + unified export &lt;provider&gt; command ([#119](https://github.com/workos/workos-migrations/issues/119)) ([cda9fdf](https://github.com/workos/workos-migrations/commit/cda9fdfe6c27aefd5d3b44f6245cddcc34d6977d))
+
 ## [2.4.0](https://github.com/workos/workos-migrations/compare/v2.3.0...v2.4.0) (2026-06-04)
 
 
