@@ -69,11 +69,11 @@ describe('Auth0 SSO handoff mapper', () => {
       emailAttribute: 'mail',
       firstNameAttribute: 'firstName',
       lastNameAttribute: 'lastName',
-      importedId: 'okta',
+      externalId: 'okta',
     });
     expect(result.customAttributeRows).toMatchObject([
       {
-        importedId: 'okta',
+        externalId: 'okta',
         organizationExternalId: 'org_acme',
         providerType: 'SAML',
         userPoolAttribute: 'department',
@@ -116,7 +116,7 @@ describe('Auth0 SSO handoff mapper', () => {
       clientId: 'client_123',
       clientSecret: '',
       discoveryEndpoint: 'https://issuer.example.com/.well-known/openid-configuration',
-      importedId: 'oidc-idp',
+      externalId: 'oidc-idp',
     });
     expect(result.customAttributeRows).toMatchObject([
       {
@@ -128,7 +128,7 @@ describe('Auth0 SSO handoff mapper', () => {
     expect(result.warnings).toMatchObject([
       {
         code: 'secrets_redacted',
-        importedId: 'oidc-idp',
+        externalId: 'oidc-idp',
       },
     ]);
   });
@@ -162,7 +162,7 @@ describe('Auth0 SSO handoff mapper', () => {
       idpEntityId: 'https://okta.example.com/entity',
       idpUrl: 'https://okta.example.com/sso/saml',
       x509Cert: 'CERTDATA',
-      importedId: 'okta-saml',
+      externalId: 'okta-saml',
     });
   });
 
@@ -192,7 +192,7 @@ describe('Auth0 SSO handoff mapper', () => {
       clientId: 'azure-client',
       discoveryEndpoint:
         'https://login.microsoftonline.com/contoso.onmicrosoft.com/v2.0/.well-known/openid-configuration',
-      importedId: 'azure-ad',
+      externalId: 'azure-ad',
     });
   });
 
@@ -220,7 +220,7 @@ describe('Auth0 SSO handoff mapper', () => {
     expect(result.oidcRow).toMatchObject({
       clientId: 'google-client',
       discoveryEndpoint: 'https://accounts.google.com/.well-known/openid-configuration',
-      importedId: 'google-workspace',
+      externalId: 'google-workspace',
     });
   });
 
@@ -245,7 +245,7 @@ describe('Auth0 SSO handoff mapper', () => {
       warnings: [
         {
           code: 'unsupported_connection_protocol',
-          importedId: 'Username-Password-Authentication',
+          externalId: 'Username-Password-Authentication',
         },
       ],
     });
@@ -275,7 +275,7 @@ describe('Auth0 SSO handoff mapper', () => {
       warnings: [
         {
           code: 'unsupported_connection_protocol',
-          importedId: 'corp-ad',
+          externalId: 'corp-ad',
           details: {
             reason:
               'Auth0 enterprise strategy did not expose enough SAML or OIDC handoff configuration.',
@@ -307,7 +307,7 @@ describe('Auth0 SSO handoff mapper', () => {
       warnings: [
         {
           code: 'incomplete_connection_configuration',
-          importedId: 'incomplete-saml',
+          externalId: 'incomplete-saml',
           details: {
             missingFields: ['idpEntityId', 'x509Cert'],
           },
@@ -352,7 +352,7 @@ describe('Auth0 SSO handoff mapper', () => {
     expect(result.warnings).toMatchObject([
       {
         code: 'multi_org_connection_consolidated',
-        importedId: 'shared-saml',
+        externalId: 'shared-saml',
         details: {
           sourceOrganizationIds: ['org_acme', 'org_other'],
           domains: ['acme.com', 'other.com'],

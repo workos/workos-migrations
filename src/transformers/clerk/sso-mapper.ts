@@ -87,7 +87,7 @@ export type ClerkSsoConnectionMapping =
   | {
       status: 'mapped';
       protocol: 'saml';
-      importedId: string;
+      externalId: string;
       samlRow: SamlRow;
       customAttributeRows: CustomAttrRow[];
       warnings: SsoHandoffWarning[];
@@ -95,14 +95,14 @@ export type ClerkSsoConnectionMapping =
   | {
       status: 'mapped';
       protocol: 'oidc';
-      importedId: string;
+      externalId: string;
       oidcRow: OidcRow;
       warnings: SsoHandoffWarning[];
     }
   | {
       status: 'skipped';
       protocol: 'saml' | 'oidc' | 'unknown';
-      importedId: string;
+      externalId: string;
       reason: string;
       warnings: SsoHandoffWarning[];
     };
@@ -113,27 +113,27 @@ export function mapClerkEnterpriseConnection(
   input: ClerkSsoMappingInput,
 ): ClerkSsoConnectionMapping {
   const { connection } = input;
-  const importedId = `clerk:${connection.id}`;
+  const externalId = `clerk:${connection.id}`;
 
   if (connection.saml_connection) {
-    return mapSamlConnection(input, importedId);
+    return mapSamlConnection(input, externalId);
   }
 
   if (connection.oauth_config) {
-    return mapOidcConnection(input, importedId);
+    return mapOidcConnection(input, externalId);
   }
 
   const warning = incompleteConnectionConfigurationWarning({
     provider: 'clerk',
     protocol: 'unknown',
-    importedId,
+    externalId,
     missingFields: ['saml_connection', 'oauth_config'],
     reason: 'Clerk enterprise connection has neither saml_connection nor oauth_config',
   });
   return {
     status: 'skipped',
     protocol: 'unknown',
-    importedId,
+    externalId,
     reason: warning.message,
     warnings: [warning],
   };
@@ -141,7 +141,7 @@ export function mapClerkEnterpriseConnection(
 
 function mapSamlConnection(
   input: ClerkSsoMappingInput,
-  importedId: string,
+  externalId: string,
 ): ClerkSsoConnectionMapping {
   const { connection, organization } = input;
   const saml = connection.saml_connection!;
@@ -163,14 +163,14 @@ function mapSamlConnection(
     const warning = incompleteConnectionConfigurationWarning({
       provider: 'clerk',
       protocol: 'saml',
-      importedId,
+      externalId,
       missingFields,
       reason: 'Clerk SAML enterprise connection is missing required handoff fields',
     });
     return {
       status: 'skipped',
       protocol: 'saml',
-      importedId,
+      externalId,
       reason: warning.message,
       warnings: [warning],
     };
@@ -182,7 +182,7 @@ function mapSamlConnection(
       missingDomainsWarning({
         provider: 'clerk',
         protocol: 'saml',
-        importedId,
+        externalId,
         organizationExternalId: connection.organization_id ?? undefined,
         organizationName: organization?.name ?? undefined,
       }),
@@ -211,7 +211,7 @@ function mapSamlConnection(
     firstNameAttribute,
     lastNameAttribute,
     idpInitiatedEnabled: saml.allow_idp_initiated ? 'true' : '',
-    importedId,
+    externalId,
   });
 
   const customAttributeRows: CustomAttrRow[] = [];
@@ -221,7 +221,7 @@ function mapSamlConnection(
     if (!claim) continue;
     customAttributeRows.push(
       createCustomAttributeMappingRow({
-        importedId,
+        externalId,
         organizationExternalId: connection.organization_id ?? '',
         providerType: 'SAML',
         userPoolAttribute: key,
@@ -233,7 +233,7 @@ function mapSamlConnection(
   return {
     status: 'mapped',
     protocol: 'saml',
-    importedId,
+    externalId,
     samlRow,
     customAttributeRows,
     warnings,
@@ -242,7 +242,7 @@ function mapSamlConnection(
 
 function mapOidcConnection(
   input: ClerkSsoMappingInput,
-  importedId: string,
+  externalId: string,
 ): ClerkSsoConnectionMapping {
   const { connection, organization } = input;
   const oauth = connection.oauth_config!;
@@ -259,14 +259,14 @@ function mapOidcConnection(
     const warning = incompleteConnectionConfigurationWarning({
       provider: 'clerk',
       protocol: 'oidc',
-      importedId,
+      externalId,
       missingFields,
       reason: 'Clerk OIDC enterprise connection is missing required handoff fields',
     });
     return {
       status: 'skipped',
       protocol: 'oidc',
-      importedId,
+      externalId,
       reason: warning.message,
       warnings: [warning],
     };
@@ -278,7 +278,7 @@ function mapOidcConnection(
       missingDomainsWarning({
         provider: 'clerk',
         protocol: 'oidc',
-        importedId,
+        externalId,
         organizationExternalId: connection.organization_id ?? undefined,
         organizationName: organization?.name ?? undefined,
       }),
@@ -295,13 +295,13 @@ function mapOidcConnection(
     // must re-enter it in the WorkOS dashboard regardless.
     clientSecret: '',
     discoveryEndpoint: discoveryUrl,
-    importedId,
+    externalId,
   });
 
   return {
     status: 'mapped',
     protocol: 'oidc',
-    importedId,
+    externalId,
     oidcRow,
     warnings,
   };

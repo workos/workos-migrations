@@ -40,7 +40,7 @@ export type Auth0SsoConnectionMapping =
   | {
       status: 'mapped';
       protocol: Auth0SsoProtocol;
-      importedId: string;
+      externalId: string;
       samlRow?: SamlRow;
       oidcRow?: OidcRow;
       customAttributeRows: CustomAttrRow[];
@@ -50,7 +50,7 @@ export type Auth0SsoConnectionMapping =
   | {
       status: 'skipped';
       protocol: Auth0SsoClassification;
-      importedId: string;
+      externalId: string;
       reason: string;
       warnings: SsoHandoffWarning[];
     };
@@ -247,7 +247,7 @@ export function mapAuth0ConnectionToSsoHandoff(
   input: Auth0SsoMappingInput,
 ): Auth0SsoConnectionMapping {
   const { connection } = input;
-  const importedId = buildAuth0ConnectionImportedId(connection);
+  const externalId = buildAuth0ConnectionImportedId(connection);
   const protocol = classifyAuth0ConnectionProtocol(connection);
 
   if (protocol === 'unsupported') {
@@ -258,24 +258,24 @@ export function mapAuth0ConnectionToSsoHandoff(
     const warning = unsupportedConnectionProtocolWarning({
       provider: 'auth0',
       protocol: connection.strategy || 'unknown',
-      importedId,
+      externalId,
       strategy: connection.strategy,
       reason,
     });
     return {
       status: 'skipped',
       protocol,
-      importedId,
+      externalId,
       reason: 'unsupported_connection_protocol',
       warnings: [warning],
     };
   }
 
   if (protocol === 'saml') {
-    return mapSamlConnection(input, importedId);
+    return mapSamlConnection(input, externalId);
   }
 
-  return mapOidcConnection(input, importedId);
+  return mapOidcConnection(input, externalId);
 }
 
 export function redactAuth0ConnectionSecrets(value: unknown): unknown {
@@ -298,7 +298,7 @@ export function redactAuth0ConnectionSecrets(value: unknown): unknown {
 
 function mapSamlConnection(
   input: Auth0SsoMappingInput,
-  importedId: string,
+  externalId: string,
 ): Auth0SsoConnectionMapping {
   const { connection } = input;
   const options = recordValue(connection.options);
@@ -320,7 +320,7 @@ function mapSamlConnection(
     const warning = incompleteConnectionConfigurationWarning({
       provider: 'auth0',
       protocol: 'saml',
-      importedId,
+      externalId,
       strategy: connection.strategy,
       missingFields,
       reason:
@@ -329,7 +329,7 @@ function mapSamlConnection(
     return {
       status: 'skipped',
       protocol: 'saml',
-      importedId,
+      externalId,
       reason: 'incomplete_connection_configuration',
       warnings: [warning],
     };
@@ -339,7 +339,7 @@ function mapSamlConnection(
     connection,
     input.orgBindings ?? [],
     'saml',
-    importedId,
+    externalId,
   );
   const attributeMappings = extractAttributeMappings(connection);
   const customAcsUrl = getFirstString(options, SAML_ACS_URL_KEYS);
@@ -353,7 +353,7 @@ function mapSamlConnection(
       redactedSecretsWarning({
         provider: 'auth0',
         protocol: 'saml',
-        importedId,
+        externalId,
         fields: samlSecretValues,
         file: 'sso/saml_connections.csv',
       }),
@@ -386,17 +386,17 @@ function mapSamlConnection(
     nameIdEncryptionKey: input.includeSecrets
       ? getFirstString(options, ['nameIdEncryptionKey', 'name_id_encryption_key'])
       : '',
-    importedId,
+    externalId,
   });
 
   return {
     status: 'mapped',
     protocol: 'saml',
-    importedId,
+    externalId,
     samlRow: row,
-    customAttributeRows: toCustomAttributeRows(attributeMappings, importedId, organization, 'SAML'),
+    customAttributeRows: toCustomAttributeRows(attributeMappings, externalId, organization, 'SAML'),
     proxyRouteRow: createProxyRouteRow({
-      importedId,
+      externalId,
       organizationExternalId: organization.organizationExternalId,
       provider: 'auth0',
       protocol: 'saml',
@@ -413,7 +413,7 @@ function mapSamlConnection(
 
 function mapOidcConnection(
   input: Auth0SsoMappingInput,
-  importedId: string,
+  externalId: string,
 ): Auth0SsoConnectionMapping {
   const { connection } = input;
   const options = recordValue(connection.options);
@@ -433,7 +433,7 @@ function mapOidcConnection(
     const warning = incompleteConnectionConfigurationWarning({
       provider: 'auth0',
       protocol: 'oidc',
-      importedId,
+      externalId,
       strategy: connection.strategy,
       missingFields,
       reason: 'OIDC handoff requires a client ID and discovery endpoint.',
@@ -441,7 +441,7 @@ function mapOidcConnection(
     return {
       status: 'skipped',
       protocol: 'oidc',
-      importedId,
+      externalId,
       reason: 'incomplete_connection_configuration',
       warnings: [warning],
     };
@@ -451,7 +451,7 @@ function mapOidcConnection(
     connection,
     input.orgBindings ?? [],
     'oidc',
-    importedId,
+    externalId,
   );
   const attributeMappings = extractAttributeMappings(connection);
   const customRedirectUri = getFirstString(options, OIDC_REDIRECT_URI_KEYS);
@@ -464,7 +464,7 @@ function mapOidcConnection(
       redactedSecretsWarning({
         provider: 'auth0',
         protocol: 'oidc',
-        importedId,
+        externalId,
         fields: ['clientSecret'],
         file: 'sso/oidc_connections.csv',
       }),
@@ -480,17 +480,17 @@ function mapOidcConnection(
     clientSecret: input.includeSecrets ? clientSecret : '',
     discoveryEndpoint: discoveryEndpoint ?? '',
     customRedirectUri,
-    importedId,
+    externalId,
   });
 
   return {
     status: 'mapped',
     protocol: 'oidc',
-    importedId,
+    externalId,
     oidcRow: row,
-    customAttributeRows: toCustomAttributeRows(attributeMappings, importedId, organization, 'OIDC'),
+    customAttributeRows: toCustomAttributeRows(attributeMappings, externalId, organization, 'OIDC'),
     proxyRouteRow: createProxyRouteRow({
-      importedId,
+      externalId,
       organizationExternalId: organization.organizationExternalId,
       provider: 'auth0',
       protocol: 'oidc',
@@ -574,7 +574,7 @@ function buildOrganizationContext(
   connection: Auth0Connection,
   orgBindings: Auth0SsoConnectionOrgBinding[],
   protocol: Auth0SsoProtocol,
-  importedId: string,
+  externalId: string,
 ): {
   organizationName: string;
   organizationExternalId: string;
@@ -593,7 +593,7 @@ function buildOrganizationContext(
       domains,
       warnings,
     };
-    addMissingDomainWarning(context, protocol, importedId);
+    addMissingDomainWarning(context, protocol, externalId);
     return context;
   }
 
@@ -612,13 +612,13 @@ function buildOrganizationContext(
       multiOrgConnectionConsolidationWarning({
         provider: 'auth0',
         protocol,
-        importedId,
+        externalId,
         organizationExternalId,
         sourceOrganizationIds: orgBindings.map((binding) => binding.organization.id),
         domains,
       }),
     );
-    addMissingDomainWarning(context, protocol, importedId);
+    addMissingDomainWarning(context, protocol, externalId);
     return context;
   }
 
@@ -632,7 +632,7 @@ function buildOrganizationContext(
     domains,
     warnings,
   };
-  addMissingDomainWarning(context, protocol, importedId);
+  addMissingDomainWarning(context, protocol, externalId);
   return context;
 }
 
@@ -644,14 +644,14 @@ function addMissingDomainWarning(
     warnings: SsoHandoffWarning[];
   },
   protocol: Auth0SsoProtocol,
-  importedId: string,
+  externalId: string,
 ): void {
   if (context.domains.length > 0) return;
   context.warnings.push(
     missingDomainsWarning({
       provider: 'auth0',
       protocol,
-      importedId,
+      externalId,
       organizationExternalId: context.organizationExternalId,
       organizationName: context.organizationName,
     }),
@@ -678,7 +678,7 @@ function extractAttributeMappings(connection: Auth0Connection): Record<string, s
 
 function toCustomAttributeRows(
   attributeMappings: Record<string, string>,
-  importedId: string,
+  externalId: string,
   organization: { organizationExternalId: string },
   providerType: 'SAML' | 'OIDC',
 ): CustomAttrRow[] {
@@ -687,7 +687,7 @@ function toCustomAttributeRows(
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([attribute, claim]) =>
       createCustomAttributeMappingRow({
-        importedId,
+        externalId,
         organizationExternalId: organization.organizationExternalId,
         providerType,
         userPoolAttribute: attribute,
