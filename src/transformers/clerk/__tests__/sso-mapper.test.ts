@@ -51,7 +51,7 @@ describe('mapClerkEnterpriseConnection — SAML', () => {
     expect(result.status).toBe('mapped');
     if (result.status !== 'mapped' || result.protocol !== 'saml') return;
 
-    expect(result.importedId).toBe('clerk:ec_01_saml');
+    expect(result.externalId).toBe('clerk:ec_01_saml');
     expect(result.samlRow).toMatchObject({
       organizationName: 'Acme',
       organizationExternalId: 'org_acme',
@@ -66,12 +66,12 @@ describe('mapClerkEnterpriseConnection — SAML', () => {
       firstNameAttribute: 'givenName',
       lastNameAttribute: 'surname',
       idpInitiatedEnabled: 'true',
-      importedId: 'clerk:ec_01_saml',
+      externalId: 'clerk:ec_01_saml',
     });
     expect(result.samlRow.x509Cert).toContain('CERTDATA');
     expect(result.customAttributeRows).toEqual([
       expect.objectContaining({
-        importedId: 'clerk:ec_01_saml',
+        externalId: 'clerk:ec_01_saml',
         organizationExternalId: 'org_acme',
         providerType: 'SAML',
         userPoolAttribute: 'department',
@@ -160,7 +160,7 @@ describe('mapClerkEnterpriseConnection — OIDC', () => {
     expect(result.status).toBe('mapped');
     if (result.status !== 'mapped' || result.protocol !== 'oidc') return;
 
-    expect(result.importedId).toBe('clerk:ec_02_oidc');
+    expect(result.externalId).toBe('clerk:ec_02_oidc');
     expect(result.oidcRow).toMatchObject({
       organizationName: 'Acme',
       organizationExternalId: 'org_acme',
@@ -169,7 +169,7 @@ describe('mapClerkEnterpriseConnection — OIDC', () => {
       clientSecret: '',
       discoveryEndpoint:
         'https://login.microsoftonline.com/tenant/.well-known/openid-configuration',
-      importedId: 'clerk:ec_02_oidc',
+      externalId: 'clerk:ec_02_oidc',
     });
     expect(result.warnings).toEqual([]);
   });

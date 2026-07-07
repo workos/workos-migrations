@@ -69,7 +69,7 @@ export function isOidc(p: CognitoProvider): boolean {
   return p.providerType.toUpperCase() === 'OIDC';
 }
 
-export function importedId(p: CognitoProvider): string {
+export function externalId(p: CognitoProvider): string {
   return `${p.userPoolId}:${p.providerName}`;
 }
 
@@ -186,7 +186,7 @@ export function toSamlRow(p: CognitoProvider, proxy: ProxyTemplates = {}): SamlR
     requestSigningKey: '',
     assertionEncryptionKey: '',
     nameIdEncryptionKey: '',
-    importedId: importedId(p),
+    externalId: externalId(p),
   });
 }
 
@@ -200,7 +200,7 @@ export function toOidcRow(p: CognitoProvider, proxy: ProxyTemplates = {}): OidcR
     clientSecret: details.client_secret ?? '',
     discoveryEndpoint: normalizeDiscoveryEndpoint(details.oidc_issuer) ?? '',
     customRedirectUri: renderTemplate(proxy.oidcCustomRedirectUri ?? null, p),
-    importedId: importedId(p),
+    externalId: externalId(p),
   });
 }
 
@@ -210,7 +210,7 @@ export function toCustomAttrRows(p: CognitoProvider): CustomAttrRow[] {
     if (!SUPPLEMENTARY_ATTR_KEYS.has(attr)) continue;
     rows.push(
       createCustomAttributeMappingRow({
-        importedId: importedId(p),
+        externalId: externalId(p),
         organizationExternalId: p.providerName,
         providerType: p.providerType,
         userPoolAttribute: attr,

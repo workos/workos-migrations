@@ -37,14 +37,14 @@ describe('mapFirebaseSamlConfig', () => {
 
     expect(result.status).toBe('mapped');
     if (result.status !== 'mapped') return;
-    expect(result.importedId).toBe('firebase:saml.okta');
+    expect(result.externalId).toBe('firebase:saml.okta');
     expect(result.row).toMatchObject({
       idpEntityId: 'https://acme.okta.com/exk1',
       idpUrl: 'https://acme.okta.com/sso/saml',
       x509Cert: 'CERTDATA',
       customEntityId: 'https://identitytoolkit.googleapis.com/saml.okta',
       customAcsUrl: 'https://acme.firebaseapp.com/__/auth/handler',
-      importedId: 'firebase:saml.okta',
+      externalId: 'firebase:saml.okta',
     });
     expect(result.warnings.map((w) => w.code)).toContain('missing_domains');
   });
@@ -56,7 +56,7 @@ describe('mapFirebaseSamlConfig', () => {
     });
     expect(result.status).toBe('mapped');
     if (result.status !== 'mapped') return;
-    expect(result.importedId).toBe('firebase:t1:saml.okta');
+    expect(result.externalId).toBe('firebase:t1:saml.okta');
     expect(result.row.organizationExternalId).toBe('t1');
     expect(result.row.organizationName).toBe('Tenant One');
   });
@@ -149,7 +149,7 @@ describe('mapFirebaseOidcConfig', () => {
       clientSecret: '',
       discoveryEndpoint:
         'https://login.microsoftonline.com/tenant/.well-known/openid-configuration',
-      importedId: 'firebase:oidc.azure',
+      externalId: 'firebase:oidc.azure',
     });
     expect(result.warnings.map((w) => w.code)).toEqual(
       expect.arrayContaining(['secrets_redacted', 'missing_domains']),

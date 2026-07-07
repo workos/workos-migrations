@@ -64,14 +64,14 @@ export type FirebaseSsoConnectionMapping<TRow> =
   | {
       status: 'mapped';
       protocol: 'saml' | 'oidc';
-      importedId: string;
+      externalId: string;
       row: TRow;
       warnings: SsoHandoffWarning[];
     }
   | {
       status: 'skipped';
       protocol: 'saml' | 'oidc';
-      importedId: string;
+      externalId: string;
       reason: string;
       warnings: SsoHandoffWarning[];
     };
@@ -81,7 +81,7 @@ export function mapFirebaseSamlConfig(
 ): FirebaseSsoConnectionMapping<SamlRow> {
   const { config, scope } = input;
   const configId = extractConfigId(config.name);
-  const importedId = scope?.tenantId
+  const externalId = scope?.tenantId
     ? `firebase:${scope.tenantId}:${configId}`
     : `firebase:${configId}`;
   const warnings: SsoHandoffWarning[] = [];
@@ -102,14 +102,14 @@ export function mapFirebaseSamlConfig(
     const warning = incompleteConnectionConfigurationWarning({
       provider: 'firebase',
       protocol: 'saml',
-      importedId,
+      externalId,
       missingFields,
       reason: 'Firebase inboundSamlConfig is missing required IdP handoff fields',
     });
     return {
       status: 'skipped',
       protocol: 'saml',
-      importedId,
+      externalId,
       reason: warning.message,
       warnings: [warning],
     };
@@ -126,14 +126,14 @@ export function mapFirebaseSamlConfig(
     idpMetadataUrl: '',
     customEntityId: config.spConfig?.spEntityId ?? '',
     customAcsUrl: config.spConfig?.callbackUri ?? '',
-    importedId,
+    externalId,
   });
 
   warnings.push(
     missingDomainsWarning({
       provider: 'firebase',
       protocol: 'saml',
-      importedId,
+      externalId,
       organizationExternalId: scope?.tenantId,
       organizationName: scope?.tenantDisplayName,
     }),
@@ -144,7 +144,7 @@ export function mapFirebaseSamlConfig(
       incompleteConnectionConfigurationWarning({
         provider: 'firebase',
         protocol: 'saml',
-        importedId,
+        externalId,
         missingFields: ['sp_request_signing'],
         reason:
           'IdP expects signed SAML AuthnRequests (idpConfig.signRequest=true); verify SP request signing is configured in WorkOS',
@@ -158,7 +158,7 @@ export function mapFirebaseSamlConfig(
       incompleteConnectionConfigurationWarning({
         provider: 'firebase',
         protocol: 'saml',
-        importedId,
+        externalId,
         missingFields: ['sp_certificate_renewal'],
         reason: `Firebase-managed SP certificate(s) expire(d) at: ${expiringCerts.join(', ')}. After cutover to WorkOS, customer must register WorkOS's SP signing certificate at the IdP.`,
       }),
@@ -168,7 +168,7 @@ export function mapFirebaseSamlConfig(
   return {
     status: 'mapped',
     protocol: 'saml',
-    importedId,
+    externalId,
     row: samlRow,
     warnings,
   };
@@ -179,7 +179,7 @@ export function mapFirebaseOidcConfig(
 ): FirebaseSsoConnectionMapping<OidcRow> {
   const { config, scope } = input;
   const configId = extractConfigId(config.name);
-  const importedId = scope?.tenantId
+  const externalId = scope?.tenantId
     ? `firebase:${scope.tenantId}:${configId}`
     : `firebase:${configId}`;
   const warnings: SsoHandoffWarning[] = [];
@@ -195,14 +195,14 @@ export function mapFirebaseOidcConfig(
     const warning = incompleteConnectionConfigurationWarning({
       provider: 'firebase',
       protocol: 'oidc',
-      importedId,
+      externalId,
       missingFields,
       reason: 'Firebase oauthIdpConfig is missing required handoff fields',
     });
     return {
       status: 'skipped',
       protocol: 'oidc',
-      importedId,
+      externalId,
       reason: warning.message,
       warnings: [warning],
     };
@@ -220,7 +220,7 @@ export function mapFirebaseOidcConfig(
     // secrets — the customer re-enters them in the WorkOS dashboard.
     clientSecret: '',
     discoveryEndpoint: normalizeDiscoveryEndpoint(issuer),
-    importedId,
+    externalId,
   });
 
   if (hadSecret) {
@@ -228,7 +228,7 @@ export function mapFirebaseOidcConfig(
       redactedSecretsWarning({
         provider: 'firebase',
         protocol: 'oidc',
-        importedId,
+        externalId,
         file: 'sso/oidc_connections.csv',
         fields: ['clientSecret'],
       }),
@@ -239,7 +239,7 @@ export function mapFirebaseOidcConfig(
     missingDomainsWarning({
       provider: 'firebase',
       protocol: 'oidc',
-      importedId,
+      externalId,
       organizationExternalId: scope?.tenantId,
       organizationName: scope?.tenantDisplayName,
     }),
@@ -248,7 +248,7 @@ export function mapFirebaseOidcConfig(
   return {
     status: 'mapped',
     protocol: 'oidc',
-    importedId,
+    externalId,
     row: oidcRow,
     warnings,
   };
