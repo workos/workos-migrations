@@ -239,7 +239,7 @@ export function classifyAuth0ConnectionProtocol(
   return 'unsupported';
 }
 
-export function buildAuth0ConnectionImportedId(connection: Auth0Connection): string {
+export function buildAuth0ConnectionExternalId(connection: Auth0Connection): string {
   return connection.name;
 }
 
@@ -247,7 +247,7 @@ export function mapAuth0ConnectionToSsoHandoff(
   input: Auth0SsoMappingInput,
 ): Auth0SsoConnectionMapping {
   const { connection } = input;
-  const externalId = buildAuth0ConnectionImportedId(connection);
+  const externalId = buildAuth0ConnectionExternalId(connection);
   const protocol = classifyAuth0ConnectionProtocol(connection);
 
   if (protocol === 'unsupported') {
