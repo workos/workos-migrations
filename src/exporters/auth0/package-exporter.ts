@@ -1403,7 +1403,7 @@ function addSsoWarning(stats: Auth0PackageStats, warning: SsoHandoffWarning): vo
     code: warning.code,
     message: warning.message,
     ...(warning.organizationExternalId ? { org_id: warning.organizationExternalId } : {}),
-    ...(warning.importedId ? { connection_name: warning.importedId } : {}),
+    ...(warning.externalId ? { connection_name: warning.externalId } : {}),
     ...(warning.protocol ? { protocol: warning.protocol } : {}),
     ...(warning.details ? { details: warning.details } : {}),
   });

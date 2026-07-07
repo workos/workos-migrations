@@ -170,7 +170,7 @@ This matches the existing TOTP enrollment parser.
 ### SAML Connections
 
 ```csv
-organizationName,organizationId,organizationExternalId,domains,idpEntityId,idpUrl,x509Cert,idpMetadataUrl,customEntityId,customAcsUrl,idpIdAttribute,emailAttribute,firstNameAttribute,lastNameAttribute,name,customAttributes,idpInitiatedEnabled,requestSigningKey,assertionEncryptionKey,nameIdEncryptionKey,importedId
+organizationName,organizationId,organizationExternalId,domains,idpEntityId,idpUrl,x509Cert,idpMetadataUrl,customEntityId,customAcsUrl,idpIdAttribute,emailAttribute,firstNameAttribute,lastNameAttribute,name,customAttributes,idpInitiatedEnabled,requestSigningKey,assertionEncryptionKey,nameIdEncryptionKey,externalId
 ```
 
 SSO connections are handoff-only. The package should not attempt to create WorkOS SSO connections automatically.
@@ -178,7 +178,7 @@ SSO connections are handoff-only. The package should not attempt to create WorkO
 ### OIDC Connections
 
 ```csv
-organizationName,organizationId,organizationExternalId,domains,clientId,clientSecret,discoveryEndpoint,customRedirectUri,name,customAttributes,importedId
+organizationName,organizationId,organizationExternalId,domains,clientId,clientSecret,discoveryEndpoint,customRedirectUri,name,customAttributes,externalId
 ```
 
 OIDC `clientSecret` should be omitted unless the exporter has an explicit include-secrets option. When secrets are omitted, write a warning and record secret redaction metadata in the manifest.
@@ -186,7 +186,7 @@ OIDC `clientSecret` should be omitted unless the exporter has an explicit includ
 ### Custom Attribute Mappings
 
 ```csv
-importedId,organizationExternalId,providerType,userPoolAttribute,idpClaim
+externalId,organizationExternalId,providerType,userPoolAttribute,idpClaim
 ```
 
 This keeps the current Cognito-compatible shape until all provider exporters move to the package contract.
@@ -194,7 +194,7 @@ This keeps the current Cognito-compatible shape until all provider exporters mov
 ### Proxy Routes
 
 ```csv
-importedId,organizationExternalId,provider,protocol,sourceAcsUrl,sourceEntityId,sourceRedirectUri,customAcsUrl,customEntityId,customRedirectUri,workosConnectionId,workosAcsUrl,cutoverState,notes
+externalId,organizationExternalId,provider,protocol,sourceAcsUrl,sourceEntityId,sourceRedirectUri,customAcsUrl,customEntityId,customRedirectUri,workosConnectionId,workosAcsUrl,cutoverState,notes
 ```
 
 `cutoverState` values are `legacy`, `workos`, or `manual`.

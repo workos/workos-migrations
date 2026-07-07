@@ -93,7 +93,7 @@ export const CSV_TEMPLATES: Record<string, CSVTemplate> = {
       'requestSigningKey',
       'assertionEncryptionKey',
       'nameIdEncryptionKey',
-      'importedId',
+      'externalId',
     ],
     required: ['organizationName', 'organizationId'],
     optional: [
@@ -115,7 +115,7 @@ export const CSV_TEMPLATES: Record<string, CSVTemplate> = {
       'requestSigningKey',
       'assertionEncryptionKey',
       'nameIdEncryptionKey',
-      'importedId',
+      'externalId',
     ],
     example: [
       'Acme SAML,Acme Corporation,org_123,,acme.com;app.acme.com,https://acme.okta.com,https://acme.okta.com/app/saml,MIICXjCCAcegAwIBAgIBADANBgkqhkiG9w0BAQ0FADCBhzELMAkGA1UEBhMCVVMx...,https://acme.okta.com/app/metadata,,https://acme.com/saml/acs,email,,,,,,,,',
@@ -182,7 +182,7 @@ export const CSV_TEMPLATES: Record<string, CSVTemplate> = {
       'clientSecret',
       'discoveryEndpoint',
       'customRedirectUri',
-      'importedId',
+      'externalId',
     ],
     required: ['organizationName', 'organizationId'],
     optional: [
@@ -193,7 +193,7 @@ export const CSV_TEMPLATES: Record<string, CSVTemplate> = {
       'clientSecret',
       'discoveryEndpoint',
       'customRedirectUri',
-      'importedId',
+      'externalId',
     ],
     example: [
       'Acme OIDC,Acme Corporation,org_123,,acme.com,client_abc123,secret_xyz789,https://accounts.google.com/.well-known/openid-configuration,,',

@@ -102,7 +102,7 @@ describe('import-package orchestrator', () => {
           idpEntityId: 'https://idp.example.com/entity',
           idpUrl: 'https://idp.example.com/sso',
           x509Cert: 'CERT',
-          importedId: 'auth0:con_1',
+          externalId: 'auth0:con_1',
         },
       ],
     );
@@ -199,7 +199,7 @@ describe('import-package orchestrator', () => {
           idpEntityId: 'https://idp.example.com/entity',
           idpUrl: 'https://idp.example.com/sso',
           x509Cert: 'CERT',
-          importedId: 'auth0:con_1',
+          externalId: 'auth0:con_1',
         },
       ],
     );

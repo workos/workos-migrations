@@ -31,7 +31,7 @@ import {
 } from '../../sso/handoff.js';
 import {
   buildCustomAttributesJson,
-  importedId as cognitoImportedId,
+  externalId as cognitoImportedId,
   isFederatedUser,
   isOidc,
   isSaml,
@@ -454,7 +454,7 @@ async function writeSsoEntities(ctx: SsoWriteContext): Promise<void> {
 function buildProxyRoute(provider: CognitoProvider, proxy: ProxyTemplates): ProxyRouteRow {
   const protocol = isSaml(provider) ? 'saml' : 'oidc';
   return createProxyRouteRow({
-    importedId: cognitoImportedId(provider),
+    externalId: cognitoImportedId(provider),
     organizationExternalId: provider.providerName,
     provider: 'cognito',
     protocol,

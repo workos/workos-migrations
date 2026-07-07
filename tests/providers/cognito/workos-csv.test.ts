@@ -15,7 +15,7 @@ import {
   isSaml,
   isOidc,
   isFederatedUser,
-  importedId,
+  externalId,
   SAML_HEADERS,
   OIDC_HEADERS,
   USER_HEADERS,
@@ -101,9 +101,9 @@ describe('toSamlRow', () => {
     expect(row.customEntityId).toBe('');
   });
 
-  it('populates the importedId as <pool>:<provider_name>', () => {
+  it('populates the externalId as <pool>:<provider_name>', () => {
     const row = toSamlRow(loadProvider('saml-metadata-file.json'));
-    expect(row.importedId).toBe('us-east-1_AAAPOOL:okta-saml');
+    expect(row.externalId).toBe('us-east-1_AAAPOOL:okta-saml');
   });
 });
 
@@ -372,7 +372,7 @@ describe('toCustomAttrRows', () => {
     for (const row of rows) {
       expect(row.providerType).toBe('SAML');
       expect(row.organizationExternalId).toBe('customer-tenant-01');
-      expect(row.importedId).toBe('us-east-1_AAAPOOL:customer-tenant-01');
+      expect(row.externalId).toBe('us-east-1_AAAPOOL:customer-tenant-01');
     }
   });
 });
@@ -418,7 +418,7 @@ describe('buildCustomAttributesJson', () => {
 });
 
 // ---------------------------------------------------------------------------
-// renderTemplate, type predicates, importedId
+// renderTemplate, type predicates, externalId
 // ---------------------------------------------------------------------------
 
 describe('renderTemplate', () => {
@@ -480,10 +480,10 @@ describe('type predicates', () => {
   });
 });
 
-describe('importedId', () => {
+describe('externalId', () => {
   it('composes pool + provider', () => {
     expect(
-      importedId({
+      externalId({
         userPoolId: 'us-east-1_X',
         providerName: 'y',
         providerType: 'SAML',

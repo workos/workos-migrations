@@ -108,7 +108,7 @@ export const SAML_CONNECTION_CSV_HEADERS = [
   'requestSigningKey',
   'assertionEncryptionKey',
   'nameIdEncryptionKey',
-  'importedId',
+  'externalId',
 ] as const;
 
 export const OIDC_CONNECTION_CSV_HEADERS = [
@@ -121,11 +121,11 @@ export const OIDC_CONNECTION_CSV_HEADERS = [
   'clientSecret',
   'discoveryEndpoint',
   'customRedirectUri',
-  'importedId',
+  'externalId',
 ] as const;
 
 export const CUSTOM_ATTRIBUTE_MAPPING_CSV_HEADERS = [
-  'importedId',
+  'externalId',
   'organizationExternalId',
   'providerType',
   'userPoolAttribute',
@@ -133,7 +133,7 @@ export const CUSTOM_ATTRIBUTE_MAPPING_CSV_HEADERS = [
 ] as const;
 
 export const PROXY_ROUTE_CSV_HEADERS = [
-  'importedId',
+  'externalId',
   'organizationExternalId',
   'provider',
   'protocol',

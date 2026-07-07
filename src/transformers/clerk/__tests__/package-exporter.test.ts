@@ -192,7 +192,7 @@ describe('exportClerkPackage', () => {
       idpEntityId: 'https://acme.okta.com/exk1',
       idpUrl: 'https://acme.okta.com/sso/saml',
       idpInitiatedEnabled: 'true',
-      importedId: 'clerk:ec_saml_okta',
+      externalId: 'clerk:ec_saml_okta',
     });
 
     const oidcRows = await readCsv(path.join(pkgDir, 'sso', 'oidc_connections.csv'));
@@ -203,13 +203,13 @@ describe('exportClerkPackage', () => {
       clientSecret: '',
       discoveryEndpoint:
         'https://login.microsoftonline.com/tenant/.well-known/openid-configuration',
-      importedId: 'clerk:ec_oidc_azure',
+      externalId: 'clerk:ec_oidc_azure',
     });
 
     const customAttrRows = await readCsv(path.join(pkgDir, 'sso', 'custom_attribute_mappings.csv'));
     expect(customAttrRows).toEqual([
       expect.objectContaining({
-        importedId: 'clerk:ec_saml_okta',
+        externalId: 'clerk:ec_saml_okta',
         providerType: 'SAML',
         userPoolAttribute: 'department',
         idpClaim: 'department',

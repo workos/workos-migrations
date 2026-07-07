@@ -126,7 +126,7 @@ export interface SsoHandoffWarning {
   message: string;
   provider?: string;
   protocol?: string;
-  importedId?: string;
+  externalId?: string;
   organizationExternalId?: string;
   details?: Record<string, unknown>;
 }
@@ -134,7 +134,7 @@ export interface SsoHandoffWarning {
 export function missingDomainsWarning(input: {
   provider: string;
   protocol: string;
-  importedId?: string;
+  externalId?: string;
   organizationExternalId?: string;
   organizationName?: string;
 }): SsoHandoffWarning {
@@ -142,9 +142,9 @@ export function missingDomainsWarning(input: {
     code: 'missing_domains',
     provider: input.provider,
     protocol: input.protocol,
-    importedId: input.importedId,
+    externalId: input.externalId,
     organizationExternalId: input.organizationExternalId,
-    message: `No domains were exported for ${input.provider} ${input.protocol} connection${input.importedId ? ` ${input.importedId}` : ''}. Populate domains before WorkOS handoff when domain capture is required.`,
+    message: `No domains were exported for ${input.provider} ${input.protocol} connection${input.externalId ? ` ${input.externalId}` : ''}. Populate domains before WorkOS handoff when domain capture is required.`,
     details: {
       organizationName: input.organizationName,
     },
@@ -155,14 +155,14 @@ export function redactedSecretsWarning(input: {
   provider: string;
   file?: string;
   fields: string[];
-  importedId?: string;
+  externalId?: string;
   protocol?: string;
 }): SsoHandoffWarning {
   return {
     code: 'secrets_redacted',
     provider: input.provider,
     protocol: input.protocol,
-    importedId: input.importedId,
+    externalId: input.externalId,
     message: `Secret fields were redacted from ${input.provider} SSO export output.`,
     details: {
       file: input.file,
@@ -174,7 +174,7 @@ export function redactedSecretsWarning(input: {
 export function multiOrgConnectionConsolidationWarning(input: {
   provider: string;
   protocol: string;
-  importedId: string;
+  externalId: string;
   organizationExternalId: string;
   sourceOrganizationIds: string[];
   domains: string[];
@@ -183,9 +183,9 @@ export function multiOrgConnectionConsolidationWarning(input: {
     code: 'multi_org_connection_consolidated',
     provider: input.provider,
     protocol: input.protocol,
-    importedId: input.importedId,
+    externalId: input.externalId,
     organizationExternalId: input.organizationExternalId,
-    message: `${input.provider} ${input.protocol} connection ${input.importedId} is attached to multiple source organizations and was consolidated into one WorkOS handoff row. Customer confirmation is required before activation.`,
+    message: `${input.provider} ${input.protocol} connection ${input.externalId} is attached to multiple source organizations and was consolidated into one WorkOS handoff row. Customer confirmation is required before activation.`,
     details: {
       sourceOrganizationIds: input.sourceOrganizationIds,
       domains: input.domains,
@@ -196,7 +196,7 @@ export function multiOrgConnectionConsolidationWarning(input: {
 export function unsupportedConnectionProtocolWarning(input: {
   provider: string;
   protocol: string;
-  importedId?: string;
+  externalId?: string;
   strategy?: string;
   reason?: string;
 }): SsoHandoffWarning {
@@ -204,8 +204,8 @@ export function unsupportedConnectionProtocolWarning(input: {
     code: 'unsupported_connection_protocol',
     provider: input.provider,
     protocol: input.protocol,
-    importedId: input.importedId,
-    message: `${input.provider} ${input.protocol} connection${input.importedId ? ` ${input.importedId}` : ''} was skipped because it is outside the WorkOS SSO handoff scope.`,
+    externalId: input.externalId,
+    message: `${input.provider} ${input.protocol} connection${input.externalId ? ` ${input.externalId}` : ''} was skipped because it is outside the WorkOS SSO handoff scope.`,
     details: {
       strategy: input.strategy,
       reason: input.reason,
@@ -216,7 +216,7 @@ export function unsupportedConnectionProtocolWarning(input: {
 export function incompleteConnectionConfigurationWarning(input: {
   provider: string;
   protocol: string;
-  importedId?: string;
+  externalId?: string;
   strategy?: string;
   missingFields: string[];
   reason?: string;
@@ -225,8 +225,8 @@ export function incompleteConnectionConfigurationWarning(input: {
     code: 'incomplete_connection_configuration',
     provider: input.provider,
     protocol: input.protocol,
-    importedId: input.importedId,
-    message: `${input.provider} ${input.protocol} connection${input.importedId ? ` ${input.importedId}` : ''} was skipped because required handoff configuration was not available.`,
+    externalId: input.externalId,
+    message: `${input.provider} ${input.protocol} connection${input.externalId ? ` ${input.externalId}` : ''} was skipped because required handoff configuration was not available.`,
     details: {
       strategy: input.strategy,
       missingFields: input.missingFields,

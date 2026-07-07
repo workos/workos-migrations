@@ -28,7 +28,7 @@ describe('SSO handoff row builders', () => {
       organizationName: 'Acme',
       organizationExternalId: 'org_acme',
       idpEntityId: 'https://idp.example.com/entity',
-      importedId: 'auth0:con_123',
+      externalId: 'auth0:con_123',
     });
 
     for (const header of SAML_HEADERS) {
@@ -39,7 +39,7 @@ describe('SSO handoff row builders', () => {
     expect(row.organizationExternalId).toBe('org_acme');
     expect(row.idpEntityId).toBe('https://idp.example.com/entity');
     expect(row.organizationId).toBe('');
-    expect(row.importedId).toBe('auth0:con_123');
+    expect(row.externalId).toBe('auth0:con_123');
   });
 
   it('creates OIDC rows with every canonical header and blank defaults', () => {
@@ -58,7 +58,7 @@ describe('SSO handoff row builders', () => {
 
   it('creates custom attribute mapping rows with every canonical header', () => {
     const row = createCustomAttributeMappingRow({
-      importedId: 'pool:okta',
+      externalId: 'pool:okta',
       organizationExternalId: 'okta',
       providerType: 'SAML',
       userPoolAttribute: 'custom:department',
@@ -71,7 +71,7 @@ describe('SSO handoff row builders', () => {
 
   it('creates proxy route rows with every canonical header', () => {
     const row = createProxyRouteRow({
-      importedId: 'auth0:con_123',
+      externalId: 'auth0:con_123',
       provider: 'auth0',
       protocol: 'saml',
       sourceAcsUrl: 'https://tenant.auth0.com/login/callback',
@@ -117,18 +117,18 @@ describe('SSO handoff CSV utilities', () => {
     const proxyPath = path.join(tempRoot, 'proxy.csv');
 
     await expect(
-      writeSamlConnectionsCsv(samlPath, [{ organizationName: 'Acme', importedId: 'saml-1' }]),
+      writeSamlConnectionsCsv(samlPath, [{ organizationName: 'Acme', externalId: 'saml-1' }]),
     ).resolves.toBe(1);
     await expect(
-      writeOidcConnectionsCsv(oidcPath, [{ clientId: 'client_123', importedId: 'oidc-1' }]),
+      writeOidcConnectionsCsv(oidcPath, [{ clientId: 'client_123', externalId: 'oidc-1' }]),
     ).resolves.toBe(1);
     await expect(
       writeCustomAttributeMappingsCsv(customPath, [
-        { importedId: 'saml-1', userPoolAttribute: 'email', idpClaim: 'mail' },
+        { externalId: 'saml-1', userPoolAttribute: 'email', idpClaim: 'mail' },
       ]),
     ).resolves.toBe(1);
     await expect(
-      writeProxyRoutesCsv(proxyPath, [{ importedId: 'saml-1', cutoverState: 'manual' }]),
+      writeProxyRoutesCsv(proxyPath, [{ externalId: 'saml-1', cutoverState: 'manual' }]),
     ).resolves.toBe(1);
 
     expect(fs.readFileSync(samlPath, 'utf-8')).toContain([...SAML_HEADERS].join(','));
@@ -144,14 +144,14 @@ describe('SSO handoff warning helpers', () => {
       missingDomainsWarning({
         provider: 'auth0',
         protocol: 'saml',
-        importedId: 'auth0:con_123',
+        externalId: 'auth0:con_123',
         organizationExternalId: 'org_acme',
       }),
     ).toMatchObject({
       code: 'missing_domains',
       provider: 'auth0',
       protocol: 'saml',
-      importedId: 'auth0:con_123',
+      externalId: 'auth0:con_123',
       organizationExternalId: 'org_acme',
     });
 
@@ -174,7 +174,7 @@ describe('SSO handoff warning helpers', () => {
       multiOrgConnectionConsolidationWarning({
         provider: 'auth0',
         protocol: 'saml',
-        importedId: 'auth0:con_123',
+        externalId: 'auth0:con_123',
         organizationExternalId: 'auth0:con_123',
         sourceOrganizationIds: ['org_a', 'org_b'],
         domains: ['a.example.com', 'b.example.com'],
@@ -204,7 +204,7 @@ describe('SSO handoff warning helpers', () => {
       incompleteConnectionConfigurationWarning({
         provider: 'auth0',
         protocol: 'saml',
-        importedId: 'auth0:con_incomplete',
+        externalId: 'auth0:con_incomplete',
         strategy: 'samlp',
         missingFields: ['idpEntityId', 'x509Cert'],
       }),

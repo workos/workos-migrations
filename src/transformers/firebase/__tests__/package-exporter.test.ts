@@ -277,7 +277,7 @@ describe('exportFirebasePackage', () => {
 
     const samlRows = await readCsv(path.join(pkgDir, 'sso', 'saml_connections.csv'));
     expect(samlRows).toHaveLength(2);
-    const tenantRow = samlRows.find((r) => r.importedId === 'firebase:t1:saml.okta');
+    const tenantRow = samlRows.find((r) => r.externalId === 'firebase:t1:saml.okta');
     expect(tenantRow).toMatchObject({
       organizationExternalId: 't1',
       organizationName: 'Tenant One',
