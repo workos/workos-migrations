@@ -5,7 +5,7 @@ Run as a scheduled Lambda (every 5–15 min during cutover) or on-demand. For ea
 connection in your WorkOS environment, this script:
 
   1. Derives the tenant_id from the connection's external_id (the CSV's
-     `importedId` column = "<pool_id>:<provider_name>").
+     `externalId` column = "<pool_id>:<provider_name>").
   2. Fetches the connection's SAML SP metadata to grab the ACS URL.
   3. Upserts the DynamoDB record so the proxy Lambda routes live traffic to
      WorkOS for that tenant.
@@ -17,8 +17,8 @@ Environment variables:
     WORKOS_API_BASE       optional, defaults to https://api.workos.com
 
 Notes on the WorkOS connection shape — the `external_id` on the connection must
-match the `importedId` you wrote in the CSV. The included export tool formats
-importedId as `<user_pool_id>:<provider_name>`; the tenant_id stored in
+match the `externalId` you wrote in the CSV. The included export tool formats
+externalId as `<user_pool_id>:<provider_name>`; the tenant_id stored in
 DynamoDB strips the pool prefix so the proxy routes by provider name only.
 Adjust `_tenant_id_from_external_id` if you want a different scheme.
 """
