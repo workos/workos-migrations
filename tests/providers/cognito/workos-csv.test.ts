@@ -125,7 +125,8 @@ describe('toOidcRow', () => {
       'https://login.microsoftonline.com/a74900dd-e48b-47b6-b212-306653d7f33d/v2.0/.well-known/openid-configuration',
     );
     expect(row.clientId).toBe('5dc7420f-de78-4033-b963-b0553f166d33');
-    expect(row.clientSecret).toBe('v3.8Q-fake-secret-for-testing');
+    // Handoff CSVs must never carry the source IdP client secret.
+    expect(row.clientSecret).toBe('');
   });
 
   it('normalizes a Google-style issuer into a full discovery URL', () => {
