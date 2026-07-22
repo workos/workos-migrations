@@ -236,6 +236,8 @@ workos-migrate merge-passwords \
   --passwords auth0-passwords.ndjson
 ```
 
+Hashes are matched to users by Auth0 user identity (`_id.$oid` in the export, which maps to the row's `external_id`), not by email. Auth0 emails are unique per connection, not per tenant, so email matching could bind one connection's hash to a different user with the same address. Password records without an `_id.$oid` cannot be safely matched and are skipped with a warning.
+
 Package mode warns and omits credentials for users whose hash algorithm is not supported by WorkOS imports (anything other than `bcrypt` or `md5`). Users without a matching hash are left without a password and will need to reset on first login.
 
 ### 3b. Bulk export engine for very large tenants

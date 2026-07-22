@@ -50,15 +50,17 @@ describe('Password Merger', () => {
   });
 
   describe('loadPasswordHashes', () => {
-    it('should parse NDJSON password file', async () => {
+    it('should parse NDJSON password file keyed by _id.$oid', async () => {
       const ndjsonPath = path.join(tmpDir, 'passwords.ndjson');
       const lines = [
         JSON.stringify({
+          _id: { $oid: 'alice' },
           email: 'Alice@Example.com',
           passwordHash: '$2a$10$abcdefghij',
           password_set_date: { $date: '2024-01-15T00:00:00.000Z' },
         }),
         JSON.stringify({
+          _id: { $oid: 'bob' },
           email: 'bob@example.com',
           passwordHash: '$2b$12$klmnopqrst',
         }),
@@ -70,56 +72,80 @@ describe('Password Merger', () => {
 
       const lookup = await loadPasswordHashes(ndjsonPath);
 
-      expect(Object.keys(lookup)).toHaveLength(2);
-      // Email should be lowercased
-      expect(lookup['alice@example.com']).toEqual({
+      expect(Object.keys(lookup.byOid)).toHaveLength(2);
+      expect(lookup.byOid['alice']).toEqual({
         hash: '$2a$10$abcdefghij',
         algorithm: 'bcrypt',
         setDate: '2024-01-15T00:00:00.000Z',
       });
-      expect(lookup['bob@example.com']).toEqual({
+      expect(lookup.byOid['bob']).toEqual({
         hash: '$2b$12$klmnopqrst',
         algorithm: 'bcrypt',
         setDate: undefined,
       });
+      // Email is tracked only for collision reporting, lowercased.
+      expect(lookup.emailCounts['alice@example.com']).toBe(1);
+      expect(lookup.recordsWithoutId).toBe(0);
     });
 
     it('should skip records without email or hash', async () => {
       const ndjsonPath = path.join(tmpDir, 'passwords.ndjson');
       const lines = [
-        JSON.stringify({ email: 'no-hash@test.com' }),
-        JSON.stringify({ passwordHash: '$2a$10$noemail' }),
-        JSON.stringify({ email: 'valid@test.com', passwordHash: '$2a$10$valid' }),
+        JSON.stringify({ _id: { $oid: 'x' }, email: 'no-hash@test.com' }),
+        JSON.stringify({ _id: { $oid: 'y' }, passwordHash: '$2a$10$noemail' }),
+        JSON.stringify({
+          _id: { $oid: 'valid' },
+          email: 'valid@test.com',
+          passwordHash: '$2a$10$valid',
+        }),
       ].join('\n');
 
       fs.writeFileSync(ndjsonPath, lines);
 
       const lookup = await loadPasswordHashes(ndjsonPath);
-      expect(Object.keys(lookup)).toHaveLength(1);
-      expect(lookup['valid@test.com']).toBeDefined();
+      expect(Object.keys(lookup.byOid)).toHaveLength(1);
+      expect(lookup.byOid['valid']).toBeDefined();
+    });
+
+    it('should skip records without _id.$oid so they cannot be misbound by email', async () => {
+      const ndjsonPath = path.join(tmpDir, 'passwords.ndjson');
+      const lines = [
+        JSON.stringify({ email: 'noid@test.com', passwordHash: '$2a$10$noid' }),
+        JSON.stringify({ _id: { $oid: 'ok' }, email: 'ok@test.com', passwordHash: '$2a$10$ok' }),
+      ].join('\n');
+
+      fs.writeFileSync(ndjsonPath, lines);
+
+      const lookup = await loadPasswordHashes(ndjsonPath);
+      expect(Object.keys(lookup.byOid)).toEqual(['ok']);
+      expect(lookup.recordsWithoutId).toBe(1);
     });
   });
 
   describe('mergePasswordsIntoCsv', () => {
-    it('should merge passwords into CSV by email (case-insensitive)', async () => {
+    it('should merge passwords into CSV by external_id (Auth0 user_id)', async () => {
       const inputCsv = path.join(tmpDir, 'input.csv');
       const outputCsv = path.join(tmpDir, 'output.csv');
 
       fs.writeFileSync(
         inputCsv,
-        'email,first_name,last_name,email_verified\n' +
-          'Alice@Example.com,Alice,Johnson,true\n' +
-          'bob@example.com,Bob,Smith,true\n' +
-          'carol@example.com,Carol,Williams,false\n',
+        'email,first_name,last_name,email_verified,external_id\n' +
+          'Alice@Example.com,Alice,Johnson,true,auth0|alice\n' +
+          'bob@example.com,Bob,Smith,true,auth0|bob\n' +
+          'carol@example.com,Carol,Williams,false,auth0|carol\n',
       );
 
       const passwordLookup = {
-        'alice@example.com': { hash: '$2a$10$alicehash', algorithm: 'bcrypt', setDate: undefined },
-        'bob@example.com': {
-          hash: 'd41d8cd98f00b204e9800998ecf8427e',
-          algorithm: 'md5',
-          setDate: undefined,
+        byOid: {
+          alice: { hash: '$2a$10$alicehash', algorithm: 'bcrypt', setDate: undefined },
+          bob: {
+            hash: 'd41d8cd98f00b204e9800998ecf8427e',
+            algorithm: 'md5',
+            setDate: undefined,
+          },
         },
+        emailCounts: { 'alice@example.com': 1, 'bob@example.com': 1 },
+        recordsWithoutId: 0,
       };
 
       const stats = await mergePasswordsIntoCsv(inputCsv, outputCsv, passwordLookup);
@@ -135,6 +161,36 @@ describe('Password Merger', () => {
       expect(output).toContain('bcrypt');
       expect(output).toContain('d41d8cd98f00b204e9800998ecf8427e');
       expect(output).toContain('md5');
+    });
+
+    // Regression guard for SEC-1326: a same-email record from another Auth0
+    // connection must never be bound to a different user's row.
+    it('does not bind a colliding-email hash to a victim row (CSV mode)', async () => {
+      const inputCsv = path.join(tmpDir, 'victim.csv');
+      const outputCsv = path.join(tmpDir, 'victim-merged.csv');
+
+      fs.writeFileSync(
+        inputCsv,
+        'email,first_name,last_name,email_verified,external_id\n' +
+          'victim@corp.com,Vera,Victim,true,auth0|victimoid\n',
+      );
+
+      // Export contains the attacker's record (different oid, same email) but no
+      // record for the victim's oid (e.g. the victim is a social-login user).
+      const passwordLookup = {
+        byOid: {
+          attackeroid: { hash: '$2b$10$attackerhash', algorithm: 'bcrypt', setDate: undefined },
+        },
+        emailCounts: { 'victim@corp.com': 1 },
+        recordsWithoutId: 0,
+      };
+
+      const stats = await mergePasswordsIntoCsv(inputCsv, outputCsv, passwordLookup);
+
+      expect(stats.passwordsAdded).toBe(0);
+      expect(stats.passwordsNotFound).toBe(1);
+      const output = fs.readFileSync(outputCsv, 'utf-8');
+      expect(output).not.toContain('$2b$10$attackerhash');
     });
   });
 
@@ -198,8 +254,13 @@ describe('Password Merger', () => {
       fs.writeFileSync(
         passwordsPath,
         [
-          JSON.stringify({ email: 'alice@example.com', passwordHash: '$2a$10$alicehash' }),
           JSON.stringify({
+            _id: { $oid: 'alice' },
+            email: 'alice@example.com',
+            passwordHash: '$2a$10$alicehash',
+          }),
+          JSON.stringify({
+            _id: { $oid: 'bob' },
             email: 'bob@example.com',
             passwordHash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
           }),
@@ -264,6 +325,70 @@ describe('Password Merger', () => {
       });
       expect(stats.warnings.map((warning) => warning.code)).toEqual(['package_users_csv_missing']);
       expect(stats.passwordsAdded).toBe(0);
+    });
+
+    // Regression guard for SEC-1326: full attack shape through the package flow.
+    it('binds each connection hash to its own user and never cross-binds by email', async () => {
+      const packageDir = path.join(tmpDir, 'attack-pkg');
+      await createMigrationPackage({
+        provider: 'auth0',
+        rootDir: packageDir,
+        entitiesRequested: ['users'],
+        entitiesExported: { users: 1 },
+        warnings: [],
+      });
+
+      // Only the victim's row is exported (the attacker's duplicate row would be
+      // dropped as a duplicate on import).
+      writeUsersCsv(packageDir, [
+        {
+          email: 'victim@corp.com',
+          first_name: 'Vera',
+          last_name: 'Victim',
+          email_verified: 'true',
+          external_id: 'auth0|victimoid',
+          metadata: '',
+          org_id: '',
+          org_external_id: 'org_1',
+          org_name: 'Acme',
+          role_slugs: '',
+        },
+      ]);
+
+      // Password export has two same-email records from different connections:
+      // the victim's real hash and the attacker's hash. The attacker's record is
+      // last (email last-write-wins would previously have won).
+      const passwordsPath = path.join(tmpDir, 'attack.ndjson');
+      fs.writeFileSync(
+        passwordsPath,
+        [
+          JSON.stringify({
+            _id: { $oid: 'victimoid' },
+            email: 'victim@corp.com',
+            email_verified: true,
+            passwordHash: '$2b$10$victimhash',
+            connection: 'prod-users',
+          }),
+          JSON.stringify({
+            _id: { $oid: 'attackeroid' },
+            email: 'victim@corp.com',
+            email_verified: false,
+            passwordHash: '$2b$10$attackerhash',
+            connection: 'legacy-users',
+          }),
+        ].join('\n'),
+      );
+
+      const stats = await mergePasswordsIntoPackage({ packageDir, passwordsPath });
+
+      const usersCsv = fs.readFileSync(path.join(packageDir, 'users.csv'), 'utf-8');
+      // The victim's row keeps the victim's own hash, not the attacker's.
+      expect(usersCsv).toContain('$2b$10$victimhash');
+      expect(usersCsv).not.toContain('$2b$10$attackerhash');
+      expect(stats.passwordsAdded).toBe(1);
+      expect(stats.warnings.some((w) => w.code === 'duplicate_email_in_password_export')).toBe(
+        true,
+      );
     });
   });
 });

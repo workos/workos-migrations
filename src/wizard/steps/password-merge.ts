@@ -78,7 +78,7 @@ export async function mergePasswords(state: WizardState): Promise<WizardState> {
       // which has been updated in-place with password hashes.
     } else {
       const passwordLookup = await loadPasswordHashes(state.auth0PasswordsPath!);
-      const passwordCount = Object.keys(passwordLookup).length;
+      const passwordCount = Object.keys(passwordLookup.byOid).length;
       console.log(chalk.green(`  Loaded ${passwordCount} password hashes`));
 
       const outputPath = state.csvFilePath!.replace('.csv', '-with-passwords.csv');
