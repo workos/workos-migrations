@@ -205,10 +205,11 @@ describe('Auth0 Mapper', () => {
   });
 
   describe('extractOrgFromMetadata', () => {
-    it('should extract org from user_metadata', () => {
+    it('should extract org from admin-controlled app_metadata', () => {
       const user: Auth0User = {
         ...testUser,
-        user_metadata: {
+        user_metadata: {},
+        app_metadata: {
           organization_id: 'org_from_metadata',
           organization_name: 'Metadata Org',
         },
@@ -221,15 +222,52 @@ describe('Auth0 Mapper', () => {
       });
     });
 
-    it('should extract org from app_metadata as fallback', () => {
+    it('should ignore end-user-writable user_metadata by default', () => {
       const user: Auth0User = {
         ...testUser,
-        user_metadata: {},
-        app_metadata: { org_id: 'org_from_app', org_name: 'App Org' },
+        user_metadata: { organization_id: 'victim_org', organization_name: 'Victim Org' },
+        app_metadata: {},
       };
 
-      const result = extractOrgFromMetadata(user);
-      expect(result).toEqual({ orgId: 'org_from_app', orgName: 'App Org' });
+      // Org routing must not be derived from a section the end user can write.
+      expect(extractOrgFromMetadata(user)).toBeNull();
+    });
+
+    it('should let admin app_metadata win over user_metadata (no user override)', () => {
+      const user: Auth0User = {
+        ...testUser,
+        user_metadata: { organization_id: 'victim_org' },
+        app_metadata: { organization_id: 'legit_org' },
+      };
+
+      expect(extractOrgFromMetadata(user)).toEqual({ orgId: 'legit_org', orgName: undefined });
+    });
+
+    it('should consult user_metadata only when explicitly allowed', () => {
+      const user: Auth0User = {
+        ...testUser,
+        user_metadata: { org_id: 'org_from_user', org_name: 'User Org' },
+        app_metadata: {},
+      };
+
+      expect(extractOrgFromMetadata(user)).toBeNull();
+      expect(extractOrgFromMetadata(user, undefined, undefined, true)).toEqual({
+        orgId: 'org_from_user',
+        orgName: 'User Org',
+      });
+    });
+
+    it('should still prefer app_metadata even when user_metadata is allowed', () => {
+      const user: Auth0User = {
+        ...testUser,
+        user_metadata: { organization_id: 'victim_org' },
+        app_metadata: { organization_id: 'legit_org' },
+      };
+
+      expect(extractOrgFromMetadata(user, undefined, undefined, true)).toEqual({
+        orgId: 'legit_org',
+        orgName: undefined,
+      });
     });
 
     it('should return null when no org in metadata', () => {
@@ -242,20 +280,32 @@ describe('Auth0 Mapper', () => {
       expect(extractOrgFromMetadata(user)).toBeNull();
     });
 
-    it('should support custom field names', () => {
+    it('should support custom field names against app_metadata', () => {
       const user: Auth0User = {
         ...testUser,
-        user_metadata: { company_id: 'company_123', company_name: 'Custom Co' },
+        user_metadata: {},
+        app_metadata: { company_id: 'company_123', company_name: 'Custom Co' },
       };
 
       const result = extractOrgFromMetadata(user, 'company_id', 'company_name');
       expect(result).toEqual({ orgId: 'company_123', orgName: 'Custom Co' });
     });
 
-    it('should mix custom and default fields', () => {
+    it('should not honor custom fields sourced from user_metadata by default', () => {
       const user: Auth0User = {
         ...testUser,
-        user_metadata: {
+        user_metadata: { company_id: 'victim_via_custom_field' },
+        app_metadata: {},
+      };
+
+      expect(extractOrgFromMetadata(user, 'company_id', 'company_name')).toBeNull();
+    });
+
+    it('should mix custom and default fields within app_metadata', () => {
+      const user: Auth0User = {
+        ...testUser,
+        user_metadata: {},
+        app_metadata: {
           organization_id: 'org_default',
           company_name: 'Mixed Company',
         },

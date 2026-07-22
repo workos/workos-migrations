@@ -85,7 +85,15 @@ async function configureAuth0Export(state: WizardState): Promise<WizardState> {
       {
         type: isSsoOnly ? null : 'confirm',
         name: 'useMetadata',
-        message: 'Use user_metadata for org discovery (instead of Auth0 Organizations API)?',
+        message:
+          'Use metadata for org discovery (instead of Auth0 Organizations API)? Uses admin-controlled app_metadata only',
+        initial: false,
+      },
+      {
+        type: (_prev, values) => (!isSsoOnly && values.useMetadata ? 'confirm' : null),
+        name: 'allowUserMetadataOrg',
+        message:
+          'INSECURE: also trust end-user-writable user_metadata for org discovery? This lets source-tenant end users self-assign organization membership',
         initial: false,
       },
       {
@@ -122,6 +130,7 @@ async function configureAuth0Export(state: WizardState): Promise<WizardState> {
 
   state.auth0RateLimit = detailsResponse.rateLimit ?? 50;
   state.auth0UseMetadata = detailsResponse.useMetadata ?? false;
+  state.auth0AllowUserMetadataOrg = detailsResponse.allowUserMetadataOrg ?? false;
   if (modeResponse.mode === 'package') {
     state.auth0Package = true;
     state.auth0PackageDir = detailsResponse.outputDir;

@@ -47,6 +47,7 @@ async function runAuth0Export(state: WizardState): Promise<WizardState> {
       rateLimit: state.auth0RateLimit ?? 50,
       userFetchConcurrency: 10,
       useMetadata: state.auth0UseMetadata ?? false,
+      allowUserMetadataOrg: state.auth0AllowUserMetadataOrg ?? false,
       resume: false,
       quiet: false,
     });
@@ -77,6 +78,7 @@ async function runAuth0PackageExport(state: WizardState): Promise<WizardState> {
       rateLimit: state.auth0RateLimit ?? 50,
       userFetchConcurrency: 10,
       useMetadata: state.auth0UseMetadata ?? false,
+      allowUserMetadataOrg: state.auth0AllowUserMetadataOrg ?? false,
       resume: false,
       quiet: false,
     });

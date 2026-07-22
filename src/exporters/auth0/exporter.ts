@@ -245,6 +245,7 @@ async function exportUsersWithMetadata(
         user,
         options.metadataOrgIdField,
         options.metadataOrgNameField,
+        options.allowUserMetadataOrg,
       );
 
       if (!orgInfo || !orgInfo.orgId) {
