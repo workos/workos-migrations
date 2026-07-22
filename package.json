@@ -7,6 +7,12 @@
   "bin": {
     "workos-migrate": "dist/index.js"
   },
+  "exports": {
+    ".": "./dist/index.js",
+    "./bundle": "./dist/bundle.js",
+    "./dist/*": "./dist/*",
+    "./package.json": "./package.json"
+  },
   "files": [
     "dist/**/*",
     "README.md",
@@ -15,6 +21,7 @@
   ],
   "scripts": {
     "build": "tsc",
+    "bundle": "bun build src/cli/index.ts --outfile dist/bundle.js --target=bun --format=esm && bun build src/workers/worker.ts --outfile dist/worker.js --target=bun --format=esm",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
     "lint": "eslint \"src/**/*.ts\"",
@@ -23,7 +30,7 @@
     "format:check": "prettier --check \"src/**/*.ts\" \"*.md\" \"*.json\"",
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-vm-modules node_modules/.bin/jest",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build && npm run bundle"
   },
   "keywords": [
     "workos",
