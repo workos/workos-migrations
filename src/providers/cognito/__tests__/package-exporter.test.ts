@@ -195,9 +195,9 @@ describe('exportCognitoPackage', () => {
     const rawRaw = fs.readFileSync(path.join(tempRoot, 'raw', 'cognito-providers.jsonl'), 'utf-8');
     expect(rawRaw).not.toContain('live-enterprise-oidc-secret');
     const rawProviders = readJsonl(path.join(tempRoot, 'raw', 'cognito-providers.jsonl'));
-    expect(
-      (rawProviders[0].providerDetails as Record<string, string>).client_secret,
-    ).toBe('[REDACTED]');
+    expect((rawProviders[0].providerDetails as Record<string, string>).client_secret).toBe(
+      '[REDACTED]',
+    );
 
     const validation = await validateMigrationPackage(tempRoot);
     expect(validation.manifest?.secretsRedacted).toBe(true);
