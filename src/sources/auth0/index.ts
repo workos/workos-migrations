@@ -214,7 +214,9 @@ function toExportOptions(ctx: SourceContext): Auth0ExportOptions {
     rateLimit: toNumber(o.rateLimit, 50),
     userFetchConcurrency: toNumber(o.userFetchConcurrency, 10),
     useMetadata: Boolean(o.useMetadata ?? false),
-    allowUserMetadataOrg: Boolean(o.allowUserMetadataOrg ?? false),
+    // Fail closed: this opt-in trusts end-user-writable data, so only an explicit
+    // boolean true (or the string "true") may enable it — never `Boolean("false")`.
+    allowUserMetadataOrg: o.allowUserMetadataOrg === true || o.allowUserMetadataOrg === 'true',
     metadataOrgIdField: o.metadataOrgIdField as string | undefined,
     metadataOrgNameField: o.metadataOrgNameField as string | undefined,
     includeFederatedUsers: Boolean(o.includeFederatedUsers ?? false),

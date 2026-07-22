@@ -208,11 +208,14 @@ Options:
 - `--orgs <ids...>` - Filter to specific Auth0 organization IDs
 - `--entities <entities>` - Comma-separated package entities to export (`users,organizations,memberships,roles,sso`)
 - `--rate-limit <n>` - API requests per second (default: 50)
-- `--use-metadata` - Use `user_metadata` for org discovery instead of the Organizations API
+- `--use-metadata` - Use metadata for org discovery instead of the Organizations API. By default only the admin-controlled `app_metadata` section is trusted (see security note below)
+- `--allow-user-metadata-org` - **Insecure.** Also consult the end-user-writable `user_metadata` section for org discovery. Only enable this if you fully trust the contents of `user_metadata`; otherwise a source-tenant end user can plant a victim organization's identifier and be imported as a member of it
 - `--include-federated-users` - Include federated/JIT users in package mode (skipped by default)
 - `--include-secrets` - Include SSO connection secrets in package handoff files (redacted by default)
 - `--job-id <id>` - Enable export checkpointing for large tenants
 - `--resume [jobId]` - Resume a previously checkpointed export
+
+> **Security note on `--use-metadata`:** organization membership is an authorization grant, so org discovery is sourced only from the admin-controlled `app_metadata` section by default. The `user_metadata` section is writable by end users (Auth0 public signup and self-service profile updates) and is ignored unless you pass `--allow-user-metadata-org`. If your tenant legitimately stores org identifiers in `user_metadata`, add that flag; be aware it lets any end user route themselves into an organization by editing their own metadata before export. Users with no org identifier in the trusted section(s) are skipped with reason `no_org_in_metadata`.
 
 The export maps Auth0 fields to WorkOS CSV format, including `email_verified`, `external_id`, and custom metadata.
 Auth0 package SSO export is handoff-only: it inspects Auth0 enterprise strategies for SAML/OIDC configuration and emits only connections with enough reliable handoff data. Database, passwordless, social, generic OAuth, non-SAML/OIDC enterprise, and incomplete connections are skipped with warnings.
