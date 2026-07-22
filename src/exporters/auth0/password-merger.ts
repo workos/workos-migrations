@@ -32,7 +32,11 @@ export async function loadPasswordHashes(filePath: string): Promise<PasswordLook
     byOid: {},
     emailCounts: {},
     recordsWithoutId: 0,
+    duplicateOids: [],
   };
+
+  const seenOids = new Set<string>();
+  const duplicateOids = new Set<string>();
 
   const fileStream = createReadStream(filePath, { encoding: 'utf-8' });
   const rl = createInterface({ input: fileStream, crlfDelay: Infinity });
@@ -54,6 +58,16 @@ export async function loadPasswordHashes(filePath: string): Promise<PasswordLook
         continue;
       }
 
+      if (seenOids.has(oid)) {
+        // A repeated identity is ambiguous. Rather than silently keeping the
+        // last hash (the class of bug this change fixes), drop any binding for
+        // this oid entirely so no user can receive a possibly-wrong hash.
+        delete lookup.byOid[oid];
+        duplicateOids.add(oid);
+        continue;
+      }
+      seenOids.add(oid);
+
       const algorithm = detectHashAlgorithm(record.passwordHash);
       lookup.byOid[oid] = {
         hash: record.passwordHash,
@@ -65,6 +79,7 @@ export async function loadPasswordHashes(filePath: string): Promise<PasswordLook
     }
   }
 
+  lookup.duplicateOids = [...duplicateOids];
   return lookup;
 }
 
@@ -177,6 +192,7 @@ export interface PackageMergeWarning {
     | 'missing_password_hash'
     | 'package_users_csv_missing'
     | 'duplicate_email_in_password_export'
+    | 'duplicate_user_id_in_password_export'
     | 'password_record_without_id';
   message: string;
   email?: string;
@@ -302,6 +318,13 @@ export async function mergePasswordsIntoPackage(
     stats.warnings.push({
       code: 'duplicate_email_in_password_export',
       message: `${collidingEmails.length} email(s) appear on multiple password records (multiple Auth0 connections). Hashes were bound by user_id, not email, so no user received another connection's hash.`,
+    });
+  }
+
+  if (passwordLookup.duplicateOids.length > 0) {
+    stats.warnings.push({
+      code: 'duplicate_user_id_in_password_export',
+      message: `${passwordLookup.duplicateOids.length} Auth0 user id(s) appeared on multiple password records. Those identities were treated as ambiguous and no hash was bound for them.`,
     });
   }
 

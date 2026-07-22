@@ -86,6 +86,27 @@ describe('Password Merger', () => {
       // Email is tracked only for collision reporting, lowercased.
       expect(lookup.emailCounts['alice@example.com']).toBe(1);
       expect(lookup.recordsWithoutId).toBe(0);
+      expect(lookup.duplicateOids).toEqual([]);
+    });
+
+    it('treats a repeated _id.$oid as ambiguous and binds no hash for it', async () => {
+      const ndjsonPath = path.join(tmpDir, 'dup-oid.ndjson');
+      const lines = [
+        JSON.stringify({ _id: { $oid: 'dup' }, email: 'a@test.com', passwordHash: '$2a$10$first' }),
+        JSON.stringify({
+          _id: { $oid: 'dup' },
+          email: 'b@test.com',
+          passwordHash: '$2a$10$second',
+        }),
+        JSON.stringify({ _id: { $oid: 'solo' }, email: 'c@test.com', passwordHash: '$2a$10$solo' }),
+      ].join('\n');
+
+      fs.writeFileSync(ndjsonPath, lines);
+
+      const lookup = await loadPasswordHashes(ndjsonPath);
+      expect(lookup.byOid['dup']).toBeUndefined();
+      expect(lookup.byOid['solo']).toBeDefined();
+      expect(lookup.duplicateOids).toEqual(['dup']);
     });
 
     it('should skip records without email or hash', async () => {
@@ -146,6 +167,7 @@ describe('Password Merger', () => {
         },
         emailCounts: { 'alice@example.com': 1, 'bob@example.com': 1 },
         recordsWithoutId: 0,
+        duplicateOids: [],
       };
 
       const stats = await mergePasswordsIntoCsv(inputCsv, outputCsv, passwordLookup);
@@ -183,6 +205,7 @@ describe('Password Merger', () => {
         },
         emailCounts: { 'victim@corp.com': 1 },
         recordsWithoutId: 0,
+        duplicateOids: [],
       };
 
       const stats = await mergePasswordsIntoCsv(inputCsv, outputCsv, passwordLookup);

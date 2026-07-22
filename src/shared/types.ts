@@ -253,6 +253,12 @@ export interface PasswordLookup {
   emailCounts: Record<string, number>;
   /** Number of records skipped because they carried no `_id.$oid` to match on. */
   recordsWithoutId: number;
+  /**
+   * `_id.$oid` values that appeared on more than one record. These are treated
+   * as ambiguous identities and are NOT bound to any user (removed from
+   * `byOid`) so a later record can never silently overwrite an earlier hash.
+   */
+  duplicateOids: string[];
 }
 
 // --- Transformer Types ---

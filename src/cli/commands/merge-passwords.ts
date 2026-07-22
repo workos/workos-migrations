@@ -56,6 +56,9 @@ export function registerMergePasswordsCommand(program: Command): void {
             console.log(`  Upload rows updated: ${stats.uploadRowsUpdated}`);
             console.log(`  Duration: ${duration}ms`);
             console.log(`  Package: ${opts.package}`);
+            for (const warning of stats.warnings) {
+              console.log(chalk.yellow(`  Warning: ${warning.message}`));
+            }
           }
           return;
         }
@@ -85,6 +88,13 @@ export function registerMergePasswordsCommand(program: Command): void {
             console.log(
               chalk.yellow(
                 `Warning: ${collidingEmails.length} email(s) appear on multiple password records. Hashes are matched by Auth0 user_id (external_id), not email.`,
+              ),
+            );
+          }
+          if (passwordLookup.duplicateOids.length > 0) {
+            console.log(
+              chalk.yellow(
+                `Warning: ${passwordLookup.duplicateOids.length} Auth0 user id(s) appeared on multiple password records and were skipped as ambiguous (no hash bound).`,
               ),
             );
           }
