@@ -11,8 +11,32 @@ import {
 import { getPackageFilePath, writeMigrationPackageManifest } from '../../package/writer.js';
 import type { Auth0PasswordRecord, PasswordLookup } from '../../shared/types.js';
 
+/**
+ * Extract the Auth0 `_id.$oid` from a CSV `external_id`.
+ *
+ * `mapAuth0UserToWorkOS` sets `external_id` to the Auth0 `user_id`, which for
+ * database-connection users is `<strategy>|<oid>` (e.g. `auth0|<oid>`). The
+ * password export keys each record by that same `<oid>` under `_id.$oid`, so we
+ * match on the bare oid and stay agnostic to the strategy prefix.
+ */
+export function extractAuth0Oid(externalId: string | undefined): string | undefined {
+  if (!externalId) return undefined;
+  const trimmed = externalId.trim();
+  if (!trimmed) return undefined;
+  const separator = trimmed.lastIndexOf('|');
+  return separator === -1 ? trimmed : trimmed.slice(separator + 1);
+}
+
 export async function loadPasswordHashes(filePath: string): Promise<PasswordLookup> {
-  const lookup: PasswordLookup = {};
+  const lookup: PasswordLookup = {
+    byOid: {},
+    emailCounts: {},
+    recordsWithoutId: 0,
+    duplicateOids: [],
+  };
+
+  const seenOids = new Set<string>();
+  const duplicateOids = new Set<string>();
 
   const fileStream = createReadStream(filePath, { encoding: 'utf-8' });
   const rl = createInterface({ input: fileStream, crlfDelay: Infinity });
@@ -25,9 +49,27 @@ export async function loadPasswordHashes(filePath: string): Promise<PasswordLook
       if (!record.email || !record.passwordHash) continue;
 
       const email = record.email.toLowerCase();
-      const algorithm = detectHashAlgorithm(record.passwordHash);
+      lookup.emailCounts[email] = (lookup.emailCounts[email] ?? 0) + 1;
 
-      lookup[email] = {
+      const oid = record._id?.$oid;
+      if (!oid) {
+        // Without a stable identity we cannot safely bind this hash to a user.
+        lookup.recordsWithoutId++;
+        continue;
+      }
+
+      if (seenOids.has(oid)) {
+        // A repeated identity is ambiguous. Rather than silently keeping the
+        // last hash (the class of bug this change fixes), drop any binding for
+        // this oid entirely so no user can receive a possibly-wrong hash.
+        delete lookup.byOid[oid];
+        duplicateOids.add(oid);
+        continue;
+      }
+      seenOids.add(oid);
+
+      const algorithm = detectHashAlgorithm(record.passwordHash);
+      lookup.byOid[oid] = {
         hash: record.passwordHash,
         algorithm,
         setDate: record.password_set_date?.$date,
@@ -37,7 +79,15 @@ export async function loadPasswordHashes(filePath: string): Promise<PasswordLook
     }
   }
 
+  lookup.duplicateOids = [...duplicateOids];
   return lookup;
+}
+
+/** Lowercased emails that appear on more than one password record. */
+export function duplicateEmails(lookup: PasswordLookup): string[] {
+  return Object.entries(lookup.emailCounts)
+    .filter(([, count]) => count > 1)
+    .map(([email]) => email);
 }
 
 export function detectHashAlgorithm(hash: string): string {
@@ -116,10 +166,10 @@ export async function mergePasswordsIntoCsv(
       .on('error', reject);
 
     for (const row of rows) {
-      const email = row.email?.toLowerCase();
+      const oid = extractAuth0Oid(row.external_id);
+      const passwordData = oid ? passwordLookup.byOid[oid] : undefined;
 
-      if (email && passwordLookup[email]) {
-        const passwordData = passwordLookup[email];
+      if (passwordData) {
         row.password_hash = passwordData.hash;
         row.password_hash_type = passwordData.algorithm;
         passwordsAdded++;
@@ -140,7 +190,10 @@ export interface PackageMergeWarning {
   code:
     | 'unsupported_password_hash_algorithm'
     | 'missing_password_hash'
-    | 'package_users_csv_missing';
+    | 'package_users_csv_missing'
+    | 'duplicate_email_in_password_export'
+    | 'duplicate_user_id_in_password_export'
+    | 'password_record_without_id';
   message: string;
   email?: string;
   external_id?: string;
@@ -209,12 +262,13 @@ export async function mergePasswordsIntoPackage(
   for (const row of usersRows) {
     const email = row.email?.toLowerCase();
     const externalId = row.external_id;
-    if (!email || !passwordLookup[email]) {
+    const oid = extractAuth0Oid(externalId);
+    const candidate = oid ? passwordLookup.byOid[oid] : undefined;
+    if (!candidate) {
       stats.passwordsNotFound++;
       continue;
     }
 
-    const candidate = passwordLookup[email];
     if (!supportedAlgorithms.has(candidate.algorithm)) {
       stats.passwordsRejectedAlgorithm++;
       stats.warnings.push({
@@ -256,6 +310,28 @@ export async function mergePasswordsIntoPackage(
     stats.warnings.push({
       code: 'missing_password_hash',
       message: `${stats.passwordsNotFound} package user(s) had no matching Auth0 password hash.`,
+    });
+  }
+
+  const collidingEmails = duplicateEmails(passwordLookup);
+  if (collidingEmails.length > 0) {
+    stats.warnings.push({
+      code: 'duplicate_email_in_password_export',
+      message: `${collidingEmails.length} email(s) appear on multiple password records (multiple Auth0 connections). Hashes were bound by user_id, not email, so no user received another connection's hash.`,
+    });
+  }
+
+  if (passwordLookup.duplicateOids.length > 0) {
+    stats.warnings.push({
+      code: 'duplicate_user_id_in_password_export',
+      message: `${passwordLookup.duplicateOids.length} Auth0 user id(s) appeared on multiple password records. Those identities were treated as ambiguous and no hash was bound for them.`,
+    });
+  }
+
+  if (passwordLookup.recordsWithoutId > 0) {
+    stats.warnings.push({
+      code: 'password_record_without_id',
+      message: `${passwordLookup.recordsWithoutId} password record(s) had no _id.$oid and were skipped because they could not be safely matched to a user by identity.`,
     });
   }
 

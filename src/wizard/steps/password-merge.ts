@@ -3,6 +3,7 @@ import prompts from 'prompts';
 import chalk from 'chalk';
 import type { WizardState } from '../wizard.js';
 import {
+  duplicateEmails,
   loadPasswordHashes,
   mergePasswordsIntoCsv,
   mergePasswordsIntoPackage,
@@ -70,16 +71,37 @@ export async function mergePasswords(state: WizardState): Promise<WizardState> {
       console.log(`    workos_upload rows updated: ${stats.uploadRowsUpdated}\n`);
 
       for (const warning of stats.warnings) {
-        if (warning.code === 'unsupported_password_hash_algorithm') {
-          console.log(chalk.yellow(`    ${warning.message}`));
-        }
+        console.log(chalk.yellow(`    ${warning.message}`));
       }
       // csvFilePath continues to point at the package's users.csv,
       // which has been updated in-place with password hashes.
     } else {
       const passwordLookup = await loadPasswordHashes(state.auth0PasswordsPath!);
-      const passwordCount = Object.keys(passwordLookup).length;
+      const passwordCount = Object.keys(passwordLookup.byOid).length;
       console.log(chalk.green(`  Loaded ${passwordCount} password hashes`));
+
+      const collidingEmails = duplicateEmails(passwordLookup);
+      if (collidingEmails.length > 0) {
+        console.log(
+          chalk.yellow(
+            `  Warning: ${collidingEmails.length} email(s) appear on multiple password records. Hashes are matched by Auth0 user_id (external_id), not email.`,
+          ),
+        );
+      }
+      if (passwordLookup.duplicateOids.length > 0) {
+        console.log(
+          chalk.yellow(
+            `  Warning: ${passwordLookup.duplicateOids.length} Auth0 user id(s) appeared on multiple password records and were skipped as ambiguous (no hash bound).`,
+          ),
+        );
+      }
+      if (passwordLookup.recordsWithoutId > 0) {
+        console.log(
+          chalk.yellow(
+            `  Warning: ${passwordLookup.recordsWithoutId} password record(s) had no _id.$oid and were skipped (cannot be safely matched to a user).`,
+          ),
+        );
+      }
 
       const outputPath = state.csvFilePath!.replace('.csv', '-with-passwords.csv');
       console.log(chalk.blue('  Merging passwords into CSV...'));

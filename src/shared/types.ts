@@ -235,12 +235,30 @@ export interface Auth0PasswordRecord {
   connection?: string;
 }
 
+export interface PasswordLookupEntry {
+  hash: string;
+  algorithm: string;
+  setDate?: string;
+}
+
 export interface PasswordLookup {
-  [email: string]: {
-    hash: string;
-    algorithm: string;
-    setDate?: string;
-  };
+  /**
+   * Password hashes keyed by the Auth0 user's stable `_id.$oid`. This is the
+   * only safe join key: it maps to the CSV `external_id` (`<strategy>|<oid>`)
+   * set by `mapAuth0UserToWorkOS`. Joining by email is unsafe because Auth0
+   * emails are unique per connection, not per tenant.
+   */
+  byOid: Record<string, PasswordLookupEntry>;
+  /** Count of occurrences per lowercased email, used to warn about collisions. */
+  emailCounts: Record<string, number>;
+  /** Number of records skipped because they carried no `_id.$oid` to match on. */
+  recordsWithoutId: number;
+  /**
+   * `_id.$oid` values that appeared on more than one record. These are treated
+   * as ambiguous identities and are NOT bound to any user (removed from
+   * `byOid`) so a later record can never silently overwrite an earlier hash.
+   */
+  duplicateOids: string[];
 }
 
 // --- Transformer Types ---

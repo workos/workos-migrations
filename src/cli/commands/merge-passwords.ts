@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import fs from 'node:fs';
 import chalk from 'chalk';
 import {
+  duplicateEmails,
   loadPasswordHashes,
   mergePasswordsIntoCsv,
   mergePasswordsIntoPackage,
@@ -55,6 +56,9 @@ export function registerMergePasswordsCommand(program: Command): void {
             console.log(`  Upload rows updated: ${stats.uploadRowsUpdated}`);
             console.log(`  Duration: ${duration}ms`);
             console.log(`  Package: ${opts.package}`);
+            for (const warning of stats.warnings) {
+              console.log(chalk.yellow(`  Warning: ${warning.message}`));
+            }
           }
           return;
         }
@@ -75,10 +79,32 @@ export function registerMergePasswordsCommand(program: Command): void {
         }
 
         const passwordLookup = await loadPasswordHashes(opts.passwords);
-        const passwordCount = Object.keys(passwordLookup).length;
+        const passwordCount = Object.keys(passwordLookup.byOid).length;
 
         if (!opts.quiet) {
           console.log(chalk.green(`Loaded ${passwordCount} password hashes`));
+          const collidingEmails = duplicateEmails(passwordLookup);
+          if (collidingEmails.length > 0) {
+            console.log(
+              chalk.yellow(
+                `Warning: ${collidingEmails.length} email(s) appear on multiple password records. Hashes are matched by Auth0 user_id (external_id), not email.`,
+              ),
+            );
+          }
+          if (passwordLookup.duplicateOids.length > 0) {
+            console.log(
+              chalk.yellow(
+                `Warning: ${passwordLookup.duplicateOids.length} Auth0 user id(s) appeared on multiple password records and were skipped as ambiguous (no hash bound).`,
+              ),
+            );
+          }
+          if (passwordLookup.recordsWithoutId > 0) {
+            console.log(
+              chalk.yellow(
+                `Warning: ${passwordLookup.recordsWithoutId} password record(s) had no _id.$oid and were skipped (cannot be safely matched to a user).`,
+              ),
+            );
+          }
           console.log(chalk.blue('Merging passwords into CSV...'));
         }
 
