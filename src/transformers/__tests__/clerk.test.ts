@@ -176,6 +176,39 @@ describe('Clerk Transformer', () => {
     expect(output).toContain('admin,editor');
   });
 
+  it('should derive email_verified from the Clerk verification columns', async () => {
+    const inputCsv = path.join(tmpDir, 'clerk.csv');
+    const outputCsv = path.join(tmpDir, 'output.csv');
+
+    fs.writeFileSync(
+      inputCsv,
+      [
+        'id,first_name,last_name,primary_email_address,username,primary_phone_number,verified_email_addresses,unverified_email_addresses,verified_phone_numbers,unverified_phone_numbers,totp_secret,password_digest,password_hasher',
+        // Primary address recorded only as unverified → must not be verified.
+        'user_unverified,Mallory,Evil,victim@corp.com,mallory,,,victim@corp.com,,,,$2b$10$hash,bcrypt',
+        // Primary address recorded as verified → stays verified.
+        'user_verified,Alice,Good,alice@corp.com,alice,,alice@corp.com,,,,,$2b$10$hash,bcrypt',
+      ].join('\n'),
+    );
+
+    await transformClerkExport({ input: inputCsv, output: outputCsv, quiet: true });
+
+    const rows = fs
+      .readFileSync(outputCsv, 'utf-8')
+      .trim()
+      .split('\n')
+      .map((line) => line.split(','));
+    const header = rows[0];
+    const emailIdx = header.indexOf('email');
+    const verifiedIdx = header.indexOf('email_verified');
+
+    const unverifiedRow = rows.find((r) => r[emailIdx] === 'victim@corp.com');
+    const verifiedRow = rows.find((r) => r[emailIdx] === 'alice@corp.com');
+
+    expect(unverifiedRow?.[verifiedIdx]).toBe('false');
+    expect(verifiedRow?.[verifiedIdx]).toBe('true');
+  });
+
   it('should include metadata with clerk fields', async () => {
     const inputCsv = path.join(tmpDir, 'clerk.csv');
     const outputCsv = path.join(tmpDir, 'output.csv');

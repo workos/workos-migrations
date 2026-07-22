@@ -7,6 +7,7 @@ import type { OrgMappingRow } from '../shared/org-mapper.js';
 import { loadOrgMapping, applyOrgMapping, buildOutputColumns } from '../shared/org-mapper.js';
 import { loadRoleMapping } from '../shared/role-mapper.js';
 import * as logger from '../../shared/logger.js';
+import { isClerkPrimaryEmailVerified } from './email-verification.js';
 
 export interface ClerkTransformOptions {
   input: string;
@@ -73,7 +74,7 @@ function mapClerkUser(
     email,
     first_name: row.first_name?.trim() || undefined,
     last_name: row.last_name?.trim() || undefined,
-    email_verified: 'true',
+    email_verified: isClerkPrimaryEmailVerified(row, email) ? 'true' : 'false',
     external_id: row.id?.trim() || undefined,
     password_hash: passwordHash,
     password_hash_type: passwordHashType,
