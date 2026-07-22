@@ -351,7 +351,8 @@ describe('exportAuth0PackageWithClient', () => {
       ...databaseUser,
       user_id: 'auth0|metadata',
       email: 'metadata@example.com',
-      user_metadata: {
+      user_metadata: {},
+      app_metadata: {
         organization_id: 'org_metadata',
         organization_name: 'Metadata Org',
       },
@@ -769,7 +770,8 @@ describe('exportAuth0PackageWithClient', () => {
       ...databaseUser,
       user_id: 'auth0|metadata-roles',
       email: 'metadata@example.com',
-      user_metadata: {
+      user_metadata: {},
+      app_metadata: {
         organization_id: 'org_metadata',
         organization_name: 'Metadata Org',
       },

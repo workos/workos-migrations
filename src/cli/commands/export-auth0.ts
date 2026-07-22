@@ -25,7 +25,14 @@ export function registerExportAuth0Command(program: Command): void {
     .option('--page-size <n>', 'API pagination size (max 100)', '100')
     .option('--rate-limit <n>', 'API requests per second', '50')
     .option('--user-fetch-concurrency <n>', 'Parallel user fetch count', '10')
-    .option('--use-metadata', 'Use user_metadata for org discovery instead of Organizations API')
+    .option(
+      '--use-metadata',
+      'Use metadata for org discovery instead of Organizations API (admin-controlled app_metadata only by default)',
+    )
+    .option(
+      '--allow-user-metadata-org',
+      'INSECURE: also trust end-user-writable user_metadata for org discovery. Lets source-tenant end users self-assign organization membership; only enable if you fully trust user_metadata',
+    )
     .option('--metadata-org-id-field <field>', 'Custom metadata field for org ID')
     .option('--metadata-org-name-field <field>', 'Custom metadata field for org name')
     .option(
@@ -84,6 +91,7 @@ export function registerExportAuth0Command(program: Command): void {
           rateLimit: parseInt(opts.rateLimit, 10),
           userFetchConcurrency: parseInt(opts.userFetchConcurrency, 10),
           useMetadata: opts.useMetadata ?? false,
+          allowUserMetadataOrg: opts.allowUserMetadataOrg ?? false,
           metadataOrgIdField: opts.metadataOrgIdField,
           metadataOrgNameField: opts.metadataOrgNameField,
           includeFederatedUsers: opts.includeFederatedUsers ?? false,

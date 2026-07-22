@@ -119,6 +119,12 @@ export interface Auth0ExportOptions {
   useMetadata: boolean;
   metadataOrgIdField?: string;
   metadataOrgNameField?: string;
+  /**
+   * Also consult end-user-writable `user_metadata` for org discovery. Off by default:
+   * org membership is only derived from admin-controlled `app_metadata` so a source-tenant
+   * end user cannot plant themselves into an arbitrary organization.
+   */
+  allowUserMetadataOrg?: boolean;
   includeFederatedUsers?: boolean;
   engine?: Auth0ExportEngine;
   bulkConnectionId?: string;

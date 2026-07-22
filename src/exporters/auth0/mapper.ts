@@ -133,6 +133,7 @@ export function extractOrgFromMetadata(
   user: Auth0User,
   customOrgIdField?: string,
   customOrgNameField?: string,
+  allowUserMetadata = false,
 ): { orgId?: string; orgName?: string } | null {
   const extractFromMetadata = (metadata: Record<string, unknown>) => {
     let orgId: unknown;
@@ -157,13 +158,17 @@ export function extractOrgFromMetadata(
     return null;
   };
 
-  if (user.user_metadata) {
-    const result = extractFromMetadata(user.user_metadata);
+  // Organization membership is an authorization grant, so it must be derived from an
+  // admin-controlled source. app_metadata is admin-only in Auth0; user_metadata is
+  // end-user-writable (public signup, self-service profile updates) and must not drive
+  // org routing unless the operator explicitly opts in.
+  if (user.app_metadata) {
+    const result = extractFromMetadata(user.app_metadata);
     if (result) return result;
   }
 
-  if (user.app_metadata) {
-    const result = extractFromMetadata(user.app_metadata);
+  if (allowUserMetadata && user.user_metadata) {
+    const result = extractFromMetadata(user.user_metadata);
     if (result) return result;
   }
 

@@ -26,6 +26,7 @@ export interface WizardState {
   auth0RateLimit?: number;
   auth0Orgs?: string[];
   auth0UseMetadata?: boolean;
+  auth0AllowUserMetadataOrg?: boolean;
   auth0Package?: boolean;
   auth0PackageDir?: string;
   auth0PackageEntities?: string[];

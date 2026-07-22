@@ -65,7 +65,16 @@ const AUTH0_OPTIONS: OptionSchema = [
   {
     id: 'useMetadata',
     label: 'Use metadata',
-    description: 'Use user_metadata for org discovery instead of the Organizations API',
+    description:
+      'Use metadata for org discovery instead of the Organizations API (admin-controlled app_metadata only by default)',
+    type: 'boolean',
+    default: false,
+  },
+  {
+    id: 'allowUserMetadataOrg',
+    label: 'Allow user_metadata org discovery (insecure)',
+    description:
+      'Also trust end-user-writable user_metadata for org discovery. Lets source-tenant end users self-assign organization membership; only enable if you fully trust user_metadata',
     type: 'boolean',
     default: false,
   },
@@ -205,6 +214,9 @@ function toExportOptions(ctx: SourceContext): Auth0ExportOptions {
     rateLimit: toNumber(o.rateLimit, 50),
     userFetchConcurrency: toNumber(o.userFetchConcurrency, 10),
     useMetadata: Boolean(o.useMetadata ?? false),
+    // Fail closed: this opt-in trusts end-user-writable data, so only an explicit
+    // boolean true (or the string "true") may enable it — never `Boolean("false")`.
+    allowUserMetadataOrg: o.allowUserMetadataOrg === true || o.allowUserMetadataOrg === 'true',
     metadataOrgIdField: o.metadataOrgIdField as string | undefined,
     metadataOrgNameField: o.metadataOrgNameField as string | undefined,
     includeFederatedUsers: Boolean(o.includeFederatedUsers ?? false),
