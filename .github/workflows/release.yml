@@ -28,12 +28,8 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
-      - name: Build project
-        run: npm run build
-
-      - name: Build self-contained bundle
-        run: npm run bundle
-
+      # No explicit build steps: `npm publish` runs prepublishOnly,
+      # which builds the project and the self-contained bundle.
       - name: Determine npm tag
         id: npm-tag
         env:
