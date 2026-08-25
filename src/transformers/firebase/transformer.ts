@@ -112,7 +112,6 @@ function mapFirebaseUser(
   const metadata: Record<string, unknown> = {};
   if (user.localId?.trim()) metadata.firebase_uid = user.localId.trim();
   if (user.phoneNumber?.trim()) metadata.phone_number = user.phoneNumber.trim();
-  if (user.photoUrl?.trim()) metadata.photo_url = user.photoUrl.trim();
 
   if (user.customAttributes?.trim()) {
     try {
@@ -122,7 +121,6 @@ function mapFirebaseUser(
     }
   }
 
-  if (user.providerUserInfo?.length) metadata.provider_info = user.providerUserInfo;
   if (user.mfaInfo?.length) metadata.mfa_info = user.mfaInfo;
 
   if (user.createdAt) {

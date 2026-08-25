@@ -112,7 +112,7 @@ describe('exportFirebasePackage', () => {
     expect(stats.warnings.some((w) => w.code === 'missing_scrypt_parameters')).toBe(true);
   });
 
-  it('preserves mfaInfo, createdAt, and lastSignedInAt in user metadata', async () => {
+  it('preserves migration metadata without provider profile fields', async () => {
     const inputJson = path.join(tempRoot, 'firebase.json');
     fs.writeFileSync(
       inputJson,
@@ -123,6 +123,14 @@ describe('exportFirebasePackage', () => {
             email: 'meta@acme.com',
             displayName: 'Meta User',
             emailVerified: true,
+            photoUrl: `https://example.com/${'a'.repeat(700)}`,
+            providerUserInfo: [
+              {
+                providerId: 'google.com',
+                rawId: 'google-id',
+                displayName: '李雷',
+              },
+            ],
             createdAt: '1700000000000',
             lastSignedInAt: '1700100000000',
             mfaInfo: [
@@ -149,6 +157,8 @@ describe('exportFirebasePackage', () => {
     const metadata = JSON.parse(users[0].metadata) as Record<string, unknown>;
     expect(metadata.created_at).toBe(new Date(1700000000000).toISOString());
     expect(metadata.last_signed_in_at).toBe(new Date(1700100000000).toISOString());
+    expect(metadata).not.toHaveProperty('photo_url');
+    expect(metadata).not.toHaveProperty('provider_info');
     expect(metadata.mfa_info).toEqual([
       {
         mfaEnrollmentId: 'mfa_123',

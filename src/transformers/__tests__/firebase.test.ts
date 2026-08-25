@@ -74,19 +74,16 @@ describe('Firebase Transformer', () => {
         { signerKey: 'a2V5', saltSeparator: 'c2Vw', rounds: 8, memoryCost: 14 },
       );
 
-      expect(result).toBe('$firebase-scrypt$hash=aGFzaA==$salt=c2FsdA==$sk=a2V5$ss=c2Vw$r=8$m=14');
+      expect(result).toBe('$firebase-scrypt$v=1$r=8,m=14,ss=c2Vw,sk=a2V5$c2FsdA$aGFzaA');
     });
 
     it('should normalize URL-safe base64', () => {
       const result = encodeFirebaseScryptPHC(
-        { passwordHash: 'a-b_c', salt: 'd-e_f' },
-        { signerKey: 'g-h_i', saltSeparator: 'j-k_l', rounds: 8, memoryCost: 14 },
+        { passwordHash: '-_8=', salt: '__8=' },
+        { signerKey: '-u8=', saltSeparator: '_vo=', rounds: 8, memoryCost: 14 },
       );
 
-      expect(result).toContain('hash=a+b/c');
-      expect(result).toContain('salt=d+e/f');
-      expect(result).toContain('sk=g+h/i');
-      expect(result).toContain('ss=j+k/l');
+      expect(result).toBe('$firebase-scrypt$v=1$r=8,m=14,ss=/vo,sk=+u8$//8$+/8');
     });
   });
 
@@ -298,7 +295,7 @@ describe('Firebase Transformer', () => {
       expect(summary.usersWithoutPasswords).toBe(1);
     });
 
-    it('should map custom claims to metadata', async () => {
+    it('should map custom claims without provider profile metadata', async () => {
       const inputJson = path.join(tmpDir, 'firebase.json');
       const outputCsv = path.join(tmpDir, 'output.csv');
 
@@ -312,6 +309,14 @@ describe('Firebase Transformer', () => {
               displayName: 'Alice',
               customAttributes: '{"role":"admin","plan":"enterprise"}',
               phoneNumber: '+1555123',
+              photoUrl: `https://example.com/${'a'.repeat(700)}`,
+              providerUserInfo: [
+                {
+                  providerId: 'google.com',
+                  rawId: 'google-id',
+                  displayName: '李雷',
+                },
+              ],
               createdAt: '1700000000000',
             },
           ],
@@ -331,6 +336,8 @@ describe('Firebase Transformer', () => {
       expect(output).toContain('custom_attributes');
       expect(output).toContain('phone_number');
       expect(output).toContain('firebase_uid');
+      expect(output).not.toContain('photo_url');
+      expect(output).not.toContain('provider_info');
     });
 
     it('should apply org mapping', async () => {

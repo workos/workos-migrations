@@ -10,14 +10,14 @@ export interface UserPasswordData {
  * Firebase CLI sometimes emits URL-safe base64 (using - and _ instead of + and /).
  */
 function normalizeBase64(value: string): string {
-  return value.replace(/-/g, '+').replace(/_/g, '/');
+  return value.replace(/-/g, '+').replace(/_/g, '/').replace(/=+$/, '');
 }
 
 /**
  * Encode Firebase scrypt password into PHC format string.
  *
  * PHC format:
- *   $firebase-scrypt$hash=<b64hash>$salt=<b64salt>$sk=<b64signerKey>$ss=<b64saltSep>$r=<rounds>$m=<memCost>
+ *   $firebase-scrypt$v=1$r=<rounds>,m=<memCost>,ss=<b64saltSep>,sk=<b64signerKey>$<b64salt>$<b64hash>
  */
 export function encodeFirebaseScryptPHC(
   userData: UserPasswordData,
@@ -28,5 +28,5 @@ export function encodeFirebaseScryptPHC(
   const sk = normalizeBase64(config.signerKey);
   const ss = normalizeBase64(config.saltSeparator);
 
-  return `$firebase-scrypt$hash=${hash}$salt=${salt}$sk=${sk}$ss=${ss}$r=${config.rounds}$m=${config.memoryCost}`;
+  return `$firebase-scrypt$v=1$r=${config.rounds},m=${config.memoryCost},ss=${ss},sk=${sk}$${salt}$${hash}`;
 }
