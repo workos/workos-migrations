@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.5.1](https://github.com/workos/workos-migrations/compare/v2.5.0...v2.5.1) (2026-08-25)
+
+
+### Bug Fixes
+
+* **firebase:** emit valid migration data ([#139](https://github.com/workos/workos-migrations/issues/139)) ([1d0e8b9](https://github.com/workos/workos-migrations/commit/1d0e8b9f9caa70ce77d350a699e737be3ee2043b))
+
 ## [2.5.0](https://github.com/workos/workos-migrations/compare/v2.4.0...v2.5.0) (2026-06-12)
 
 
