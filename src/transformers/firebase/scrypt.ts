@@ -8,6 +8,8 @@ export interface UserPasswordData {
 /**
  * Normalize URL-safe base64 to standard base64.
  * Firebase CLI sometimes emits URL-safe base64 (using - and _ instead of + and /).
+ * Also strips `=` padding: PHC B64 fields and parameter values must be unpadded,
+ * and the import API's parser rejects padded values.
  */
 function normalizeBase64(value: string): string {
   return value.replace(/-/g, '+').replace(/_/g, '/').replace(/=+$/, '');

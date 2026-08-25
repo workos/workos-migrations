@@ -112,7 +112,7 @@ describe('exportFirebasePackage', () => {
     expect(stats.warnings.some((w) => w.code === 'missing_scrypt_parameters')).toBe(true);
   });
 
-  it('preserves migration metadata without provider profile fields', async () => {
+  it('omits metadata fields that violate WorkOS constraints and warns once per field', async () => {
     const inputJson = path.join(tempRoot, 'firebase.json');
     fs.writeFileSync(
       inputJson,
@@ -141,11 +141,22 @@ describe('exportFirebasePackage', () => {
               },
             ],
           },
+          {
+            localId: 'fb_meta2',
+            email: 'meta2@acme.com',
+            photoUrl: `https://example.com/${'b'.repeat(700)}`,
+            mfaInfo: [
+              {
+                mfaEnrollmentId: 'mfa_456',
+                displayName: '李雷',
+              },
+            ],
+          },
         ],
       }),
     );
     const pkgDir = path.join(tempRoot, 'pkg');
-    await exportFirebasePackage({
+    const stats = await exportFirebasePackage({
       input: inputJson,
       outputDir: pkgDir,
       nameSplitStrategy: 'first-space',
@@ -153,7 +164,7 @@ describe('exportFirebasePackage', () => {
     });
 
     const users = await readCsv(path.join(pkgDir, 'users.csv'));
-    expect(users).toHaveLength(1);
+    expect(users).toHaveLength(2);
     const metadata = JSON.parse(users[0].metadata) as Record<string, unknown>;
     expect(metadata.created_at).toBe(new Date(1700000000000).toISOString());
     expect(metadata.last_signed_in_at).toBe(new Date(1700100000000).toISOString());
@@ -166,6 +177,57 @@ describe('exportFirebasePackage', () => {
         enrolledAt: '2023-11-15T00:00:00Z',
       },
     ]);
+
+    // Second user: non-ASCII MFA display name violates the same constraints
+    const metadata2 = JSON.parse(users[1].metadata) as Record<string, unknown>;
+    expect(metadata2).not.toHaveProperty('photo_url');
+    expect(metadata2).not.toHaveProperty('mfa_info');
+
+    // One warning per distinct field, even though photo_url was dropped for both users
+    const omitted = stats.warnings.filter((w) => w.code === 'metadata_field_omitted');
+    expect(omitted.map((w) => w.message).sort()).toEqual([
+      expect.stringContaining('"mfa_info"'),
+      expect.stringContaining('"photo_url"'),
+      expect.stringContaining('"provider_info"'),
+    ]);
+  });
+
+  it('preserves metadata fields that satisfy WorkOS constraints', async () => {
+    const inputJson = path.join(tempRoot, 'firebase.json');
+    fs.writeFileSync(
+      inputJson,
+      JSON.stringify({
+        users: [
+          {
+            localId: 'fb_ok',
+            email: 'ok@acme.com',
+            photoUrl: 'https://example.com/avatar.png',
+            providerUserInfo: [
+              {
+                providerId: 'google.com',
+                rawId: 'google-id',
+                displayName: 'Ok User',
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    const pkgDir = path.join(tempRoot, 'pkg');
+    const stats = await exportFirebasePackage({
+      input: inputJson,
+      outputDir: pkgDir,
+      nameSplitStrategy: 'first-space',
+      quiet: true,
+    });
+
+    const users = await readCsv(path.join(pkgDir, 'users.csv'));
+    const metadata = JSON.parse(users[0].metadata) as Record<string, unknown>;
+    expect(metadata.photo_url).toBe('https://example.com/avatar.png');
+    expect(metadata.provider_info).toEqual([
+      { providerId: 'google.com', rawId: 'google-id', displayName: 'Ok User' },
+    ]);
+    expect(stats.warnings.some((w) => w.code === 'metadata_field_omitted')).toBe(false);
   });
 
   it('respects include-disabled', async () => {
