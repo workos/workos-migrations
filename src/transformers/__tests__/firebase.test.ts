@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { deserialize } from '@phc/format';
 import { jest } from '@jest/globals';
 
 // Mock logger to avoid chalk ESM issues
@@ -74,19 +75,30 @@ describe('Firebase Transformer', () => {
         { signerKey: 'a2V5', saltSeparator: 'c2Vw', rounds: 8, memoryCost: 14 },
       );
 
-      expect(result).toBe('$firebase-scrypt$hash=aGFzaA==$salt=c2FsdA==$sk=a2V5$ss=c2Vw$r=8$m=14');
+      expect(result).toBe('$firebase-scrypt$v=1$r=8,m=14,ss=c2Vw,sk=a2V5$c2FsdA$aGFzaA');
     });
 
     it('should normalize URL-safe base64', () => {
       const result = encodeFirebaseScryptPHC(
-        { passwordHash: 'a-b_c', salt: 'd-e_f' },
-        { signerKey: 'g-h_i', saltSeparator: 'j-k_l', rounds: 8, memoryCost: 14 },
+        { passwordHash: '-_8=', salt: '__8=' },
+        { signerKey: '-u8=', saltSeparator: '_vo=', rounds: 8, memoryCost: 14 },
       );
 
-      expect(result).toContain('hash=a+b/c');
-      expect(result).toContain('salt=d+e/f');
-      expect(result).toContain('sk=g+h/i');
-      expect(result).toContain('ss=j+k/l');
+      expect(result).toBe('$firebase-scrypt$v=1$r=8,m=14,ss=/vo,sk=+u8$//8$+/8');
+    });
+
+    it('should round-trip through @phc/format, the parser used by the import API', () => {
+      const result = encodeFirebaseScryptPHC(
+        { passwordHash: 'aGFzaA==', salt: 'c2FsdA==' },
+        { signerKey: 'a2V5', saltSeparator: 'c2Vw', rounds: 8, memoryCost: 14 },
+      );
+
+      const parsed = deserialize(result);
+      expect(parsed.id).toBe('firebase-scrypt');
+      expect(parsed.version).toBe(1);
+      expect(parsed.params).toEqual({ r: 8, m: 14, ss: 'c2Vw', sk: 'a2V5' });
+      expect(parsed.salt?.toString('utf-8')).toBe('salt');
+      expect(parsed.hash?.toString('utf-8')).toBe('hash');
     });
   });
 
@@ -298,7 +310,7 @@ describe('Firebase Transformer', () => {
       expect(summary.usersWithoutPasswords).toBe(1);
     });
 
-    it('should map custom claims to metadata', async () => {
+    it('should omit metadata fields that violate WorkOS constraints', async () => {
       const inputJson = path.join(tmpDir, 'firebase.json');
       const outputCsv = path.join(tmpDir, 'output.csv');
 
@@ -312,6 +324,14 @@ describe('Firebase Transformer', () => {
               displayName: 'Alice',
               customAttributes: '{"role":"admin","plan":"enterprise"}',
               phoneNumber: '+1555123',
+              photoUrl: `https://example.com/${'a'.repeat(700)}`,
+              providerUserInfo: [
+                {
+                  providerId: 'google.com',
+                  rawId: 'google-id',
+                  displayName: '李雷',
+                },
+              ],
               createdAt: '1700000000000',
             },
           ],
@@ -331,6 +351,58 @@ describe('Firebase Transformer', () => {
       expect(output).toContain('custom_attributes');
       expect(output).toContain('phone_number');
       expect(output).toContain('firebase_uid');
+      expect(output).not.toContain('photo_url');
+      expect(output).not.toContain('provider_info');
+      expect(
+        summary.skippedReasons[
+          'metadata field "photo_url" omitted (exceeds WorkOS metadata limits)'
+        ],
+      ).toBe(1);
+      expect(
+        summary.skippedReasons[
+          'metadata field "provider_info" omitted (exceeds WorkOS metadata limits)'
+        ],
+      ).toBe(1);
+    });
+
+    it('should preserve metadata fields that satisfy WorkOS constraints', async () => {
+      const inputJson = path.join(tmpDir, 'firebase.json');
+      const outputCsv = path.join(tmpDir, 'output.csv');
+
+      fs.writeFileSync(
+        inputJson,
+        JSON.stringify({
+          users: [
+            {
+              localId: 'uid1',
+              email: 'alice@example.com',
+              displayName: 'Alice',
+              photoUrl: 'https://example.com/avatar.png',
+              providerUserInfo: [
+                {
+                  providerId: 'google.com',
+                  rawId: 'google-id',
+                  displayName: 'Alice',
+                },
+              ],
+            },
+          ],
+        }),
+      );
+
+      const summary = await transformFirebaseExport({
+        input: inputJson,
+        output: outputCsv,
+        nameSplitStrategy: 'first-space',
+        quiet: true,
+      });
+
+      expect(summary.transformedUsers).toBe(1);
+      expect(Object.keys(summary.skippedReasons)).toHaveLength(0);
+
+      const output = fs.readFileSync(outputCsv, 'utf-8');
+      expect(output).toContain('photo_url');
+      expect(output).toContain('provider_info');
     });
 
     it('should apply org mapping', async () => {

@@ -12,6 +12,7 @@ import type { OrgMappingRow } from '../shared/org-mapper.js';
 import { loadOrgMapping, applyOrgMapping, buildOutputColumns } from '../shared/org-mapper.js';
 import { loadRoleMapping } from '../shared/role-mapper.js';
 import { encodeFirebaseScryptPHC } from './scrypt.js';
+import { omitInvalidMetadataFields, METADATA_VALUE_MAX_LENGTH } from './metadata.js';
 import * as logger from '../../shared/logger.js';
 
 export interface FirebaseTransformOptions {
@@ -73,7 +74,13 @@ function mapFirebaseUser(
   includeDisabled?: boolean,
   skipPasswords?: boolean,
   orgMapping?: OrgMappingRow,
-): { csvRow: CSVRow; warnings: string[]; skipped: boolean; skipReason?: string } {
+): {
+  csvRow: CSVRow;
+  warnings: string[];
+  droppedMetadataFields: string[];
+  skipped: boolean;
+  skipReason?: string;
+} {
   const warnings: string[] = [];
 
   const email = user.email?.trim();
@@ -81,13 +88,20 @@ function mapFirebaseUser(
     return {
       csvRow: {} as CSVRow,
       warnings: [],
+      droppedMetadataFields: [],
       skipped: true,
       skipReason: 'Missing email address',
     };
   }
 
   if (user.disabled && !includeDisabled) {
-    return { csvRow: {} as CSVRow, warnings: [], skipped: true, skipReason: 'User is disabled' };
+    return {
+      csvRow: {} as CSVRow,
+      warnings: [],
+      droppedMetadataFields: [],
+      skipped: true,
+      skipReason: 'User is disabled',
+    };
   }
 
   const { firstName, lastName } = splitDisplayName(user.displayName, nameSplitStrategy);
@@ -136,6 +150,8 @@ function mapFirebaseUser(
 
   if (user.disabled && includeDisabled) metadata.disabled = true;
 
+  const droppedMetadataFields = omitInvalidMetadataFields(metadata);
+
   const csvRow: CSVRow = {
     email,
     first_name: firstName || undefined,
@@ -151,7 +167,7 @@ function mapFirebaseUser(
     applyOrgMapping(csvRow as Record<string, string | undefined>, orgMapping);
   }
 
-  return { csvRow, warnings, skipped: false };
+  return { csvRow, warnings, droppedMetadataFields, skipped: false };
 }
 
 /**
@@ -228,6 +244,8 @@ export async function transformFirebaseExport(
   const skippedPath = output.replace('.csv', '-skipped.jsonl');
   const skippedStream = createWriteStream(skippedPath, { encoding: 'utf-8' });
 
+  const warnedMetadataFields = new Set<string>();
+
   return new Promise((resolve, reject) => {
     const outputStream = createWriteStream(output);
     const stringifier = stringify({ header: true, columns: outputColumns });
@@ -270,6 +288,17 @@ export async function transformFirebaseExport(
         if (w.includes('No scrypt parameters')) {
           const reason = 'no scrypt params (user imported, password skipped)';
           summary.skippedReasons[reason] = (summary.skippedReasons[reason] || 0) + 1;
+        }
+      }
+
+      for (const field of result.droppedMetadataFields) {
+        const reason = `metadata field "${field}" omitted (exceeds WorkOS metadata limits)`;
+        summary.skippedReasons[reason] = (summary.skippedReasons[reason] || 0) + 1;
+        if (!warnedMetadataFields.has(field)) {
+          warnedMetadataFields.add(field);
+          logger.warn(
+            `  Metadata field "${field}" omitted for one or more users: value exceeds WorkOS metadata limits (${METADATA_VALUE_MAX_LENGTH} ASCII characters)`,
+          );
         }
       }
 

@@ -51,6 +51,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@phc/format": "^1.0.0",
     "@types/cli-progress": "^3.11.6",
     "@types/jest": "^30.0.0",
     "@types/node": "^25.6.0",

@@ -25,6 +25,7 @@ import type {
 import { loadOrgMapping, type OrgMappingRow } from '../shared/org-mapper.js';
 import { loadRoleMapping } from '../shared/role-mapper.js';
 import { encodeFirebaseScryptPHC } from './scrypt.js';
+import { omitInvalidMetadataFields, METADATA_VALUE_MAX_LENGTH } from './metadata.js';
 import { splitDisplayName } from './transformer.js';
 import {
   writeOidcConnectionsCsv,
@@ -597,6 +598,21 @@ function mapFirebaseUser(
   }
 
   if (user.disabled && options.includeDisabled) metadata.disabled = true;
+
+  for (const field of omitInvalidMetadataFields(metadata)) {
+    const alreadyWarned = stats.warnings.some(
+      (w) => w.code === 'metadata_field_omitted' && w.message.includes(`"${field}"`),
+    );
+    if (!alreadyWarned) {
+      stats.warnings.push({
+        timestamp: new Date().toISOString(),
+        code: 'metadata_field_omitted',
+        message: `Metadata field "${field}" omitted for one or more users: value exceeds WorkOS metadata limits (${METADATA_VALUE_MAX_LENGTH} ASCII characters).`,
+        firebase_uid: user.localId,
+        email,
+      });
+    }
+  }
 
   const uid = user.localId?.trim();
   const orgInfo = uid && orgMap ? orgMap.get(uid) : undefined;
