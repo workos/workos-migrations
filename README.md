@@ -351,6 +351,7 @@ The transformer handles:
 - Firebase scrypt to PHC format encoding (`$firebase-scrypt$v=1$...`)
 - `displayName` splitting into `first_name` and `last_name`
 - Phone number, custom claims, and Firebase UID preservation in metadata
+- Omitting metadata values that violate WorkOS limits (600 ASCII characters per value), with a warning
 - Skipping users without an email address
 
 ### 4. Validate, import, and post-import
