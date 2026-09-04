@@ -33,7 +33,7 @@ migration-<provider>-<timestamp>/
 
 `raw/` is reserved for provider-specific files and is not required by the base validator.
 
-`workos_upload/` contains a narrow compatibility projection for WorkOS's existing user, organization, and membership upload templates. SSO connections stay in `sso/` because they are handoff-only and cannot be automatically imported.
+`workos_upload/` contains a narrow compatibility projection for WorkOS's existing user, organization, and membership upload templates. SSO connections live in `sso/` and are created by `import-package` through the WorkOS Connections API (`POST /connections`); the same files double as the handoff artifact when the API is not enabled for an environment.
 
 ## Manifest
 
@@ -88,7 +88,7 @@ migration-<provider>-<timestamp>/
     "memberships": "automatic",
     "roles": "automatic",
     "totpSecrets": "automatic",
-    "ssoConnections": "handoff"
+    "ssoConnections": "automatic"
   },
   "secretsRedacted": true,
   "secretRedaction": {
@@ -170,18 +170,37 @@ This matches the existing TOTP enrollment parser.
 ### SAML Connections
 
 ```csv
-organizationName,organizationId,organizationExternalId,domains,idpEntityId,idpUrl,x509Cert,idpMetadataUrl,customEntityId,customAcsUrl,idpIdAttribute,emailAttribute,firstNameAttribute,lastNameAttribute,name,customAttributes,idpInitiatedEnabled,requestSigningKey,assertionEncryptionKey,nameIdEncryptionKey,externalId
+name,organizationName,organizationId,organizationExternalId,domains,idpEntityId,idpUrl,x509Cert,idpMetadataUrl,customEntityId,customAcsUrl,idpIdAttribute,emailAttribute,firstNameAttribute,lastNameAttribute,nameAttribute,idpInitiatedEnabled,requestSigningKey,requestSigningCert,assertionEncryptionKey,assertionEncryptionCert,nameIdEncryptionKey,externalId,connectionType
 ```
 
-SSO connections are handoff-only. The package should not attempt to create WorkOS SSO connections automatically.
+`import-package` maps each row onto a `POST /connections` call:
+
+| Column                                                                                             | Connections API                                                                                                |
+| -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `organizationId` / `organizationExternalId`                                                        | `organization_id` (resolved, or created from `organizationName` + `organizationExternalId`)                    |
+| `domains`                                                                                          | Added to the organization as verified domains (`,` or `;` separated; wildcards are ignored)                    |
+| `name`                                                                                             | `name` (falls back to `organizationName`, then `externalId`)                                                   |
+| `externalId`                                                                                       | `external_id` — creation is idempotent per organization on this value                                          |
+| `connectionType`                                                                                   | `connection_type` (e.g. `OktaSAML`); blank lets WorkOS infer `GenericSAML`                                     |
+| `idpMetadataUrl`                                                                                   | `saml_options.idp_metadata_url` (preferred; manual IdP columns are ignored when set)                           |
+| `idpEntityId` / `idpUrl` / `x509Cert`                                                              | `saml_options.idp_entity_id` / `idp_sso_url` / `idp_signing_certs[]` (PEM or bare base64 accepted)             |
+| `customAcsUrl` / `customEntityId`                                                                  | `saml_options.acs_url` / `sp_entity_id` (legacy overrides so customer IdPs need no changes)                     |
+| `requestSigningKey` + `requestSigningCert`                                                         | `saml_options.sp_signing_key_pair` (both required; otherwise WorkOS generates the SP signing key pair)         |
+| `assertionEncryptionKey` + `assertionEncryptionCert`                                               | `saml_options.sp_encryption_key_pairs[]` (both required; otherwise WorkOS generates the encryption key pair)   |
+| `idpIdAttribute` / `emailAttribute` / `firstNameAttribute` / `lastNameAttribute` / `nameAttribute` | `attribute_maps.standard_attributes`                                                                           |
+| `nameIdEncryptionKey`, `idpInitiatedEnabled`                                                       | No API field yet — surfaced as warnings; configure in the WorkOS dashboard after import                        |
+
+`requestSigningCert`, `assertionEncryptionCert`, and `connectionType` were added after the schema-1 contract shipped. Packages written without them still validate, and readers treat the missing columns as empty.
 
 ### OIDC Connections
 
 ```csv
-organizationName,organizationId,organizationExternalId,domains,clientId,clientSecret,discoveryEndpoint,customRedirectUri,name,customAttributes,externalId
+name,organizationName,organizationId,organizationExternalId,domains,clientId,clientSecret,discoveryEndpoint,customRedirectUri,externalId,connectionType
 ```
 
-OIDC `clientSecret` should be omitted unless the exporter has an explicit include-secrets option. When secrets are omitted, write a warning and record secret redaction metadata in the manifest.
+`clientId`, `clientSecret`, `discoveryEndpoint`, and `customRedirectUri` map to `oidc_options.client_id` / `client_secret` / `discovery_endpoint` / `redirect_uri`. `connectionType` maps to `connection_type` (blank infers `GenericOIDC`).
+
+OIDC `clientSecret` should be omitted unless the exporter has an explicit include-secrets option. When secrets are omitted, write a warning and record secret redaction metadata in the manifest. The Connections API requires a client secret, so `import-package` skips OIDC rows without one unless the secret is supplied through `--sso-secrets <file>` (JSON `{ "<externalId>": "<secret>" }`, a JSON array of `{ externalId, clientSecret }`, or a CSV with `externalId,clientSecret` columns).
 
 ### Custom Attribute Mappings
 
@@ -189,7 +208,7 @@ OIDC `clientSecret` should be omitted unless the exporter has an explicit includ
 externalId,organizationExternalId,providerType,userPoolAttribute,idpClaim
 ```
 
-This keeps the current Cognito-compatible shape until all provider exporters move to the package contract.
+This keeps the current Cognito-compatible shape until all provider exporters move to the package contract. `import-package` groups rows by `externalId` and sends them as `attribute_maps.custom_attributes` (`userPoolAttribute` → WorkOS custom attribute name, `idpClaim` → IdP attribute). Custom attributes must already exist in the WorkOS dashboard; `import-package` lists the referenced names up front and lets the operator include them, skip them, or abort to create them first.
 
 ### Proxy Routes
 
@@ -198,6 +217,8 @@ externalId,organizationExternalId,provider,protocol,sourceAcsUrl,sourceEntityId,
 ```
 
 `cutoverState` values are `legacy`, `workos`, or `manual`.
+
+After a live `import-package` run, `workosConnectionId` and `workosAcsUrl` are filled in from the created connections (`workosAcsUrl` is the connection's immutable `callback_endpoint`, protocol-agnostic), so a callback proxy can be configured directly from this file. Full per-connection results, including skips and failures, are written to `workos_sso_connections.csv` in the package root.
 
 ## WorkOS Upload Compatibility
 

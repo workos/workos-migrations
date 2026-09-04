@@ -4,6 +4,7 @@ import {
   classifyAuth0ConnectionProtocol,
   mapAuth0ConnectionToSsoHandoff,
   redactAuth0ConnectionSecrets,
+  inferAuth0SamlConnectionType,
 } from '../sso-mapper';
 
 const org: Auth0Organization = {
@@ -379,5 +380,84 @@ describe('Auth0 SSO handoff mapper', () => {
         private_key: '[REDACTED]',
       },
     });
+  });
+});
+
+describe('Connections API columns', () => {
+  const acmeOrg: Auth0Organization = { id: 'org_acme', name: 'acme', display_name: 'Acme' };
+
+  it('carries Auth0 signingKey/decryptionKey pairs into key + cert columns only with --include-secrets', () => {
+    const connection: Auth0Connection = {
+      id: 'con_signed',
+      name: 'signed-saml',
+      strategy: 'samlp',
+      options: {
+        entityId: 'https://acme.okta.com/entity',
+        signInEndpoint: 'https://acme.okta.com/app/abc/sso/saml',
+        signingCert: 'CERTDATA',
+        signingKey: { key: 'REQ-KEY', cert: 'REQ-CERT' },
+        decryptionKey: { key: 'DEC-KEY', cert: 'DEC-CERT' },
+      },
+    };
+
+    const redacted = mapAuth0ConnectionToSsoHandoff({
+      connection,
+      domain: 'tenant.auth0.com',
+      orgBindings: [{ organization: acmeOrg }],
+    });
+    expect(redacted.status).toBe('mapped');
+    if (redacted.status !== 'mapped') return;
+    expect(redacted.samlRow).toMatchObject({
+      requestSigningKey: '',
+      requestSigningCert: '',
+      assertionEncryptionKey: '',
+      assertionEncryptionCert: '',
+      connectionType: 'OktaSAML',
+    });
+    const redactionWarning = redacted.warnings.find((w) => w.code === 'secrets_redacted');
+    expect(redactionWarning?.details?.fields).toEqual(
+      expect.arrayContaining(['signingKey', 'decryptionKey']),
+    );
+
+    const included = mapAuth0ConnectionToSsoHandoff({
+      connection,
+      domain: 'tenant.auth0.com',
+      orgBindings: [{ organization: acmeOrg }],
+      includeSecrets: true,
+    });
+    expect(included.status).toBe('mapped');
+    if (included.status !== 'mapped') return;
+    expect(included.samlRow).toMatchObject({
+      requestSigningKey: 'REQ-KEY',
+      requestSigningCert: 'REQ-CERT',
+      assertionEncryptionKey: 'DEC-KEY',
+      assertionEncryptionCert: 'DEC-CERT',
+    });
+  });
+
+  it('names the connection type from the strategy or leaves it blank for generic IdPs', () => {
+    expect(inferAuth0SamlConnectionType('pingfederate', {})).toBe('PingFederateSAML');
+    expect(inferAuth0SamlConnectionType('adfs', {})).toBe('ADFSSAML');
+    expect(
+      inferAuth0SamlConnectionType('samlp', {
+        idpMetadataUrl: 'https://login.microsoftonline.com/tenant/federationmetadata.xml',
+      }),
+    ).toBe('AzureSAML');
+    expect(inferAuth0SamlConnectionType('samlp', { idpUrl: 'https://idp.customer.com/sso' })).toBe(
+      '',
+    );
+  });
+
+  it('redacts signingKey and decryptionKey objects in raw connection JSON', () => {
+    const redacted = redactAuth0ConnectionSecrets({
+      options: {
+        signingKey: { key: 'k', cert: 'c' },
+        decryptionKey: { key: 'k' },
+        signingCert: 'CERT',
+      },
+    }) as { options: Record<string, unknown> };
+    expect(typeof redacted.options.signingKey).toBe('string');
+    expect(typeof redacted.options.decryptionKey).toBe('string');
+    expect(redacted.options.signingCert).toBe('CERT');
   });
 });

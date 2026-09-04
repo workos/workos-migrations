@@ -1,6 +1,6 @@
 # WorkOS Migrations
 
-A CLI tool for migrating from identity providers into WorkOS. Supports Auth0, AWS Cognito, Clerk, Firebase Auth, and custom CSV — moving users, organizations, memberships, roles + permissions, password hashes, and TOTP MFA factors, with SAML/OIDC SSO connections surfaced as handoff artifacts.
+A CLI tool for migrating from identity providers into WorkOS. Supports Auth0, AWS Cognito, Clerk, Firebase Auth, and custom CSV — moving users, organizations, memberships, roles + permissions, password hashes, TOTP MFA factors, and SAML/OIDC SSO connections (created through the WorkOS Connections API).
 
 ## Quick Start
 
@@ -96,13 +96,13 @@ workos-migrate validate-package ./migration
 # 3. (Auth0 only) Merge the password-hash export from Auth0 support
 workos-migrate merge-passwords --package ./migration --passwords auth0-passwords.ndjson
 
-# 4. Import users, organizations, memberships, roles, and TOTP factors into WorkOS
+# 4. Import users, organizations, memberships, roles, TOTP factors, and SSO connections into WorkOS
 #    (add --plan or --dry-run first to preview)
 export WORKOS_SECRET_KEY=sk_...
 workos-migrate import-package ./migration
 ```
 
-The package itself is a provider-neutral directory (`users.csv`, `organizations.csv`, `organization_memberships.csv`, `role_definitions.csv`, `user_role_assignments.csv`, `totp_secrets.csv`, `sso/` handoff CSVs, `workos_upload/`, and `manifest.json`) — see [`docs/migration-package.md`](docs/migration-package.md) for the full contract. Swap `export auth0` for `export cognito`, `export clerk --from-file …`, `export firebase --from-file …`, or `export csv` to generate from a different source; steps 2–4 are identical.
+The package itself is a provider-neutral directory (`users.csv`, `organizations.csv`, `organization_memberships.csv`, `role_definitions.csv`, `user_role_assignments.csv`, `totp_secrets.csv`, `sso/` connection CSVs, `workos_upload/`, and `manifest.json`) — see [`docs/migration-package.md`](docs/migration-package.md) for the full contract. Swap `export auth0` for `export cognito`, `export clerk --from-file …`, `export firebase --from-file …`, or `export csv` to generate from a different source; steps 2–4 are identical.
 
 The per-provider guides below cover provider-specific credential setup and options.
 
@@ -140,7 +140,7 @@ Auth0 is a parity-complete migration source. The end-to-end flow is:
 
 1. Run `export auth0` to produce a [migration package](docs/migration-package.md) with users, organizations, memberships, roles, SSO handoff files, warnings, and the upload-compatible projection. For very large tenants, `--engine bulk-job` is available; see step 3b.
 2. Optionally run `merge-passwords --package <dir>` to merge the Auth0 password export into the package. Unsupported hash algorithms are skipped with warnings instead of failing the merge.
-3. Run `import-package <dir>` to push organizations, users, memberships, roles, and TOTP factors into WorkOS in one shot. SSO connections are surfaced as **handoff-only**; see [`docs/auth0-sso-handoff.md`](docs/auth0-sso-handoff.md).
+3. Run `import-package <dir>` to push organizations, users, memberships, roles, TOTP factors, and SSO connections into WorkOS in one shot. SSO connections are created through the Connections API; see [`docs/auth0-sso-handoff.md`](docs/auth0-sso-handoff.md) for what the export captures and the manual fallback.
 
 ### 1. Set up Auth0 credentials
 
@@ -215,7 +215,7 @@ Options:
 - `--resume [jobId]` - Resume a previously checkpointed export
 
 The export maps Auth0 fields to WorkOS CSV format, including `email_verified`, `external_id`, and custom metadata.
-Auth0 package SSO export is handoff-only: it inspects Auth0 enterprise strategies for SAML/OIDC configuration and emits only connections with enough reliable handoff data. Database, passwordless, social, generic OAuth, non-SAML/OIDC enterprise, and incomplete connections are skipped with warnings.
+Auth0 package SSO export inspects Auth0 enterprise strategies for SAML/OIDC configuration and emits only connections with enough reliable data for `import-package` to create them. Database, passwordless, social, generic OAuth, non-SAML/OIDC enterprise, and incomplete connections are skipped with warnings. With `--include-secrets`, Auth0 `signingKey` / `decryptionKey` pairs are carried into `requestSigningKey`/`requestSigningCert` and `assertionEncryptionKey`/`assertionEncryptionCert` so the importer can bring your own SP key pairs.
 
 For a callback proxy reference implementation during Auth0 enterprise-connection cutover, see [`proxy-sample-auth0`](proxy-sample-auth0/README.md). The repo also includes [`proxy-sample-cognito`](proxy-sample-cognito/README.md) for Cognito migrations.
 
@@ -590,9 +590,33 @@ The orchestrator runs entities in this order:
 3. Role definitions (`process-role-definitions` on `role_definitions.csv`).
 4. User-role assignments (per-org slices of `user_role_assignments.csv`).
 5. TOTP enrollment (`enroll-totp` on `totp_secrets.csv`).
-6. SSO connections — surfaced as **handoff-only**. The orchestrator never creates WorkOS SSO connections automatically. See `sso/handoff_notes.md` in the package for next steps.
+6. SSO connections — created through the WorkOS Connections API (`POST /connections`) from `sso/saml_connections.csv` and `sso/oidc_connections.csv`. See [SSO connections](#sso-connections) below.
 
 Every run writes `workos_import_summary.json` (or `--summary <path>`) with per-entity status, totals, succeeded/failed counts, and warnings. Per-row errors land in `workos_import_errors.jsonl` (or `--errors <path>`).
+
+### SSO connections
+
+For every SAML/OIDC row the importer resolves the WorkOS organization (by `organizationId`, or by `organizationExternalId` — creating it from `organizationName` when missing), adds the exported `domains` to the organization as verified domains, and calls `POST /connections` with the IdP configuration, legacy ACS URL / entity ID overrides, attribute mappings, and any bring-your-own SP key pairs. Creation is idempotent on `externalId`, so re-running a package is safe.
+
+Outputs:
+
+- `workos_sso_connections.csv` in the package root — one row per connection with the WorkOS organization id, connection id, `callback_endpoint`, ACS URL / SP entity ID (SAML) or redirect URI (OIDC), outcome (`created`, `existing`, `skipped`, `failed`, `not_attempted`), and warnings. `existing` means a connection with that `externalId` already existed in the organization and was left unchanged.
+- `sso/proxy_routes.csv` — `workosConnectionId` and `workosAcsUrl` are filled in for created connections so a callback proxy can be configured without a manual mapping step.
+
+Options:
+
+- `--skip-sso` - Do not create connections; report `sso/` files as handoff.
+- `--sso-secrets <path>` - OIDC client secrets keyed by connection `externalId` (JSON object, JSON array of `{ externalId, clientSecret }`, or CSV). Exporters redact `clientSecret` by default and the API requires it, so OIDC rows without a secret are skipped.
+- `--sso-custom-attributes <include|skip>` - Custom attribute mappings (`sso/custom_attribute_mappings.csv`) must already exist in the WorkOS dashboard. Interactive runs prompt to include them, continue without them, or abort; pass the flag for non-interactive runs.
+- `--sso-rate-limit <n>` - Connections API requests per second (default: 5).
+
+Requirements and limits:
+
+- The Connections API migration capabilities (`POST /connections`) are enabled per environment by WorkOS. If they are off, the run reports SSO as `handoff` with the reason; ask WorkOS to enable them and re-run.
+- New connections start in the `validating` state and activate on the first successful sign-in.
+- IdP-initiated SSO and NameID format overrides have no API field yet and are surfaced as warnings; configure them in the dashboard after import.
+- Environments that restrict organizations to one SSO connection reject a second connection for the same organization (`connection_already_exists_for_organization`); give each connection its own organization or ask WorkOS to lift the restriction.
+- SP key pairs are accepted only at creation; without both key and cert columns WorkOS generates the SP keys and the customer IdP must be updated with the new SP certificate.
 
 ---
 

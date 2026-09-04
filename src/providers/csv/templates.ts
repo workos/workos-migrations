@@ -91,9 +91,12 @@ export const CSV_TEMPLATES: Record<string, CSVTemplate> = {
       'nameAttribute',
       'idpInitiatedEnabled',
       'requestSigningKey',
+      'requestSigningCert',
       'assertionEncryptionKey',
+      'assertionEncryptionCert',
       'nameIdEncryptionKey',
       'externalId',
+      'connectionType',
     ],
     required: ['organizationName', 'organizationId'],
     optional: [
@@ -113,13 +116,16 @@ export const CSV_TEMPLATES: Record<string, CSVTemplate> = {
       'nameAttribute',
       'idpInitiatedEnabled',
       'requestSigningKey',
+      'requestSigningCert',
       'assertionEncryptionKey',
+      'assertionEncryptionCert',
       'nameIdEncryptionKey',
       'externalId',
+      'connectionType',
     ],
     example: [
-      'Acme SAML,Acme Corporation,org_123,,acme.com;app.acme.com,https://acme.okta.com,https://acme.okta.com/app/saml,MIICXjCCAcegAwIBAgIBADANBgkqhkiG9w0BAQ0FADCBhzELMAkGA1UEBhMCVVMx...,https://acme.okta.com/app/metadata,,https://acme.com/saml/acs,email,,,,,,,,',
-      'Example SAML,Example Industries,org_456,,example.com,https://example.auth0.com/,https://example.auth0.com/saml,,https://example.auth0.com/samlp/metadata,,,uid,,,,,,,',
+      'Acme SAML,Acme Corporation,org_123,,acme.com;app.acme.com,https://acme.okta.com,https://acme.okta.com/app/saml,MIICXjCCAcegAwIBAgIBADANBgkqhkiG9w0BAQ0FADCBhzELMAkGA1UEBhMCVVMx...,https://acme.okta.com/app/metadata,,https://acme.com/saml/acs,email,,,,,,,,,,,OktaSAML',
+      'Example SAML,Example Industries,org_456,,example.com,https://example.auth0.com/,https://example.auth0.com/saml,,https://example.auth0.com/samlp/metadata,,,uid,,,,,,,,,,,',
     ],
     validation: {
       organizationName: (value: string) => {
@@ -183,6 +189,7 @@ export const CSV_TEMPLATES: Record<string, CSVTemplate> = {
       'discoveryEndpoint',
       'customRedirectUri',
       'externalId',
+      'connectionType',
     ],
     required: ['organizationName', 'organizationId'],
     optional: [
@@ -194,10 +201,11 @@ export const CSV_TEMPLATES: Record<string, CSVTemplate> = {
       'discoveryEndpoint',
       'customRedirectUri',
       'externalId',
+      'connectionType',
     ],
     example: [
-      'Acme OIDC,Acme Corporation,org_123,,acme.com,client_abc123,secret_xyz789,https://accounts.google.com/.well-known/openid-configuration,,',
-      'Example OIDC,Example Industries,org_456,,example.com,client_def456,secret_uvw321,https://login.microsoftonline.com/tenant-id/v2.0/.well-known/openid-configuration,,',
+      'Acme OIDC,Acme Corporation,org_123,,acme.com,client_abc123,secret_xyz789,https://accounts.google.com/.well-known/openid-configuration,,,',
+      'Example OIDC,Example Industries,org_456,,example.com,client_def456,secret_uvw321,https://login.microsoftonline.com/tenant-id/v2.0/.well-known/openid-configuration,,,',
     ],
     validation: {
       organizationName: (value: string) => {

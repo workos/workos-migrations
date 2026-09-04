@@ -1,6 +1,8 @@
 # Auth0 SSO Handoff
 
-Auth0 SSO connections cannot be imported automatically into WorkOS. This document describes what `export-auth0 --package --entities sso` produces and how to use those files to stand up the WorkOS connections by hand.
+`export auth0 --entities sso` writes Auth0 enterprise SAML/OIDC connections into the package's `sso/` files. `import-package` then creates the WorkOS connections through the Connections API (`POST /connections`), including organizations, verified domains, legacy ACS URL / entity ID overrides, attribute mappings, and (with `--include-secrets`) bring-your-own SP key pairs. This document describes what the export produces and how to finish the job by hand when the automated path cannot be used.
+
+The Connections API migration capabilities are enabled per WorkOS environment. When they are off, `import-package` reports SSO as `handoff` and leaves the files below for manual processing; ask WorkOS to enable them and re-run (creation is idempotent on `externalId`).
 
 ## What gets written
 
@@ -39,17 +41,23 @@ If a single Auth0 connection is enabled for several Auth0 organizations, the exp
 
 ## Operator workflow
 
-1. Run `export-auth0 --package --entities sso --output-dir <pkg>` (optionally with `--include-secrets`).
+1. Run `export auth0 --entities sso --output-dir <pkg>` (add `--include-secrets` to carry OIDC client secrets and Auth0 `signingKey` / `decryptionKey` pairs into the CSVs).
 2. Read `sso/handoff_notes.md` for any tenant-specific notes the exporter recorded.
-3. For every row in `sso/saml_connections.csv` and `sso/oidc_connections.csv`:
+3. Run `import-package <pkg> --plan` to see the connections, referenced custom attributes, and anything that will be skipped, then `import-package <pkg>`. Results land in `workos_sso_connections.csv` and `sso/proxy_routes.csv`.
+
+### Manual fallback
+
+When the Connections API is not enabled, or for rows the importer skipped, work through `sso/saml_connections.csv` and `sso/oidc_connections.csv` by hand:
    1. Create the WorkOS organization that matches `organizationExternalId` (or use an existing one) and add the listed domains.
    2. Create a SAML or OIDC connection in WorkOS using the IdP metadata fields. Re-upload signing certificates and metadata XML where required.
    3. For OIDC connections, regenerate or paste the client secret manually (it is redacted in the export by default).
    4. Apply `customAttributes` from the corresponding rows in `sso/custom_attribute_mappings.csv` to the new WorkOS connection.
    5. If a callback proxy is in use during cutover (see `proxy-sample-auth0/`), update `sso/proxy_routes.csv` rows with the WorkOS connection ID and ACS URL so the proxy can route traffic during cutover.
 
-When `import-package` is run against the package, SSO entities are reported with status `handoff` so the operator is prompted to follow this document instead of expecting an automated import.
+## What the importer cannot do
 
-## Why handoff-only
-
-WorkOS SSO connections require organization-scoped customer setup, certificate exchange, and consent that does not map cleanly to a one-shot API call. Treating SSO as a handoff lets the migration package preserve all of the source data needed to create connections without fabricating WorkOS resources that operators cannot easily roll back.
+- OIDC rows without a `clientSecret` are skipped (Auth0 exports redact it by default). Re-export with `--include-secrets` or pass `--sso-secrets <file>`.
+- IdP-initiated SSO and NameID format overrides have no Connections API field yet; enable them in the WorkOS dashboard after import.
+- SP key pairs are accepted only at creation. A connection created without `requestSigningKey` + `requestSigningCert` gets WorkOS-generated keys, and the customer IdP must be updated with the new SP certificate before signed requests work.
+- Auth0 tenant-level signing keys are not exportable; those connections need a fresh Admin Portal setup.
+- Expired IdP certificates are rejected by the API; refresh the certificate at the source first.

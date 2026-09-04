@@ -178,7 +178,7 @@ describe('import-package orchestrator', () => {
     expect(parsed.users.status).toBe('planned');
   });
 
-  it('flags SSO files as handoff-only', async () => {
+  it('plans SSO connections for Connections API import in dry-run mode', async () => {
     const pkgDir = path.join(tempRoot, 'pkg');
     await createMigrationPackage({
       provider: 'auth0',
@@ -205,7 +205,7 @@ describe('import-package orchestrator', () => {
     );
 
     const summary = await importPackage({ packageDir: pkgDir, dryRun: true, quiet: true });
-    expect(summary.ssoConnections).toMatchObject({ status: 'handoff', total: 1 });
+    expect(summary.ssoConnections).toMatchObject({ status: 'planned', total: 1, succeeded: 1 });
   });
 
   describe('groupAssignmentsByOrg', () => {

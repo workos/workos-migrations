@@ -7,6 +7,7 @@ import {
   MIGRATION_PACKAGE_FILES,
   MIGRATION_PACKAGE_FILE_KEYS,
   MIGRATION_PACKAGE_SCHEMA_VERSION,
+  OPTIONAL_CSV_HEADERS,
   isMigrationPackageCsvFileKey,
   isMigrationPackageFileKey,
   type MigrationPackageFileKey,
@@ -303,7 +304,7 @@ async function validatePackageCsvHeaders(
       continue;
     }
 
-    if (!arraysEqual(actualHeaders, [...expectedHeaders])) {
+    if (!headersMatchContract(key, actualHeaders, [...expectedHeaders])) {
       issues.push({
         severity: 'error',
         code: 'invalid_csv_header',
@@ -454,4 +455,20 @@ function result(
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * A CSV header matches the contract when it equals the canonical header list,
+ * or the canonical list with the file's optional (later-added) columns removed.
+ */
+function headersMatchContract(
+  fileKey: string,
+  actualHeaders: string[],
+  expectedHeaders: string[],
+): boolean {
+  if (arraysEqual(actualHeaders, expectedHeaders)) return true;
+  const optional = OPTIONAL_CSV_HEADERS[fileKey];
+  if (!optional || optional.length === 0) return false;
+  const legacyHeaders = expectedHeaders.filter((header) => !optional.includes(header));
+  return arraysEqual(actualHeaders, legacyHeaders);
 }

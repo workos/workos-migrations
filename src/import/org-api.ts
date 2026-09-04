@@ -25,15 +25,24 @@ export async function getOrganizationByExternalId(
   }
 }
 
+export type OrganizationDomainState = 'verified' | 'pending';
+
+export interface OrganizationDomainData {
+  domain: string;
+  state: OrganizationDomainState;
+}
+
 export async function createOrganization(
   workos: WorkOS,
   name: string,
   externalId: string,
+  domainData?: OrganizationDomainData[],
 ): Promise<string> {
   try {
     const org = await (workos as any).organizations.createOrganization({
       name,
       externalId,
+      ...(domainData && domainData.length > 0 ? { domainData } : {}),
     });
     return org.id as string;
   } catch (err: any) {
@@ -45,4 +54,55 @@ export async function createOrganization(
     (enhancedErr as any).original = err;
     throw enhancedErr;
   }
+}
+
+export interface EnsureOrganizationDomainsResult {
+  added: string[];
+  existing: string[];
+}
+
+/**
+ * Add any missing domains to an existing organization. Domains already on the
+ * organization keep their current verification state; new ones are added with
+ * the requested state. Returns which domains were added.
+ */
+export async function ensureOrganizationDomains(
+  workos: WorkOS,
+  orgId: string,
+  domains: string[],
+  state: OrganizationDomainState = 'verified',
+): Promise<EnsureOrganizationDomainsResult> {
+  const wanted = Array.from(new Set(domains.map((domain) => domain.trim().toLowerCase()))).filter(
+    Boolean,
+  );
+  if (wanted.length === 0) return { added: [], existing: [] };
+
+  const org = await (workos as any).organizations.getOrganization(orgId);
+  const current: Array<{ domain: string; state: string }> = Array.isArray(org?.domains)
+    ? org.domains
+    : [];
+  const currentByName = new Map(current.map((d) => [d.domain.toLowerCase(), d]));
+
+  const missing = wanted.filter((domain) => !currentByName.has(domain));
+  if (missing.length === 0) return { added: [], existing: wanted };
+
+  const domainData = [
+    ...current.map((d) => ({
+      domain: d.domain,
+      // The update endpoint only accepts verified/pending; anything else
+      // (failed, legacy) is resubmitted as pending so it is never upgraded.
+      state: d.state === 'verified' ? 'verified' : 'pending',
+    })),
+    ...missing.map((domain) => ({ domain, state })),
+  ];
+
+  await (workos as any).organizations.updateOrganization({
+    organization: orgId,
+    domainData,
+  });
+
+  return {
+    added: missing,
+    existing: wanted.filter((domain) => currentByName.has(domain)),
+  };
 }

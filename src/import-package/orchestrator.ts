@@ -13,6 +13,13 @@ import { loadMigrationPackage, type MigrationPackage } from '../package/writer.j
 import { processRoleDefinitions, assignRolesToUsers } from '../roles/processor.js';
 import { enrollTotp } from '../totp/enroller.js';
 import * as logger from '../shared/logger.js';
+import {
+  collectCustomAttributeNames,
+  importSsoConnections,
+  loadSsoPackageRows,
+  type SsoCustomAttributeMode,
+  type SsoImportSummary,
+} from './sso-importer.js';
 
 export type EntityImportStatus =
   | 'imported'
@@ -48,6 +55,14 @@ export interface ImportPackageOptions {
   errorsPath?: string;
   /** Where to write the workos_import_summary.json. Defaults to <packageDir>/workos_import_summary.json. */
   summaryPath?: string;
+  /** Skip SSO connection creation and report sso/ files as handoff instead. */
+  skipSso?: boolean;
+  /** OIDC client secrets keyed by connection externalId (overrides CSV clientSecret). */
+  ssoSecrets?: Map<string, string>;
+  /** Whether to send custom attribute mappings with SSO connections. Defaults to include. */
+  ssoCustomAttributes?: SsoCustomAttributeMode;
+  /** Connections API requests per second. Defaults to 5. */
+  ssoRateLimit?: number;
 }
 
 export interface ImportPackagePlan {
@@ -60,6 +75,9 @@ export interface ImportPackagePlan {
   hasRoleAssignmentsCsv: boolean;
   hasTotpCsv: boolean;
   hasSso: boolean;
+  hasProxyRoutes: boolean;
+  /** Custom attribute names referenced by sso/custom_attribute_mappings.csv. */
+  ssoCustomAttributeNames: string[];
   expectedCounts: Record<string, number>;
   validationErrors: MigrationPackageValidationIssue[];
   validationWarnings: MigrationPackageValidationIssue[];
@@ -105,6 +123,7 @@ export async function planImportPackage(packageDir: string): Promise<ImportPacka
   }
 
   const counts = pkg.manifest.entitiesExported ?? {};
+  const ssoRows = await loadSsoPackageRows(resolvedDir);
 
   return {
     packageDir: resolvedDir,
@@ -115,9 +134,9 @@ export async function planImportPackage(packageDir: string): Promise<ImportPacka
     hasRoleDefinitionsCsv: await csvHasRows(pkg.files.roleDefinitions),
     hasRoleAssignmentsCsv: await csvHasRows(pkg.files.userRoleAssignments),
     hasTotpCsv: await csvHasRows(pkg.files.totpSecrets),
-    hasSso:
-      (await csvHasRows(pkg.files.samlConnections)) ||
-      (await csvHasRows(pkg.files.oidcConnections)),
+    hasSso: ssoRows.saml.length > 0 || ssoRows.oidc.length > 0,
+    hasProxyRoutes: ssoRows.proxyRoutes.length > 0,
+    ssoCustomAttributeNames: collectCustomAttributeNames(ssoRows.customAttributes),
     expectedCounts: counts as Record<string, number>,
     validationErrors: validation.errors,
     validationWarnings: validation.warnings,
@@ -351,18 +370,37 @@ export async function importPackage(options: ImportPackageOptions): Promise<Impo
     }
   }
 
-  // 6. SSO handoff detection — never imported automatically.
-  const ssoConnections: ImportEntityResult = plan.hasSso
-    ? {
+  // 6. SSO connections — created through the Connections API (POST /connections).
+  let ssoConnections: ImportEntityResult = { ...ABSENT };
+  if (plan.hasSso) {
+    if (options.skipSso) {
+      ssoConnections = {
         status: 'handoff',
         total:
           (plan.expectedCounts.samlConnections ?? 0) + (plan.expectedCounts.oidcConnections ?? 0),
         notes: [
-          'SSO connection files are handoff-only and were not imported automatically.',
-          'See sso/handoff_notes.md for next steps.',
+          'SSO connection creation was skipped (--skip-sso).',
+          'See sso/handoff_notes.md to create the connections manually, or re-run without --skip-sso.',
         ],
+      };
+    } else {
+      if (!dryRun && !options.workos) {
+        throw new Error('importPackage requires options.workos when dryRun is false');
       }
-    : { ...ABSENT };
+      if (!quiet && !dryRun) logger.info('Creating SSO connections via the Connections API...');
+      const ssoSummary = await importSsoConnections({
+        packageDir: resolvedDir,
+        workos: options.workos,
+        dryRun,
+        quiet,
+        rateLimit: options.ssoRateLimit,
+        secrets: options.ssoSecrets,
+        customAttributes: options.ssoCustomAttributes,
+        errorsPath,
+      });
+      ssoConnections = toSsoEntityResult(ssoSummary);
+    }
+  }
 
   if (plan.validationWarnings.length > 0) {
     for (const issue of plan.validationWarnings) {
@@ -392,6 +430,35 @@ export async function importPackage(options: ImportPackageOptions): Promise<Impo
   const summaryPath = options.summaryPath ?? path.join(resolvedDir, 'workos_import_summary.json');
   await fsp.writeFile(summaryPath, `${JSON.stringify(summary, null, 2)}\n`, 'utf-8');
   return summary;
+}
+
+function toSsoEntityResult(summary: SsoImportSummary): ImportEntityResult {
+  return {
+    status: summary.status,
+    total: summary.total,
+    succeeded: summary.succeeded,
+    failed: summary.failed,
+    warnings: summary.warnings,
+    notes: summary.notes,
+    details: {
+      skipped: summary.skipped,
+      notAttempted: summary.notAttempted,
+      apiDisabled: summary.apiDisabled,
+      proxyRoutesUpdated: summary.proxyRoutesUpdated,
+      customAttributeNames: summary.customAttributeNames,
+      ...(summary.resultsPath ? { resultsPath: summary.resultsPath } : {}),
+      connections: summary.results.map((result) => ({
+        externalId: result.externalId,
+        protocol: result.protocol,
+        outcome: result.outcome,
+        ...(result.organizationId ? { organizationId: result.organizationId } : {}),
+        ...(result.connectionId ? { connectionId: result.connectionId } : {}),
+        ...(result.callbackEndpoint ? { callbackEndpoint: result.callbackEndpoint } : {}),
+        ...(result.code ? { code: result.code } : {}),
+        ...(result.error ? { error: result.error } : {}),
+      })),
+    },
+  };
 }
 
 async function csvHasRows(filePath: string): Promise<boolean> {
