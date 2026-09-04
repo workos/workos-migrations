@@ -25,6 +25,8 @@ import type {
 
 export type ConnectionMappingSkipCode =
   | 'missing_organization'
+  | 'missing_external_id'
+  | 'duplicate_external_id'
   | 'incomplete_saml_configuration'
   | 'incomplete_oidc_configuration'
   | 'client_secret_missing';
@@ -77,6 +79,11 @@ export interface OidcMappingInput {
 export function buildSamlConnectionRequest(input: SamlMappingInput): ConnectionMappingResult {
   const { row } = input;
   const warnings: ConnectionMappingWarning[] = [];
+
+  const externalId = clean(row.externalId);
+  if (!externalId) {
+    return { ok: false, protocol: 'saml', ...missingExternalId(), warnings };
+  }
 
   const idpMetadataUrl = clean(row.idpMetadataUrl);
   const idpSsoUrl = clean(row.idpUrl);
@@ -170,8 +177,8 @@ export function buildSamlConnectionRequest(input: SamlMappingInput): ConnectionM
 
   const request: CreateConnectionRequest = {
     organization_id: input.organizationId,
-    name: connectionDisplayName(row.name, row.organizationName, row.externalId),
-    ...(clean(row.externalId) ? { external_id: clean(row.externalId) } : {}),
+    name: connectionDisplayName(row.name, row.organizationName, externalId),
+    external_id: externalId,
     ...(connectionType ? { connection_type: connectionType } : {}),
     saml_options: samlOptions,
     ...(attributeMaps ? { attribute_maps: attributeMaps } : {}),
@@ -183,6 +190,11 @@ export function buildSamlConnectionRequest(input: SamlMappingInput): ConnectionM
 export function buildOidcConnectionRequest(input: OidcMappingInput): ConnectionMappingResult {
   const { row } = input;
   const warnings: ConnectionMappingWarning[] = [];
+
+  const externalId = clean(row.externalId);
+  if (!externalId) {
+    return { ok: false, protocol: 'oidc', ...missingExternalId(), warnings };
+  }
 
   const discoveryEndpoint = normalizeDiscoveryEndpoint(clean(row.discoveryEndpoint)) ?? '';
   const clientId = clean(row.clientId);
@@ -217,8 +229,8 @@ export function buildOidcConnectionRequest(input: OidcMappingInput): ConnectionM
 
   const request: CreateConnectionRequest = {
     organization_id: input.organizationId,
-    name: connectionDisplayName(row.name, row.organizationName, row.externalId),
-    ...(clean(row.externalId) ? { external_id: clean(row.externalId) } : {}),
+    name: connectionDisplayName(row.name, row.organizationName, externalId),
+    external_id: externalId,
     ...(connectionType ? { connection_type: connectionType } : {}),
     oidc_options: {
       discovery_endpoint: discoveryEndpoint,
@@ -233,9 +245,57 @@ export function buildOidcConnectionRequest(input: OidcMappingInput): ConnectionM
 }
 
 /**
- * Group `sso/custom_attribute_mappings.csv` rows by connection externalId into
- * `{ customAttributeName: idpClaim }` records.
+ * Group `sso/custom_attribute_mappings.csv` rows into `{ customAttributeName: idpClaim }`
+ * records keyed by connection identity. Rows are matched to a connection by
+ * externalId and, when the mapping row carries one, organizationExternalId, so
+ * two organizations that reuse an externalId do not share mappings.
  */
+export interface CustomAttributeIndex {
+  /** Mappings for one connection; exact (externalId, organizationExternalId) match wins. */
+  lookup(externalId: string, organizationExternalId?: string): Record<string, string> | undefined;
+  /** Distinct custom attribute names referenced anywhere in the file. */
+  names(): string[];
+}
+
+export function indexCustomAttributeMappings(
+  rows: Iterable<Partial<CustomAttrRow>>,
+): CustomAttributeIndex {
+  const scoped = new Map<string, Record<string, string>>();
+  const unscoped = new Map<string, Record<string, string>>();
+  const names = new Set<string>();
+
+  for (const row of rows) {
+    const externalId = clean(row.externalId);
+    const attribute = clean(row.userPoolAttribute);
+    const claim = clean(row.idpClaim);
+    if (!externalId || !attribute || !claim) continue;
+    names.add(attribute);
+    const organizationExternalId = clean(row.organizationExternalId);
+    const target = organizationExternalId ? scoped : unscoped;
+    const key = organizationExternalId
+      ? compoundKey(externalId, organizationExternalId)
+      : externalId;
+    const record = target.get(key) ?? {};
+    record[attribute] = claim;
+    target.set(key, record);
+  }
+
+  return {
+    lookup(externalId, organizationExternalId) {
+      const id = clean(externalId);
+      const org = clean(organizationExternalId);
+      const exact = org ? scoped.get(compoundKey(id, org)) : undefined;
+      const fallback = unscoped.get(id);
+      if (!exact && !fallback) return undefined;
+      return { ...(fallback ?? {}), ...(exact ?? {}) };
+    },
+    names() {
+      return Array.from(names).sort((a, b) => a.localeCompare(b));
+    },
+  };
+}
+
+/** Back-compat helper: mappings keyed by externalId only (organization scope ignored). */
 export function groupCustomAttributeMappings(
   rows: Iterable<Partial<CustomAttrRow>>,
 ): Map<string, Record<string, string>> {
@@ -250,6 +310,26 @@ export function groupCustomAttributeMappings(
     grouped.set(externalId, record);
   }
   return grouped;
+}
+
+/** Stable identity for a connection row within a package. */
+export function connectionIdentityKey(
+  externalId: string | undefined,
+  organizationExternalId: string | undefined,
+): string {
+  return compoundKey(clean(externalId), clean(organizationExternalId));
+}
+
+function compoundKey(externalId: string, organizationExternalId: string): string {
+  return `${organizationExternalId}\u0000${externalId}`;
+}
+
+function missingExternalId(): { code: ConnectionMappingSkipCode; message: string } {
+  return {
+    code: 'missing_external_id',
+    message:
+      'Row has no externalId. A stable externalId is required so POST /connections is idempotent and re-runs do not create duplicate connections.',
+  };
 }
 
 /** Split an exported `domains` cell (`,` or `;` separated) into clean, unique host names. */

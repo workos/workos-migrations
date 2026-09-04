@@ -2,6 +2,7 @@ import {
   buildOidcConnectionRequest,
   buildSamlConnectionRequest,
   groupCustomAttributeMappings,
+  indexCustomAttributeMappings,
   parseDomainList,
   toPemCertificate,
   toPemPrivateKey,
@@ -218,6 +219,7 @@ describe('buildSamlConnectionRequest', () => {
         organizationExternalId: 'org_acme',
         idpUrl: 'https://idp.example.com/sso',
         x509Cert: BARE_CERT,
+        externalId: 'typed-unknown',
         connectionType: 'NotARealType',
       }),
     });
@@ -232,6 +234,7 @@ describe('buildSamlConnectionRequest', () => {
         organizationExternalId: 'org_acme',
         idpUrl: 'https://idp.example.com/sso',
         x509Cert: BARE_CERT,
+        externalId: 'typed-mismatch',
         connectionType: 'GenericOIDC',
       }),
     });
@@ -298,8 +301,67 @@ describe('buildOidcConnectionRequest', () => {
   it('skips rows missing clientId or discoveryEndpoint', () => {
     const result = buildOidcConnectionRequest({
       organizationId: 'org_01',
-      row: createOidcConnectionRow({ organizationExternalId: 'org_acme', clientSecret: 'x' }),
+      row: createOidcConnectionRow({
+        organizationExternalId: 'org_acme',
+        clientSecret: 'x',
+        externalId: 'oidc-incomplete',
+      }),
     });
     expect(result).toMatchObject({ ok: false, code: 'incomplete_oidc_configuration' });
+  });
+});
+
+describe('externalId requirement', () => {
+  it('skips SAML and OIDC rows without an externalId so re-runs stay idempotent', () => {
+    const saml = buildSamlConnectionRequest({
+      organizationId: 'org_01',
+      row: createSamlConnectionRow({
+        organizationExternalId: 'org_acme',
+        idpUrl: 'https://idp.example.com/sso',
+        x509Cert: BARE_CERT,
+      }),
+    });
+    expect(saml).toMatchObject({ ok: false, code: 'missing_external_id' });
+
+    const oidc = buildOidcConnectionRequest({
+      organizationId: 'org_01',
+      row: createOidcConnectionRow({
+        organizationExternalId: 'org_acme',
+        clientId: 'c',
+        clientSecret: 's',
+        discoveryEndpoint: 'https://accounts.google.com',
+      }),
+    });
+    expect(oidc).toMatchObject({ ok: false, code: 'missing_external_id' });
+  });
+});
+
+describe('indexCustomAttributeMappings', () => {
+  it('scopes mappings by organization when the mapping row names one', () => {
+    const index = indexCustomAttributeMappings([
+      {
+        externalId: 'okta',
+        organizationExternalId: 'org_a',
+        userPoolAttribute: 'department',
+        idpClaim: 'deptA',
+      },
+      {
+        externalId: 'okta',
+        organizationExternalId: 'org_b',
+        userPoolAttribute: 'department',
+        idpClaim: 'deptB',
+      },
+      {
+        externalId: 'okta',
+        organizationExternalId: '',
+        userPoolAttribute: 'title',
+        idpClaim: 'jobTitle',
+      },
+    ]);
+    expect(index.lookup('okta', 'org_a')).toEqual({ department: 'deptA', title: 'jobTitle' });
+    expect(index.lookup('okta', 'org_b')).toEqual({ department: 'deptB', title: 'jobTitle' });
+    expect(index.lookup('okta', 'org_c')).toEqual({ title: 'jobTitle' });
+    expect(index.lookup('other', 'org_a')).toBeUndefined();
+    expect(index.names()).toEqual(['department', 'title']);
   });
 });

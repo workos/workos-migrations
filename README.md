@@ -596,7 +596,7 @@ Every run writes `workos_import_summary.json` (or `--summary <path>`) with per-e
 
 ### SSO connections
 
-For every SAML/OIDC row the importer resolves the WorkOS organization (by `organizationId`, or by `organizationExternalId` — creating it from `organizationName` when missing), adds the exported `domains` to the organization as verified domains, and calls `POST /connections` with the IdP configuration, legacy ACS URL / entity ID overrides, attribute mappings, and any bring-your-own SP key pairs. Creation is idempotent on `externalId`, so re-running a package is safe.
+For every SAML/OIDC row the importer resolves the WorkOS organization (by `organizationId`, or by `organizationExternalId` — creating it from `organizationName` when missing), adds the exported `domains` to the organization (verified by default; see `--sso-domains`), and calls `POST /connections` with the IdP configuration, legacy ACS URL / entity ID overrides, attribute mappings, and any bring-your-own SP key pairs. Every row needs a stable `externalId`: creation is idempotent on it, so re-running a package is safe, and rows without one (or with a duplicate) are skipped rather than risk creating duplicate connections. `--plan` runs the same mapping offline and lists which rows will be created or skipped and why.
 
 Outputs:
 
@@ -609,6 +609,7 @@ Options:
 - `--sso-secrets <path>` - OIDC client secrets keyed by connection `externalId` (JSON object, JSON array of `{ externalId, clientSecret }`, or CSV). Exporters redact `clientSecret` by default and the API requires it, so OIDC rows without a secret are skipped.
 - `--sso-custom-attributes <include|skip>` - Custom attribute mappings (`sso/custom_attribute_mappings.csv`) must already exist in the WorkOS dashboard. Interactive runs prompt to include them, continue without them, or abort; pass the flag for non-interactive runs.
 - `--sso-rate-limit <n>` - Connections API requests per second (default: 5).
+- `--sso-domains <verified|pending|skip>` - How exported `domains` are applied to organizations. `verified` (default) trusts the source provider's ownership proof and enables domain-based routing immediately; `pending` adds them for the customer to verify in the dashboard; `skip` leaves organization domains untouched. Existing domains in states other than verified/pending are never rewritten; such organizations are skipped with a warning.
 
 Requirements and limits:
 

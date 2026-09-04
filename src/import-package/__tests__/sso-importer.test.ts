@@ -496,6 +496,144 @@ describe('importSsoConnections', () => {
     );
   });
 
+  it('skips duplicate externalIds, honors domain modes, and refuses to rewrite non-standard domain states', async () => {
+    // Duplicate the acme row under another org and give the existing org a failed domain.
+    const samlPath = path.join(pkgDir, 'sso/saml_connections.csv');
+    const rows = await readCsvRows(samlPath);
+    rows.push({
+      ...rows[0],
+      name: 'Acme dup',
+      organizationName: 'Acme Two',
+      organizationExternalId: 'acme-two',
+      domains: 'acme-two.com',
+    });
+    writeRows(samlPath, MIGRATION_PACKAGE_CSV_HEADERS.samlConnections, rows);
+
+    const fake = createFakeWorkOS({
+      orgs: [
+        {
+          id: 'org_existing',
+          name: 'Globex',
+          externalId: 'globex',
+          domains: [
+            { domain: 'globex.com', state: 'verified' },
+            { domain: 'old.globex.com', state: 'failed' },
+          ],
+        },
+      ],
+    });
+
+    const pending = await importSsoConnections({
+      packageDir: pkgDir,
+      workos: fake.workos,
+      quiet: true,
+      rateLimit: 1000,
+      secrets: new Map([['umbrella-oidc', 'x']]),
+      domains: 'pending',
+    });
+
+    const dup = pending.results.find((result) => result.name === 'Acme dup');
+    expect(dup).toMatchObject({ outcome: 'skipped', code: 'duplicate_external_id' });
+    expect(
+      fake.post.mock.calls.filter(([, body]) => body.external_id === 'acme-okta'),
+    ).toHaveLength(1);
+
+    // New org created with pending domains.
+    expect(fake.organizations.createOrganization).toHaveBeenCalledWith(
+      expect.objectContaining({
+        externalId: 'acme',
+        domainData: [
+          { domain: 'acme.com', state: 'pending' },
+          { domain: 'app.acme.com', state: 'pending' },
+        ],
+      }),
+    );
+
+    // Existing org with a failed domain is left alone and the row carries a warning.
+    expect(fake.organizations.updateOrganization).not.toHaveBeenCalled();
+    const globex = pending.results.find((result) => result.externalId === 'globex-saml');
+    expect(globex?.outcome).toBe('created');
+    expect(globex?.warnings.join(' ')).toContain('old.globex.com=failed');
+
+    // domains=skip never sends domain data.
+    const skipping = createFakeWorkOS();
+    await importSsoConnections({
+      packageDir: pkgDir,
+      workos: skipping.workos,
+      quiet: true,
+      rateLimit: 1000,
+      domains: 'skip',
+    });
+    for (const [input] of skipping.organizations.createOrganization.mock.calls) {
+      expect(input.domainData ?? []).toEqual([]);
+    }
+    expect(skipping.organizations.updateOrganization).not.toHaveBeenCalled();
+  });
+
+  it('matches proxy routes and custom attributes by organization-scoped identity', async () => {
+    // Two orgs, same externalId in custom attribute + proxy rows: only the
+    // organization-scoped match should receive each mapping.
+    writeRows(
+      path.join(pkgDir, 'sso/custom_attribute_mappings.csv'),
+      MIGRATION_PACKAGE_CSV_HEADERS.customAttributeMappings,
+      [
+        {
+          externalId: 'acme-okta',
+          organizationExternalId: 'someone-else',
+          providerType: 'SAML',
+          userPoolAttribute: 'department',
+          idpClaim: 'WRONG',
+        },
+        {
+          externalId: 'acme-okta',
+          organizationExternalId: 'acme',
+          providerType: 'SAML',
+          userPoolAttribute: 'department',
+          idpClaim: 'RIGHT',
+        },
+      ],
+    );
+    writeRows(
+      path.join(pkgDir, 'sso/proxy_routes.csv'),
+      MIGRATION_PACKAGE_CSV_HEADERS.proxyRoutes,
+      [
+        {
+          externalId: 'acme-okta',
+          organizationExternalId: 'someone-else',
+          provider: 'auth0',
+          protocol: 'saml',
+          cutoverState: 'legacy',
+        },
+        {
+          externalId: 'acme-okta',
+          organizationExternalId: 'acme',
+          provider: 'auth0',
+          protocol: 'saml',
+          cutoverState: 'legacy',
+        },
+      ],
+    );
+
+    const fake = createFakeWorkOS();
+    await importSsoConnections({
+      packageDir: pkgDir,
+      workos: fake.workos,
+      quiet: true,
+      rateLimit: 1000,
+    });
+
+    const acmeCall = fake.post.mock.calls.find(([, body]) => body.external_id === 'acme-okta');
+    expect(acmeCall?.[1].attribute_maps.custom_attributes).toEqual({ department: 'RIGHT' });
+
+    const proxyRoutes = await readCsvRows(path.join(pkgDir, 'sso/proxy_routes.csv'));
+    expect(
+      proxyRoutes.find((row) => row.organizationExternalId === 'acme')?.workosConnectionId,
+    ).toBe('conn_1');
+    expect(
+      proxyRoutes.find((row) => row.organizationExternalId === 'someone-else')?.workosConnectionId,
+    ).toBe('');
+  });
+
   it('returns absent when the package has no SSO rows', async () => {
     const emptyDir = path.join(tempRoot, 'empty');
     await createMigrationPackage({ provider: 'csv', rootDir: emptyDir, warnings: [] });

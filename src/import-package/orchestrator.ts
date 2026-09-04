@@ -18,6 +18,7 @@ import {
   importSsoConnections,
   loadSsoPackageRows,
   type SsoCustomAttributeMode,
+  type SsoDomainMode,
   type SsoImportSummary,
 } from './sso-importer.js';
 
@@ -63,6 +64,24 @@ export interface ImportPackageOptions {
   ssoCustomAttributes?: SsoCustomAttributeMode;
   /** Connections API requests per second. Defaults to 5. */
   ssoRateLimit?: number;
+  /** How exported SSO domains are applied to organizations. Defaults to verified. */
+  ssoDomains?: SsoDomainMode;
+}
+
+export interface PlanImportPackageOptions {
+  /** OIDC client secrets keyed by externalId, so the plan reflects sidecar-supplied secrets. */
+  ssoSecrets?: Map<string, string>;
+  ssoCustomAttributes?: SsoCustomAttributeMode;
+}
+
+export interface SsoPlanEntry {
+  externalId: string;
+  protocol: 'saml' | 'oidc';
+  organizationExternalId: string;
+  outcome: 'planned' | 'skipped';
+  code?: string;
+  reason?: string;
+  warnings: string[];
 }
 
 export interface ImportPackagePlan {
@@ -78,6 +97,8 @@ export interface ImportPackagePlan {
   hasProxyRoutes: boolean;
   /** Custom attribute names referenced by sso/custom_attribute_mappings.csv. */
   ssoCustomAttributeNames: string[];
+  /** Local (offline) mapping outcome for every SSO row. */
+  ssoConnections: SsoPlanEntry[];
   expectedCounts: Record<string, number>;
   validationErrors: MigrationPackageValidationIssue[];
   validationWarnings: MigrationPackageValidationIssue[];
@@ -103,7 +124,10 @@ export interface ImportPackageSummary {
 
 const ABSENT: ImportEntityResult = { status: 'absent' };
 
-export async function planImportPackage(packageDir: string): Promise<ImportPackagePlan> {
+export async function planImportPackage(
+  packageDir: string,
+  options: PlanImportPackageOptions = {},
+): Promise<ImportPackagePlan> {
   const resolvedDir = path.resolve(packageDir);
 
   const validation = await validateMigrationPackage(resolvedDir, {
@@ -124,6 +148,16 @@ export async function planImportPackage(packageDir: string): Promise<ImportPacka
 
   const counts = pkg.manifest.entitiesExported ?? {};
   const ssoRows = await loadSsoPackageRows(resolvedDir);
+  const ssoPlan =
+    ssoRows.saml.length > 0 || ssoRows.oidc.length > 0
+      ? await importSsoConnections({
+          packageDir: resolvedDir,
+          dryRun: true,
+          quiet: true,
+          secrets: options.ssoSecrets,
+          customAttributes: options.ssoCustomAttributes,
+        })
+      : undefined;
 
   return {
     packageDir: resolvedDir,
@@ -137,6 +171,15 @@ export async function planImportPackage(packageDir: string): Promise<ImportPacka
     hasSso: ssoRows.saml.length > 0 || ssoRows.oidc.length > 0,
     hasProxyRoutes: ssoRows.proxyRoutes.length > 0,
     ssoCustomAttributeNames: collectCustomAttributeNames(ssoRows.customAttributes),
+    ssoConnections: (ssoPlan?.results ?? []).map((result) => ({
+      externalId: result.externalId,
+      protocol: result.protocol,
+      organizationExternalId: result.organizationExternalId,
+      outcome: result.outcome === 'skipped' ? 'skipped' : 'planned',
+      ...(result.code ? { code: result.code } : {}),
+      ...(result.error ? { reason: result.error } : {}),
+      warnings: result.warnings,
+    })),
     expectedCounts: counts as Record<string, number>,
     validationErrors: validation.errors,
     validationWarnings: validation.warnings,
@@ -146,7 +189,10 @@ export async function planImportPackage(packageDir: string): Promise<ImportPacka
 export async function importPackage(options: ImportPackageOptions): Promise<ImportPackageSummary> {
   const startedAt = Date.now();
   const resolvedDir = path.resolve(options.packageDir);
-  const plan = await planImportPackage(resolvedDir);
+  const plan = await planImportPackage(resolvedDir, {
+    ssoSecrets: options.ssoSecrets,
+    ssoCustomAttributes: options.ssoCustomAttributes,
+  });
   const warnings: string[] = [];
 
   if (plan.validationErrors.length > 0) {
@@ -396,6 +442,7 @@ export async function importPackage(options: ImportPackageOptions): Promise<Impo
         rateLimit: options.ssoRateLimit,
         secrets: options.ssoSecrets,
         customAttributes: options.ssoCustomAttributes,
+        domains: options.ssoDomains,
         errorsPath,
       });
       ssoConnections = toSsoEntityResult(ssoSummary);

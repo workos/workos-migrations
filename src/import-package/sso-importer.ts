@@ -9,9 +9,11 @@ import { writeCsvRows, type CustomAttrRow, type OidcRow, type SamlRow } from '..
 import {
   buildOidcConnectionRequest,
   buildSamlConnectionRequest,
-  groupCustomAttributeMappings,
+  connectionIdentityKey,
+  indexCustomAttributeMappings,
   parseDomainList,
   type ConnectionMappingResult,
+  type CustomAttributeIndex,
 } from '../sso/connection-request-mapper.js';
 import {
   createConnection,
@@ -46,6 +48,13 @@ import * as logger from '../shared/logger.js';
  */
 
 export type SsoCustomAttributeMode = 'include' | 'skip';
+
+/**
+ * How exported `domains` are applied to organizations: added as verified
+ * (default; the migrating customer already proved ownership at the source),
+ * added as pending (customer verifies in the dashboard), or not touched.
+ */
+export type SsoDomainMode = 'verified' | 'pending' | 'skip';
 
 export const SSO_RESULTS_FILENAME = 'workos_sso_connections.csv';
 
@@ -82,6 +91,8 @@ export interface SsoImportOptions {
   secrets?: Map<string, string>;
   /** Whether to send custom attribute mappings. Defaults to include. */
   customAttributes?: SsoCustomAttributeMode;
+  /** How exported domains are applied to organizations. Defaults to verified. */
+  domains?: SsoDomainMode;
   /** JSONL file that receives one record per skipped/failed connection. */
   errorsPath?: string;
   /** Defaults to <packageDir>/workos_sso_connections.csv. */
@@ -161,11 +172,7 @@ export async function loadSsoPackageRows(packageDir: string): Promise<SsoPackage
 
 /** Unique custom attribute names referenced by `sso/custom_attribute_mappings.csv`. */
 export function collectCustomAttributeNames(rows: Iterable<Partial<CustomAttrRow>>): string[] {
-  const names = new Set<string>();
-  for (const record of groupCustomAttributeMappings(rows).values()) {
-    for (const name of Object.keys(record)) names.add(name);
-  }
-  return Array.from(names).sort((a, b) => a.localeCompare(b));
+  return indexCustomAttributeMappings(rows).names();
 }
 
 /**
@@ -222,6 +229,7 @@ export async function importSsoConnections(options: SsoImportOptions): Promise<S
   const dryRun = options.dryRun ?? false;
   const quiet = options.quiet ?? false;
   const customAttributeMode = options.customAttributes ?? 'include';
+  const domainMode = options.domains ?? 'verified';
 
   const rows = await loadSsoPackageRows(packageDir);
   const customAttributeNames = collectCustomAttributeNames(rows.customAttributes);
@@ -243,9 +251,8 @@ export async function importSsoConnections(options: SsoImportOptions): Promise<S
     };
   }
 
-  const customAttributesById = groupCustomAttributeMappings(rows.customAttributes);
   const planned = planConnections(rows, {
-    customAttributesById,
+    customAttributes: indexCustomAttributeMappings(rows.customAttributes),
     customAttributeMode,
     secrets: options.secrets,
   });
@@ -312,7 +319,7 @@ export async function importSsoConnections(options: SsoImportOptions): Promise<S
 
     let organizationId: string;
     try {
-      const resolved = await resolveOrganization(workos, entry, organizationCache);
+      const resolved = await resolveOrganization(workos, entry, organizationCache, domainMode);
       organizationId = resolved.id;
       result.organizationId = resolved.id;
       result.domainsAdded = resolved.domainsAdded;
@@ -332,11 +339,14 @@ export async function importSsoConnections(options: SsoImportOptions): Promise<S
     };
 
     try {
-      await limiter.acquire();
-      const connection = await withRetry(() => createConnection(asApiClient(workos), request), {
-        maxRetries: 3,
-        retryOn: isRetryableConnectionsApiError,
-      });
+      // Acquire a token per attempt so retries after 429/5xx stay within the limit.
+      const connection = await withRetry(
+        async () => {
+          await limiter.acquire();
+          return createConnection(asApiClient(workos), request);
+        },
+        { maxRetries: 3, retryOn: isRetryableConnectionsApiError },
+      );
       applyConnection(result, connection);
       result.outcome = isPreexisting(connection, runStartedAt) ? 'existing' : 'created';
       results.push(result);
@@ -421,36 +431,53 @@ export async function importSsoConnections(options: SsoImportOptions): Promise<S
 function planConnections(
   rows: SsoPackageRows,
   context: {
-    customAttributesById: Map<string, Record<string, string>>;
+    customAttributes: CustomAttributeIndex;
     customAttributeMode: SsoCustomAttributeMode;
     secrets?: Map<string, string>;
   },
 ): PlannedConnection[] {
   const planned: PlannedConnection[] = [];
-  const customAttributesFor = (externalId: string): Record<string, string> | undefined =>
+  const customAttributesFor = (row: SamlRow | OidcRow): Record<string, string> | undefined =>
     context.customAttributeMode === 'skip'
       ? undefined
-      : context.customAttributesById.get(externalId);
+      : context.customAttributes.lookup(clean(row.externalId), clean(row.organizationExternalId));
 
   for (const row of rows.saml) {
-    const externalId = clean(row.externalId);
     const mapping = buildSamlConnectionRequest({
       row,
       organizationId: PENDING_ORGANIZATION_ID,
-      customAttributes: customAttributesFor(externalId),
+      customAttributes: customAttributesFor(row),
     });
     planned.push(toPlanned('saml', row, mapping));
   }
 
   for (const row of rows.oidc) {
-    const externalId = clean(row.externalId);
     const mapping = buildOidcConnectionRequest({
       row,
       organizationId: PENDING_ORGANIZATION_ID,
-      customAttributes: customAttributesFor(externalId),
-      clientSecret: context.secrets?.get(externalId),
+      customAttributes: customAttributesFor(row),
+      clientSecret: context.secrets?.get(clean(row.externalId)),
     });
     planned.push(toPlanned('oidc', row, mapping));
+  }
+
+  // external_id is unique per WorkOS environment, so a repeated externalId in
+  // the package can never be created twice; skip later occurrences up front.
+  const seen = new Set<string>();
+  for (const entry of planned) {
+    if (!entry.mapping.ok) continue;
+    const key = clean(entry.mapping.request.external_id);
+    if (seen.has(key)) {
+      entry.mapping = {
+        ok: false,
+        protocol: entry.protocol,
+        code: 'duplicate_external_id',
+        message: `externalId "${key}" appears more than once in the package; external_id is unique per WorkOS environment. Give each connection its own externalId.`,
+        warnings: entry.mapping.warnings,
+      };
+    } else {
+      seen.add(key);
+    }
   }
 
   return planned;
@@ -495,6 +522,7 @@ async function resolveOrganization(
   workos: WorkOS,
   entry: PlannedConnection,
   cache: Map<string, string>,
+  domainMode: SsoDomainMode,
 ): Promise<ResolvedOrganization> {
   const warnings: string[] = [];
   const cacheKey = entry.organizationId
@@ -517,13 +545,12 @@ async function resolveOrganization(
         id = existing;
       } else {
         const name = entry.organizationName || entry.organizationExternalId;
-        id = await createOrganization(
-          workos,
-          name,
-          entry.organizationExternalId,
-          entry.domains.map((domain) => ({ domain, state: 'verified' as const })),
-        );
-        domainsAdded = [...entry.domains];
+        const domainData =
+          domainMode === 'skip'
+            ? []
+            : entry.domains.map((domain) => ({ domain, state: domainMode }));
+        id = await createOrganization(workos, name, entry.organizationExternalId, domainData);
+        domainsAdded = domainData.map((d) => d.domain);
         cache.set(cacheKey, id);
         return { id, domainsAdded, warnings };
       }
@@ -531,9 +558,9 @@ async function resolveOrganization(
     cache.set(cacheKey, id);
   }
 
-  if (entry.domains.length > 0) {
+  if (domainMode !== 'skip' && entry.domains.length > 0) {
     try {
-      const ensured = await ensureOrganizationDomains(workos, id, entry.domains, 'verified');
+      const ensured = await ensureOrganizationDomains(workos, id, entry.domains, domainMode);
       domainsAdded = ensured.added;
     } catch (error: unknown) {
       const details = describeWorkOSApiError(error);
@@ -676,19 +703,27 @@ export async function writeProxyRouteResults(
   results: SsoConnectionResult[],
 ): Promise<number> {
   if (proxyRoutes.length === 0) return 0;
-  const byExternalId = new Map(
-    results
-      .filter(
-        (result) =>
-          (result.outcome === 'created' || result.outcome === 'existing') && result.connectionId,
-      )
-      .map((result) => [result.externalId, result]),
+  const created = results.filter(
+    (result) =>
+      (result.outcome === 'created' || result.outcome === 'existing') && result.connectionId,
   );
-  if (byExternalId.size === 0) return 0;
+  if (created.length === 0) return 0;
+  // Match on (externalId, organizationExternalId) when the proxy row is
+  // organization-scoped; fall back to externalId alone otherwise.
+  const byIdentity = new Map(
+    created.map((result) => [
+      connectionIdentityKey(result.externalId, result.organizationExternalId),
+      result,
+    ]),
+  );
+  const byExternalId = new Map(created.map((result) => [result.externalId, result]));
 
   let updated = 0;
   const rows = proxyRoutes.map((row) => {
-    const match = byExternalId.get(clean(row.externalId));
+    const org = clean(row.organizationExternalId);
+    const match = org
+      ? byIdentity.get(connectionIdentityKey(row.externalId, org))
+      : byExternalId.get(clean(row.externalId));
     if (!match) return row;
     updated += 1;
     return {

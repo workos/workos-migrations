@@ -86,12 +86,25 @@ export async function ensureOrganizationDomains(
   const missing = wanted.filter((domain) => !currentByName.has(domain));
   if (missing.length === 0) return { added: [], existing: wanted };
 
+  // updateOrganization replaces the whole domain set and only accepts
+  // verified/pending. Refuse to touch an organization whose existing domains
+  // carry any other state (failed, legacy_verified, ...) rather than silently
+  // rewriting their verification state.
+  const untouchable = current.filter(
+    (d) => d.state.toLowerCase() !== 'verified' && d.state.toLowerCase() !== 'pending',
+  );
+  if (untouchable.length > 0) {
+    throw new Error(
+      `Organization ${orgId} has domain(s) in a state the update API cannot round-trip (${untouchable
+        .map((d) => `${d.domain}=${d.state}`)
+        .join(', ')}); add ${missing.join(', ')} in the WorkOS dashboard instead.`,
+    );
+  }
+
   const domainData = [
     ...current.map((d) => ({
       domain: d.domain,
-      // The update endpoint only accepts verified/pending; anything else
-      // (failed, legacy) is resubmitted as pending so it is never upgraded.
-      state: d.state === 'verified' ? 'verified' : 'pending',
+      state: d.state.toLowerCase() === 'verified' ? 'verified' : 'pending',
     })),
     ...missing.map((domain) => ({ domain, state })),
   ];

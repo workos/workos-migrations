@@ -8,7 +8,11 @@ import {
   planImportPackage,
   type ImportPackagePlan,
 } from '../../import-package/orchestrator.js';
-import { loadSsoSecrets, type SsoCustomAttributeMode } from '../../import-package/sso-importer.js';
+import {
+  loadSsoSecrets,
+  type SsoCustomAttributeMode,
+  type SsoDomainMode,
+} from '../../import-package/sso-importer.js';
 import * as logger from '../../shared/logger.js';
 
 export function registerImportPackageCommand(program: Command): void {
@@ -35,6 +39,11 @@ export function registerImportPackageCommand(program: Command): void {
       'How to handle custom attribute mappings: include (custom attributes must already exist in the WorkOS dashboard) or skip',
     )
     .option('--sso-rate-limit <n>', 'Max Connections API requests per second', '5')
+    .option(
+      '--sso-domains <mode>',
+      'How exported SSO domains are applied to organizations: verified (default), pending, or skip',
+      'verified',
+    )
     .option('--quiet', 'Suppress progress output')
     .action(async (dir, opts) => {
       try {
@@ -43,7 +52,14 @@ export function registerImportPackageCommand(program: Command): void {
           process.exit(1);
         }
 
-        const plan = await planImportPackage(dir);
+        const ssoRateLimit = parsePositiveInteger(opts.ssoRateLimit, '--sso-rate-limit');
+        const ssoDomains = parseDomainMode(opts.ssoDomains);
+        const ssoSecrets = opts.ssoSecrets ? await loadSsoSecrets(opts.ssoSecrets) : undefined;
+
+        const plan = await planImportPackage(dir, {
+          ssoSecrets,
+          ssoCustomAttributes: normalizeCustomAttributeFlag(opts.ssoCustomAttributes),
+        });
 
         if (opts.plan) {
           printPlan(plan);
@@ -73,8 +89,6 @@ export function registerImportPackageCommand(program: Command): void {
           return;
         }
 
-        const ssoSecrets = opts.ssoSecrets ? await loadSsoSecrets(opts.ssoSecrets) : undefined;
-
         const workos = dryRun ? undefined : createWorkOSClient({ endpoint: opts.endpoint });
         const summary = await importPackage({
           packageDir: dir,
@@ -88,7 +102,8 @@ export function registerImportPackageCommand(program: Command): void {
           skipSso,
           ssoSecrets,
           ssoCustomAttributes,
-          ssoRateLimit: parseInt(opts.ssoRateLimit, 10),
+          ssoRateLimit,
+          ssoDomains,
         });
 
         if (!opts.quiet) {
@@ -205,8 +220,46 @@ function printPlan(plan: ImportPackagePlan): void {
         ),
       );
     }
+    const planned = plan.ssoConnections.filter((entry) => entry.outcome === 'planned');
+    const skipped = plan.ssoConnections.filter((entry) => entry.outcome === 'skipped');
+    console.log(
+      chalk.cyan(`\n  SSO rows: ${planned.length} will be created, ${skipped.length} skipped`),
+    );
+    for (const entry of plan.ssoConnections) {
+      const label = `${entry.protocol.toUpperCase().padEnd(4)} ${entry.externalId}`;
+      if (entry.outcome === 'skipped') {
+        console.log(chalk.yellow(`    - ${label}: skipped (${entry.code}) ${entry.reason ?? ''}`));
+      } else {
+        const suffix = entry.warnings.length > 0 ? ` (${entry.warnings.length} warning(s))` : '';
+        console.log(`    - ${label}: create${suffix}`);
+      }
+      for (const warning of entry.warnings) {
+        console.log(chalk.gray(`        ${warning}`));
+      }
+    }
     console.log();
   }
+}
+
+function parsePositiveInteger(value: unknown, flag: string): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`${flag} must be a positive integer (got "${String(value)}")`);
+  }
+  return parsed;
+}
+
+function parseDomainMode(value: unknown): SsoDomainMode {
+  if (value === 'verified' || value === 'pending' || value === 'skip') return value;
+  throw new Error(
+    `--sso-domains must be "verified", "pending", or "skip" (got "${String(value)}")`,
+  );
+}
+
+function normalizeCustomAttributeFlag(value: unknown): SsoCustomAttributeMode | undefined {
+  if (value === undefined) return undefined;
+  if (value === 'include' || value === 'skip') return value;
+  throw new Error(`--sso-custom-attributes must be "include" or "skip" (got "${String(value)}")`);
 }
 
 async function resolveCustomAttributeMode(input: {
