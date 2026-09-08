@@ -28,3 +28,5 @@ jobs:
     uses: ./.github/workflows/release.yml
     with:
       tag_name: ${{ needs.release-please.outputs.tag_name }}
+    secrets:
+      PUBLIC_SOCKET_FIREWALL_TOKEN: ${{ secrets.PUBLIC_SOCKET_FIREWALL_TOKEN }}

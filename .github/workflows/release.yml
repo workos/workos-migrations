@@ -7,6 +7,13 @@ on:
         description: Release tag name (e.g., v2.0.1)
         type: string
         default: ''
+    secrets:
+      PUBLIC_SOCKET_FIREWALL_TOKEN:
+        description: >-
+          Socket Firewall auth token used to route public npm dependency
+          downloads. Passed straight to the setup action and never exposed at
+          workflow or job scope.
+        required: true
 
 jobs:
   publish:
@@ -22,8 +29,22 @@ jobs:
           node-version: 24
           cache: 'npm'
 
+      # Route the dependency install through Socket Firewall. setup-node runs
+      # first so its registry configuration is already in place; the token is
+      # passed straight to the action and never surfaced at workflow or job scope.
+      - name: Configure Socket Firewall
+        uses: workos/setup-socket-firewall@ca93dd8aa351f54f4729fe3377a9be23c631c25d # v1
+        with:
+          token: ${{ secrets.PUBLIC_SOCKET_FIREWALL_TOKEN }}
+
       - name: Install Dependencies
         run: npm ci
+
+      # Restore public registry access before the build and publication. No
+      # dependency download runs after this point: the build is `tsc`, and the
+      # publish step uploads to npm over OIDC trusted publishing.
+      - name: Teardown Socket Firewall
+        uses: workos/setup-socket-firewall/teardown@ca93dd8aa351f54f4729fe3377a9be23c631c25d # v1
 
       - name: Build project
         run: npm run build
