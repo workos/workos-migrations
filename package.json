@@ -7,6 +7,15 @@
   "bin": {
     "workos-migrate": "dist/index.js"
   },
+  "exports": {
+    ".": "./dist/index.js",
+    "./bundle": {
+      "types": "./dist/cli/index.d.ts",
+      "default": "./dist/bundle.js"
+    },
+    "./dist/*": "./dist/*",
+    "./package.json": "./package.json"
+  },
   "files": [
     "dist/**/*",
     "README.md",
@@ -15,6 +24,7 @@
   ],
   "scripts": {
     "build": "tsc",
+    "bundle": "bun build src/cli/index.ts --outfile dist/bundle.js --target=bun --format=esm --banner='// Bun-only bundle: built with --target=bun for the WorkOS CLI; not supported on Node.js.' && bun build src/workers/worker.ts --outfile dist/worker.js --target=bun --format=esm --banner='// Bun-only bundle: built with --target=bun for the WorkOS CLI; not supported on Node.js.'",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
     "lint": "eslint \"src/**/*.ts\"",
@@ -23,7 +33,7 @@
     "format:check": "prettier --check \"src/**/*.ts\" \"*.md\" \"*.json\"",
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-vm-modules node_modules/.bin/jest",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build && npm run bundle"
   },
   "keywords": [
     "workos",
