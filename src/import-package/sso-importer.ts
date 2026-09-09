@@ -11,7 +11,7 @@ import {
   buildSamlConnectionRequest,
   connectionIdentityKey,
   indexCustomAttributeMappings,
-  parseDomainList,
+  parseDomainListDetailed,
   type ConnectionMappingResult,
   type CustomAttributeIndex,
 } from '../sso/connection-request-mapper.js';
@@ -319,7 +319,12 @@ export async function importSsoConnections(options: SsoImportOptions): Promise<S
 
     let organizationId: string;
     try {
-      const resolved = await resolveOrganization(workos, entry, organizationCache, domainMode);
+      // Pace and retry organization resolution the same way as the POST below:
+      // a limiter token per outbound call, taken inside the retried callback.
+      const resolved = await withRetry(
+        () => resolveOrganization(workos, entry, organizationCache, domainMode, limiter),
+        { maxRetries: 3, retryOn: isRetryableConnectionsApiError },
+      );
       organizationId = resolved.id;
       result.organizationId = resolved.id;
       result.organizationExternalId = resolved.externalId;
@@ -333,10 +338,23 @@ export async function importSsoConnections(options: SsoImportOptions): Promise<S
       continue;
     }
 
+    // A row can name its organization by external id or by WorkOS id; scoped
+    // mappings and proxy routes may be keyed by either, so try both.
+    const organizationKeys = [result.organizationExternalId, result.organizationId].filter(
+      (key): key is string => Boolean(key),
+    );
     const scopedAttributes =
       customAttributeMode === 'include'
-        ? customAttributes.lookup(entry.externalId, result.organizationExternalId)
+        ? customAttributes.lookup(entry.externalId, organizationKeys)
         : undefined;
+    if (customAttributeMode === 'include') {
+      const scopes = customAttributes.organizationScopes(entry.externalId);
+      if (scopes.length > 0 && !scopes.some((scope) => organizationKeys.includes(scope))) {
+        result.warnings.push(
+          `custom_attributes_organization_mismatch: mappings for ${entry.externalId} are scoped to organization(s) ${scopes.join(', ')}, which do not match this row's organization (${organizationKeys.join(', ') || 'none resolved'}); they were not sent.`,
+        );
+      }
+    }
     const request: CreateConnectionRequest = {
       ...entry.mapping.request,
       organization_id: organizationId,
@@ -408,10 +426,16 @@ export async function importSsoConnections(options: SsoImportOptions): Promise<S
 
   let proxyRoutesUpdated = 0;
   if (options.updateProxyRoutes ?? true) {
-    proxyRoutesUpdated = await writeProxyRouteResults(packageDir, rows.proxyRoutes, results);
+    const proxyRoutes = await writeProxyRouteResults(packageDir, rows.proxyRoutes, results);
+    proxyRoutesUpdated = proxyRoutes.updated;
     if (proxyRoutesUpdated > 0) {
       notes.push(
         `Updated ${proxyRoutesUpdated} row(s) in sso/proxy_routes.csv with WorkOS connection ids and callback endpoints.`,
+      );
+    }
+    if (proxyRoutes.unmatched.length > 0) {
+      notes.push(
+        `Left ${proxyRoutes.unmatched.length} row(s) in sso/proxy_routes.csv untouched because their organizationExternalId does not match the imported connection's organization (${proxyRoutes.unmatched.join(', ')}); update those rows by hand.`,
       );
     }
   }
@@ -512,6 +536,13 @@ function toPlanned(
       warnings: mapping.warnings,
     };
   }
+  const { domains, wildcards } = parseDomainListDetailed(row.domains);
+  if (wildcards.length > 0) {
+    effectiveMapping.warnings.push({
+      code: 'wildcard_domains_dropped',
+      message: `Wildcard domain(s) ${wildcards.join(', ')} are not valid organization domains and were dropped; add the concrete subdomains to the organization in the WorkOS dashboard.`,
+    });
+  }
   return {
     protocol,
     externalId: clean(row.externalId) || clean(row.name) || '(no externalId)',
@@ -519,7 +550,7 @@ function toPlanned(
     organizationId,
     organizationExternalId,
     organizationName: clean(row.organizationName),
-    domains: parseDomainList(row.domains),
+    domains,
     mapping: effectiveMapping,
   };
 }
@@ -538,6 +569,7 @@ async function resolveOrganization(
   entry: PlannedConnection,
   cache: Map<string, OrganizationIdentity>,
   domainMode: SsoDomainMode,
+  limiter: RateLimiter,
 ): Promise<ResolvedOrganization> {
   const cacheKey = entry.organizationId
     ? `id:${entry.organizationId}`
@@ -549,6 +581,7 @@ async function resolveOrganization(
   if (!organization) {
     if (entry.organizationId) {
       try {
+        await limiter.acquire();
         const existing = await workos.organizations.getOrganization(entry.organizationId);
         organization = { id: existing.id, externalId: clean(existing.externalId) };
       } catch (error: unknown) {
@@ -560,6 +593,7 @@ async function resolveOrganization(
         throw error;
       }
     } else {
+      await limiter.acquire();
       const existing = await getOrganizationByExternalId(workos, entry.organizationExternalId);
       if (existing) {
         organization = { id: existing, externalId: entry.organizationExternalId };
@@ -569,6 +603,7 @@ async function resolveOrganization(
           domainMode === 'skip'
             ? []
             : entry.domains.map((domain) => ({ domain, state: domainMode }));
+        await limiter.acquire();
         const id = await createOrganization(workos, name, entry.organizationExternalId, domainData);
         organization = { id, externalId: entry.organizationExternalId };
         domainsAdded = domainData.map((d) => d.domain);
@@ -582,7 +617,9 @@ async function resolveOrganization(
   const { id } = organization;
   if (domainMode !== 'skip' && entry.domains.length > 0) {
     try {
-      const ensured = await ensureOrganizationDomains(workos, id, entry.domains, domainMode);
+      const ensured = await ensureOrganizationDomains(workos, id, entry.domains, domainMode, () =>
+        limiter.acquire(),
+      );
       domainsAdded = ensured.added;
     } catch (error: unknown) {
       const details = describeWorkOSApiError(error);
@@ -615,7 +652,20 @@ function applyConnection(result: SsoConnectionResult, connection: ConnectionResp
   result.acsUrl = connection.saml_options?.acs_url ?? undefined;
   result.spEntityId = connection.saml_options?.sp_entity_id ?? undefined;
   result.redirectUri = connection.oidc_options?.redirect_uri ?? undefined;
-  if (connection.organization_id) result.organizationId = connection.organization_id;
+  if (connection.organization_id) {
+    // WorkOS owns the connection's organization (the package may name it wrong
+    // or not at all), but a re-run that lands on a different organization than
+    // the row asked for must not read as a clean success.
+    if (result.organizationId && result.organizationId !== connection.organization_id) {
+      const requested = result.organizationExternalId
+        ? `${result.organizationId} (${result.organizationExternalId})`
+        : result.organizationId;
+      result.warnings.push(
+        `organization_mismatch: row requested organization ${requested} but connection ${connection.id} belongs to ${connection.organization_id}; kept the organization WorkOS returned.`,
+      );
+    }
+    result.organizationId = connection.organization_id;
+  }
 }
 
 function baseResult(entry: PlannedConnection, outcome: SsoConnectionOutcome): SsoConnectionResult {
@@ -720,38 +770,51 @@ async function appendErrorRecords(
   await fsp.appendFile(errorsPath, `${lines.join('\n')}\n`, 'utf-8');
 }
 
+export interface ProxyRouteUpdateResult {
+  updated: number;
+  /** Rows naming an imported connection under an organization it does not have. */
+  unmatched: string[];
+}
+
 /**
  * Copy created connection ids and callback endpoints into `sso/proxy_routes.csv`
- * rows with a matching externalId. Returns the number of rows updated.
+ * rows with a matching externalId. Reports how many rows were updated and which
+ * ones named an organization the connection does not belong to.
  */
 export async function writeProxyRouteResults(
   packageDir: string,
   proxyRoutes: Record<string, string>[],
   results: SsoConnectionResult[],
-): Promise<number> {
-  if (proxyRoutes.length === 0) return 0;
+): Promise<ProxyRouteUpdateResult> {
+  const unmatched: string[] = [];
+  if (proxyRoutes.length === 0) return { updated: 0, unmatched };
   const created = results.filter(
     (result) =>
       (result.outcome === 'created' || result.outcome === 'existing') && result.connectionId,
   );
-  if (created.length === 0) return 0;
+  if (created.length === 0) return { updated: 0, unmatched };
   // Match on (externalId, organizationExternalId) when the proxy row is
-  // organization-scoped; fall back to externalId alone otherwise.
-  const byIdentity = new Map(
-    created.map((result) => [
-      connectionIdentityKey(result.externalId, result.organizationExternalId),
-      result,
-    ]),
-  );
+  // organization-scoped; fall back to externalId alone otherwise. A row can
+  // name its organization by external id or by WorkOS id, so index both.
+  const byIdentity = new Map<string, SsoConnectionResult>();
+  for (const result of created) {
+    for (const org of [result.organizationExternalId, result.organizationId]) {
+      if (org) byIdentity.set(connectionIdentityKey(result.externalId, org), result);
+    }
+  }
   const byExternalId = new Map(created.map((result) => [result.externalId, result]));
 
   let updated = 0;
   const rows = proxyRoutes.map((row) => {
     const org = clean(row.organizationExternalId);
+    const externalId = clean(row.externalId);
     const match = org
-      ? byIdentity.get(connectionIdentityKey(row.externalId, org))
-      : byExternalId.get(clean(row.externalId));
-    if (!match) return row;
+      ? byIdentity.get(connectionIdentityKey(externalId, org))
+      : byExternalId.get(externalId);
+    if (!match) {
+      if (org && byExternalId.has(externalId)) unmatched.push(`${externalId} (${org})`);
+      return row;
+    }
     updated += 1;
     return {
       ...row,
@@ -760,9 +823,9 @@ export async function writeProxyRouteResults(
     };
   });
 
-  if (updated === 0) return 0;
+  if (updated === 0) return { updated: 0, unmatched };
   await writeCsvRows(getPackageFilePath(packageDir, 'proxyRoutes'), PROXY_ROUTE_CSV_HEADERS, rows);
-  return updated;
+  return { updated, unmatched };
 }
 
 function asApiClient(workos: WorkOS): ConnectionsApiClient {

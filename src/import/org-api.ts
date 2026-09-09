@@ -71,12 +71,15 @@ export async function ensureOrganizationDomains(
   orgId: string,
   domains: string[],
   state: OrganizationDomainState = 'verified',
+  /** Called before each request so callers can pace this helper's two calls. */
+  acquire?: () => Promise<void>,
 ): Promise<EnsureOrganizationDomainsResult> {
   const wanted = Array.from(new Set(domains.map((domain) => domain.trim().toLowerCase()))).filter(
     Boolean,
   );
   if (wanted.length === 0) return { added: [], existing: [] };
 
+  await acquire?.();
   const org = await (workos as any).organizations.getOrganization(orgId);
   const current: Array<{ domain: string; state: string }> = Array.isArray(org?.domains)
     ? org.domains
@@ -109,6 +112,7 @@ export async function ensureOrganizationDomains(
     ...missing.map((domain) => ({ domain, state })),
   ];
 
+  await acquire?.();
   await (workos as any).organizations.updateOrganization({
     organization: orgId,
     domainData,

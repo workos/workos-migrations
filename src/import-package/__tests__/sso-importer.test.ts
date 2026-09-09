@@ -21,7 +21,12 @@ interface FakeOrg {
 }
 
 function createFakeWorkOS(
-  options: { orgs?: FakeOrg[]; postImpl?: (body: any) => Promise<any> } = {},
+  options: {
+    orgs?: FakeOrg[];
+    postImpl?: (body: any) => Promise<any>;
+    /** Called before each outbound call, so tests can observe pacing. */
+    trace?: (label: string) => void;
+  } = {},
 ) {
   const orgs = new Map<string, FakeOrg>((options.orgs ?? []).map((org) => [org.id, org]));
   let connectionCounter = 0;
@@ -29,6 +34,7 @@ function createFakeWorkOS(
   const notFound = () => Object.assign(new Error('Not found'), { status: 404 });
 
   const post = jest.fn(async (_path: string, body: any) => {
+    options.trace?.('post');
     if (options.postImpl) return options.postImpl(body);
     connectionCounter += 1;
     const id = `conn_${connectionCounter}`;
@@ -65,11 +71,13 @@ function createFakeWorkOS(
 
   const organizations = {
     getOrganization: jest.fn(async (id: string) => {
+      options.trace?.('getOrganization');
       const org = orgs.get(id);
       if (!org) throw notFound();
       return { ...org, object: 'organization' };
     }),
     getOrganizationByExternalId: jest.fn(async (externalId: string) => {
+      options.trace?.('getOrganizationByExternalId');
       const org = [...orgs.values()].find((candidate) => candidate.externalId === externalId);
       if (!org) throw notFound();
       return { ...org, object: 'organization' };
@@ -80,6 +88,7 @@ function createFakeWorkOS(
         externalId?: string;
         domainData?: Array<{ domain: string; state: string }>;
       }) => {
+        options.trace?.('createOrganization');
         const id = `org_${orgs.size + 1}`;
         const org: FakeOrg = {
           id,
@@ -96,6 +105,7 @@ function createFakeWorkOS(
         organization: string;
         domainData?: Array<{ domain: string; state: string }>;
       }) => {
+        options.trace?.('updateOrganization');
         const org = orgs.get(input.organization);
         if (!org) throw notFound();
         if (input.domainData) org.domains = input.domainData.map((d) => ({ ...d }));
@@ -798,6 +808,291 @@ describe('importSsoConnections', () => {
     },
   );
 
+  it('paces and retries organization resolution like the connection POST', async () => {
+    const samlPath = path.join(pkgDir, 'sso/saml_connections.csv');
+    const saml = (await readCsvRows(samlPath))[0];
+    writeRows(samlPath, MIGRATION_PACKAGE_CSV_HEADERS.samlConnections, [saml]);
+    writeRows(
+      path.join(pkgDir, 'sso/oidc_connections.csv'),
+      MIGRATION_PACKAGE_CSV_HEADERS.oidcConnections,
+      [],
+    );
+    const timeline: Array<{ label: string; at: number }> = [];
+    const fake = createFakeWorkOS({ trace: (label) => timeline.push({ label, at: Date.now() }) });
+    // A 429 while resolving the organization has to be retried, not fail the row.
+    fake.organizations.getOrganizationByExternalId.mockImplementationOnce(async () => {
+      timeline.push({ label: 'getOrganizationByExternalId', at: Date.now() });
+      throw Object.assign(new Error('Too many requests'), { status: 429, retryAfter: 0 });
+    });
+
+    const summary = await importSsoConnections({
+      packageDir: pkgDir,
+      workos: fake.workos,
+      quiet: true,
+      rateLimit: 2,
+    });
+
+    expect(summary).toMatchObject({ succeeded: 1, failed: 0 });
+    expect(fake.organizations.getOrganizationByExternalId).toHaveBeenCalledTimes(2);
+    expect(timeline.map((entry) => entry.label)).toEqual([
+      'getOrganizationByExternalId',
+      'getOrganizationByExternalId',
+      'createOrganization',
+      'post',
+    ]);
+    // retryAfter is 0, so the only source of delay is the 2/s limiter: four
+    // calls from a two-token bucket take about a second.
+    expect(timeline[3].at - timeline[0].at).toBeGreaterThanOrEqual(900);
+  });
+
+  it('takes a limiter token for every POST /connections attempt', async () => {
+    const samlPath = path.join(pkgDir, 'sso/saml_connections.csv');
+    const saml = (await readCsvRows(samlPath))[0];
+    saml.organizationId = 'org_acme';
+    saml.organizationExternalId = '';
+    writeRows(samlPath, MIGRATION_PACKAGE_CSV_HEADERS.samlConnections, [saml]);
+    writeRows(
+      path.join(pkgDir, 'sso/oidc_connections.csv'),
+      MIGRATION_PACKAGE_CSV_HEADERS.oidcConnections,
+      [],
+    );
+    const timeline: Array<{ label: string; at: number }> = [];
+    let attempts = 0;
+    const fake = createFakeWorkOS({
+      orgs: [{ id: 'org_acme', name: 'Acme', domains: [] }],
+      trace: (label) => timeline.push({ label, at: Date.now() }),
+      postImpl: async (body) => {
+        attempts += 1;
+        if (attempts <= 2) {
+          throw Object.assign(new Error('Too many requests'), { status: 429, retryAfter: 0 });
+        }
+        return { data: connectionResponse(body, 'conn_retry') };
+      },
+    });
+
+    const summary = await importSsoConnections({
+      packageDir: pkgDir,
+      workos: fake.workos,
+      quiet: true,
+      rateLimit: 2,
+      domains: 'skip',
+    });
+
+    expect(attempts).toBe(3);
+    expect(summary).toMatchObject({ succeeded: 1, failed: 0 });
+    const posts = timeline.filter((entry) => entry.label === 'post').map((entry) => entry.at);
+    expect(posts).toHaveLength(3);
+    expect(posts[1] - posts[0]).toBeGreaterThanOrEqual(400);
+    expect(posts[2] - posts[1]).toBeGreaterThanOrEqual(400);
+  });
+
+  it.each<[string, () => unknown]>([
+    [
+      'a 429 whose body is not JSON',
+      () =>
+        new Error(`Unexpected error: ParseError: Unexpected token '<'`, {
+          cause: Object.assign(new Error(`Unexpected token '<'`), {
+            name: 'ParseError',
+            status: 500,
+            rawStatus: 429,
+            rawBody: '<html><body>429 Too Many Requests</body></html>',
+          }),
+        }),
+    ],
+    [
+      'an SDK request timeout',
+      () => Object.assign(new Error('Error: Request timeout'), { status: 408 }),
+    ],
+    [
+      'a dropped socket',
+      () =>
+        new Error('Unexpected error: TypeError: fetch failed', {
+          cause: new TypeError('fetch failed'),
+        }),
+    ],
+  ])('retries POST /connections after %s', async (_label, makeError) => {
+    const samlPath = path.join(pkgDir, 'sso/saml_connections.csv');
+    const saml = (await readCsvRows(samlPath))[0];
+    writeRows(samlPath, MIGRATION_PACKAGE_CSV_HEADERS.samlConnections, [saml]);
+    writeRows(
+      path.join(pkgDir, 'sso/oidc_connections.csv'),
+      MIGRATION_PACKAGE_CSV_HEADERS.oidcConnections,
+      [],
+    );
+    let attempts = 0;
+    const fake = createFakeWorkOS({
+      orgs: [{ id: 'org_acme', name: 'Acme', externalId: 'acme', domains: [] }],
+      postImpl: async (body) => {
+        attempts += 1;
+        if (attempts === 1) throw makeError();
+        return { data: connectionResponse(body, 'conn_retry') };
+      },
+    });
+
+    const summary = await importSsoConnections({
+      packageDir: pkgDir,
+      workos: fake.workos,
+      quiet: true,
+      rateLimit: 1000,
+      domains: 'skip',
+    });
+
+    expect(attempts).toBe(2);
+    expect(summary).toMatchObject({ succeeded: 1, failed: 0 });
+    expect(summary.results[0]).toMatchObject({ outcome: 'created', connectionId: 'conn_retry' });
+  });
+
+  it('warns when the connection WorkOS returns belongs to another organization', async () => {
+    const samlPath = path.join(pkgDir, 'sso/saml_connections.csv');
+    const saml = (await readCsvRows(samlPath))[0];
+    writeRows(samlPath, MIGRATION_PACKAGE_CSV_HEADERS.samlConnections, [saml]);
+    writeRows(
+      path.join(pkgDir, 'sso/oidc_connections.csv'),
+      MIGRATION_PACKAGE_CSV_HEADERS.oidcConnections,
+      [],
+    );
+    const fake = createFakeWorkOS({
+      orgs: [{ id: 'org_acme', name: 'Acme', externalId: 'acme', domains: [] }],
+      postImpl: async (body) => ({
+        data: {
+          ...connectionResponse(body, 'conn_old'),
+          organization_id: 'org_other',
+          created_at: '2026-01-01T00:00:00.000Z',
+          state: 'active',
+        },
+      }),
+    });
+
+    const summary = await importSsoConnections({
+      packageDir: pkgDir,
+      workos: fake.workos,
+      quiet: true,
+      rateLimit: 1000,
+      domains: 'skip',
+    });
+
+    const result = summary.results[0];
+    expect(result).toMatchObject({
+      outcome: 'existing',
+      organizationExternalId: 'acme',
+      organizationId: 'org_other',
+    });
+    expect(result.warnings.join(' ')).toContain('organization_mismatch');
+    expect(result.warnings.join(' ')).toContain('org_acme');
+    expect(result.warnings.join(' ')).toContain('org_other');
+    expect(summary.warnings.join(' ')).toContain(`${saml.externalId}: organization_mismatch`);
+    const results = await readCsvRows(path.join(pkgDir, SSO_RESULTS_FILENAME));
+    expect(results[0].warnings).toContain('organization_mismatch');
+  });
+
+  it('resolves scoped attributes and proxy routes for an organization with no external id', async () => {
+    const samlPath = path.join(pkgDir, 'sso/saml_connections.csv');
+    const oidcPath = path.join(pkgDir, 'sso/oidc_connections.csv');
+    const saml = (await readCsvRows(samlPath))[0];
+    const oidc = (await readCsvRows(oidcPath))[0];
+    for (const row of [saml, oidc]) {
+      row.organizationId = 'org_noext';
+      row.organizationExternalId = '';
+    }
+    oidc.clientSecret = 'secret';
+    writeRows(samlPath, MIGRATION_PACKAGE_CSV_HEADERS.samlConnections, [saml]);
+    writeRows(oidcPath, MIGRATION_PACKAGE_CSV_HEADERS.oidcConnections, [oidc]);
+    writeRows(
+      path.join(pkgDir, 'sso/custom_attribute_mappings.csv'),
+      MIGRATION_PACKAGE_CSV_HEADERS.customAttributeMappings,
+      [
+        {
+          externalId: saml.externalId,
+          organizationExternalId: '',
+          userPoolAttribute: 'title',
+          idpClaim: 'title',
+        },
+        // Keyed by the WorkOS organization id: the only identifier a row that
+        // names its organization by id has.
+        {
+          externalId: saml.externalId,
+          organizationExternalId: 'org_noext',
+          userPoolAttribute: 'department',
+          idpClaim: 'RIGHT',
+        },
+        {
+          externalId: saml.externalId,
+          organizationExternalId: 'someone-else',
+          userPoolAttribute: 'department',
+          idpClaim: 'WRONG',
+        },
+        {
+          externalId: oidc.externalId,
+          organizationExternalId: 'someone-else',
+          userPoolAttribute: 'team',
+          idpClaim: 'WRONG',
+        },
+      ],
+    );
+    const proxyPath = path.join(pkgDir, 'sso/proxy_routes.csv');
+    writeRows(proxyPath, MIGRATION_PACKAGE_CSV_HEADERS.proxyRoutes, [
+      { externalId: saml.externalId, organizationExternalId: 'org_noext' },
+      { externalId: saml.externalId, organizationExternalId: 'someone-else' },
+      { externalId: oidc.externalId, organizationExternalId: 'org_noext' },
+    ]);
+    const fake = createFakeWorkOS({
+      orgs: [{ id: 'org_noext', name: 'No External Id', domains: [] }],
+    });
+
+    const summary = await importSsoConnections({
+      packageDir: pkgDir,
+      workos: fake.workos,
+      quiet: true,
+      rateLimit: 1000,
+      domains: 'skip',
+    });
+
+    expect(summary).toMatchObject({ succeeded: 2, failed: 0, proxyRoutesUpdated: 2 });
+    const [samlBody, oidcBody] = fake.post.mock.calls.map(([, body]) => body);
+    expect(samlBody.attribute_maps.custom_attributes).toEqual({
+      title: 'title',
+      department: 'RIGHT',
+    });
+    expect(oidcBody.attribute_maps?.custom_attributes).toBeUndefined();
+    const oidcResult = summary.results.find((result) => result.externalId === oidc.externalId)!;
+    expect(oidcResult.warnings.join(' ')).toContain('custom_attributes_organization_mismatch');
+    expect(oidcResult.warnings.join(' ')).toContain('someone-else');
+    const routes = await readCsvRows(proxyPath);
+    expect(
+      routes
+        .filter((row) => row.workosConnectionId)
+        .map((row) => `${row.externalId}/${row.organizationExternalId}`),
+    ).toEqual([`${saml.externalId}/org_noext`, `${oidc.externalId}/org_noext`]);
+    expect(summary.notes.join(' ')).toContain(`${saml.externalId} (someone-else)`);
+  });
+
+  it('warns about wildcard domains it cannot add to the organization', async () => {
+    const samlPath = path.join(pkgDir, 'sso/saml_connections.csv');
+    const saml = (await readCsvRows(samlPath))[0];
+    saml.domains = 'acme.com;*.acme.com';
+    writeRows(samlPath, MIGRATION_PACKAGE_CSV_HEADERS.samlConnections, [saml]);
+    writeRows(
+      path.join(pkgDir, 'sso/oidc_connections.csv'),
+      MIGRATION_PACKAGE_CSV_HEADERS.oidcConnections,
+      [],
+    );
+    const fake = createFakeWorkOS();
+
+    const summary = await importSsoConnections({
+      packageDir: pkgDir,
+      workos: fake.workos,
+      quiet: true,
+      rateLimit: 1000,
+    });
+
+    expect(summary.results[0].domains).toEqual(['acme.com']);
+    expect(summary.warnings.join(' ')).toContain('wildcard_domains_dropped');
+    expect(summary.warnings.join(' ')).toContain('*.acme.com');
+    expect(fake.organizations.createOrganization).toHaveBeenCalledWith(
+      expect.objectContaining({ domainData: [{ domain: 'acme.com', state: 'verified' }] }),
+    );
+  });
+
   it('returns absent when the package has no SSO rows', async () => {
     const emptyDir = path.join(tempRoot, 'empty');
     await createMigrationPackage({ provider: 'csv', rootDir: emptyDir, warnings: [] });
@@ -842,6 +1137,22 @@ describe('collectCustomAttributeNames', () => {
     ).toEqual(['department', 'title']);
   });
 });
+
+function connectionResponse(body: any, id: string) {
+  const isSaml = Boolean(body.saml_options);
+  return {
+    object: 'connection',
+    id,
+    organization_id: body.organization_id,
+    connection_type: body.connection_type ?? (isSaml ? 'GenericSAML' : 'GenericOIDC'),
+    name: body.name,
+    state: 'validating',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    external_id: body.external_id ?? null,
+    callback_endpoint: `https://api.workos.com/sso/saml/acs/${id}`,
+  };
+}
 
 function writeRows(
   filePath: string,

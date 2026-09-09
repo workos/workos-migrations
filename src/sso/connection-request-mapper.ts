@@ -38,7 +38,8 @@ export type ConnectionMappingWarningCode =
   | 'sp_encryption_key_pair_incomplete'
   | 'name_id_encryption_key_unsupported'
   | 'idp_initiated_sso_not_configurable'
-  | 'manual_idp_fields_ignored';
+  | 'manual_idp_fields_ignored'
+  | 'wildcard_domains_dropped';
 
 export interface ConnectionMappingWarning {
   code: ConnectionMappingWarningCode;
@@ -251,8 +252,17 @@ export function buildOidcConnectionRequest(input: OidcMappingInput): ConnectionM
  * two organizations that reuse an externalId do not share mappings.
  */
 export interface CustomAttributeIndex {
-  /** Mappings for one connection; exact (externalId, organizationExternalId) match wins. */
-  lookup(externalId: string, organizationExternalId?: string): Record<string, string> | undefined;
+  /**
+   * Mappings for one connection; the first scope that matches wins. A row can
+   * name its organization by external id or by WorkOS id, so callers pass every
+   * identifier they resolved for the row.
+   */
+  lookup(
+    externalId: string,
+    organizationExternalId?: string | string[],
+  ): Record<string, string> | undefined;
+  /** Organization scopes the file carries mappings under, for one externalId. */
+  organizationScopes(externalId: string): string[];
   /** Distinct custom attribute names referenced anywhere in the file. */
   names(): string[];
 }
@@ -262,6 +272,7 @@ export function indexCustomAttributeMappings(
 ): CustomAttributeIndex {
   const scoped = new Map<string, Record<string, string>>();
   const unscoped = new Map<string, Record<string, string>>();
+  const scopesByExternalId = new Map<string, Set<string>>();
   const names = new Set<string>();
 
   for (const row of rows) {
@@ -278,16 +289,30 @@ export function indexCustomAttributeMappings(
     const record = target.get(key) ?? {};
     record[attribute] = claim;
     target.set(key, record);
+    if (organizationExternalId) {
+      const scopes = scopesByExternalId.get(externalId) ?? new Set<string>();
+      scopes.add(organizationExternalId);
+      scopesByExternalId.set(externalId, scopes);
+    }
   }
 
   return {
     lookup(externalId, organizationExternalId) {
       const id = clean(externalId);
-      const org = clean(organizationExternalId);
-      const exact = org ? scoped.get(compoundKey(id, org)) : undefined;
+      const orgs = (
+        Array.isArray(organizationExternalId) ? organizationExternalId : [organizationExternalId]
+      )
+        .map((org) => clean(org))
+        .filter(Boolean);
+      const exact = orgs.map((org) => scoped.get(compoundKey(id, org))).find(Boolean);
       const fallback = unscoped.get(id);
       if (!exact && !fallback) return undefined;
       return { ...(fallback ?? {}), ...(exact ?? {}) };
+    },
+    organizationScopes(externalId) {
+      return Array.from(scopesByExternalId.get(clean(externalId)) ?? []).sort((a, b) =>
+        a.localeCompare(b),
+      );
     },
     names() {
       return Array.from(names).sort((a, b) => a.localeCompare(b));
@@ -332,20 +357,31 @@ function missingExternalId(): { code: ConnectionMappingSkipCode; message: string
   };
 }
 
+export interface DomainListParseResult {
+  domains: string[];
+  /** Wildcards (Clerk allow_subdomains) that are not valid organization domains. */
+  wildcards: string[];
+}
+
 /** Split an exported `domains` cell (`,` or `;` separated) into clean, unique host names. */
 export function parseDomainList(value: string | undefined | null): string[] {
-  if (!value) return [];
+  return parseDomainListDetailed(value).domains;
+}
+
+/** As `parseDomainList`, and reports the wildcard entries it had to drop. */
+export function parseDomainListDetailed(value: string | undefined | null): DomainListParseResult {
+  if (!value) return { domains: [], wildcards: [] };
   const seen = new Set<string>();
   const domains: string[] = [];
+  const wildcards: string[] = [];
   for (const raw of value.split(/[;,]/)) {
     const domain = raw.trim().toLowerCase();
-    // Wildcards (Clerk allow_subdomains) are not valid organization domains.
-    if (!domain || domain.startsWith('*')) continue;
-    if (seen.has(domain)) continue;
+    if (!domain || seen.has(domain)) continue;
     seen.add(domain);
-    domains.push(domain);
+    if (domain.startsWith('*')) wildcards.push(domain);
+    else domains.push(domain);
   }
-  return domains;
+  return { domains, wildcards };
 }
 
 /**

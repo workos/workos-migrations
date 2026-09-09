@@ -364,4 +364,21 @@ describe('indexCustomAttributeMappings', () => {
     expect(index.lookup('other', 'org_a')).toBeUndefined();
     expect(index.names()).toEqual(['department', 'title']);
   });
+
+  it('takes the first matching scope and reports the scopes it holds', () => {
+    const index = indexCustomAttributeMappings([
+      {
+        externalId: 'okta',
+        organizationExternalId: 'org_a',
+        userPoolAttribute: 'department',
+        idpClaim: 'deptA',
+      },
+    ]);
+    // A row can name its organization by external id or by WorkOS id, so the
+    // importer passes both and the first that matches wins.
+    expect(index.lookup('okta', ['acme', 'org_a'])).toEqual({ department: 'deptA' });
+    expect(index.lookup('okta', ['acme', 'org_b'])).toBeUndefined();
+    expect(index.organizationScopes('okta')).toEqual(['org_a']);
+    expect(index.organizationScopes('other')).toEqual([]);
+  });
 });
