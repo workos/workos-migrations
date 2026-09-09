@@ -33,6 +33,16 @@ export async function countCSVRows(filePath: string): Promise<number> {
 }
 
 /**
+ * Whether a CSV file contains at least one data row. Stops reading after the first row.
+ */
+export async function csvHasDataRows(filePath: string): Promise<boolean> {
+  for await (const _row of streamCSV(filePath)) {
+    return true;
+  }
+  return false;
+}
+
+/**
  * Create a streaming CSV writer. Call write() for each row, then end().
  */
 export function createCSVWriter(
