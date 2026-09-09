@@ -20,6 +20,10 @@ import {
   type SsoHandoffWarning,
 } from '../../sso/handoff.js';
 import { normalizeDiscoveryEndpoint, parseSamlMetadata } from '../../sso/saml-metadata.js';
+import {
+  inferSamlConnectionTypeFromUrl,
+  type WorkOSSamlConnectionType,
+} from '../../sso/connection-types.js';
 
 export type Auth0SsoProtocol = 'saml' | 'oidc';
 export type Auth0SsoClassification = Auth0SsoProtocol | 'unsupported';
@@ -160,6 +164,20 @@ const SAML_SECRET_KEYS = [
   'nameIdEncryptionKey',
   'name_id_encryption_key',
 ] as const;
+
+/** Auth0 stores the SP request-signing key pair as `signingKey: { key, cert }`. */
+const SAML_SIGNING_KEY_PAIR_KEYS = ['signingKey', 'signing_key', 'requestSigningKeyPair'] as const;
+/** Auth0 stores the SP assertion-decryption key pair as `decryptionKey: { key, cert }`. */
+const SAML_DECRYPTION_KEY_PAIR_KEYS = [
+  'decryptionKey',
+  'decryption_key',
+  'assertionEncryptionKeyPair',
+] as const;
+
+const AUTH0_STRATEGY_CONNECTION_TYPES: Record<string, WorkOSSamlConnectionType> = {
+  pingfederate: 'PingFederateSAML',
+  adfs: 'ADFSSAML',
+};
 
 const OIDC_CLIENT_ID_KEYS = ['client_id', 'clientId'] as const;
 const OIDC_CLIENT_SECRET_KEYS = ['client_secret', 'clientSecret'] as const;
@@ -345,7 +363,13 @@ function mapSamlConnection(
   const customAcsUrl = getFirstString(options, SAML_ACS_URL_KEYS);
   const customEntityId = getFirstString(options, SAML_SP_ENTITY_ID_KEYS);
   const sourceAcsUrl = customAcsUrl || buildAuth0CallbackUrl(input.domain, connection.name);
-  const samlSecretValues = getSecretValues(options, SAML_SECRET_KEYS);
+  const signingKeyPair = getKeyPair(options, SAML_SIGNING_KEY_PAIR_KEYS);
+  const decryptionKeyPair = getKeyPair(options, SAML_DECRYPTION_KEY_PAIR_KEYS);
+  const samlSecretValues = [
+    ...getSecretValues(options, SAML_SECRET_KEYS),
+    ...(signingKeyPair ? ['signingKey'] : []),
+    ...(decryptionKeyPair ? ['decryptionKey'] : []),
+  ];
   const warnings = [...organization.warnings];
 
   if (!input.includeSecrets && samlSecretValues.length > 0) {
@@ -378,15 +402,23 @@ function mapSamlConnection(
     nameAttribute: lookupMapping(attributeMappings, ['name']),
     idpInitiatedEnabled: boolishString(getOptionValue(options, ['idpinitiated', 'idpInitiated'])),
     requestSigningKey: input.includeSecrets
-      ? getFirstString(options, ['requestSigningKey', 'request_signing_key'])
+      ? signingKeyPair?.key || getFirstString(options, ['requestSigningKey', 'request_signing_key'])
       : '',
+    requestSigningCert: input.includeSecrets ? (signingKeyPair?.cert ?? '') : '',
     assertionEncryptionKey: input.includeSecrets
-      ? getFirstString(options, ['assertionEncryptionKey', 'assertion_encryption_key'])
+      ? decryptionKeyPair?.key ||
+        getFirstString(options, ['assertionEncryptionKey', 'assertion_encryption_key'])
       : '',
+    assertionEncryptionCert: input.includeSecrets ? (decryptionKeyPair?.cert ?? '') : '',
     nameIdEncryptionKey: input.includeSecrets
       ? getFirstString(options, ['nameIdEncryptionKey', 'name_id_encryption_key'])
       : '',
     externalId,
+    connectionType: inferAuth0SamlConnectionType(connection.strategy, {
+      idpUrl,
+      idpMetadataUrl,
+      idpEntityId,
+    }),
   });
 
   return {
@@ -741,6 +773,32 @@ function getSecretValues(options: UnknownRecord, keys: readonly string[]): strin
   return keys.filter((key) => Boolean(getFirstString(options, [key])));
 }
 
+function getKeyPair(
+  options: UnknownRecord,
+  keys: readonly string[],
+): { key: string; cert: string } | null {
+  const value = getOptionValue(options, keys);
+  if (!isRecord(value)) return null;
+  const key = stringValue(value.key ?? value.privateKey ?? value.private_key);
+  const cert = stringValue(value.cert ?? value.certificate);
+  if (!key && !cert) return null;
+  return { key, cert };
+}
+
+/**
+ * Best-effort WorkOS connection type for an Auth0 SAML connection: explicit for
+ * strategies that name the IdP, otherwise sniffed from the IdP URLs. Empty when
+ * unknown so the Connections API infers GenericSAML.
+ */
+export function inferAuth0SamlConnectionType(
+  strategy: string,
+  urls: { idpUrl?: string; idpMetadataUrl?: string; idpEntityId?: string },
+): string {
+  const byStrategy = AUTH0_STRATEGY_CONNECTION_TYPES[strategy.toLowerCase()];
+  if (byStrategy) return byStrategy;
+  return inferSamlConnectionTypeFromUrl(urls.idpMetadataUrl, urls.idpUrl, urls.idpEntityId) ?? '';
+}
+
 function getFirstString(record: UnknownRecord, keys: readonly string[]): string {
   for (const key of keys) {
     const value = stringValue(getOptionValue(record, [key]));
@@ -788,6 +846,8 @@ function shouldRedactKey(key: string): boolean {
     normalized.endsWith('password') ||
     normalized.endsWith('privatekey') ||
     normalized === 'requestsigningkey' ||
+    normalized === 'signingkey' ||
+    normalized === 'decryptionkey' ||
     normalized === 'assertionencryptionkey' ||
     normalized === 'nameidencryptionkey' ||
     normalized === 'accesstoken' ||

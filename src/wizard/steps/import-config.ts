@@ -1,4 +1,5 @@
 import prompts from 'prompts';
+import { DEFAULT_IMPORT_RATE_LIMIT } from '../../import/importer.js';
 import chalk from 'chalk';
 import type { WizardState } from '../wizard.js';
 
@@ -19,7 +20,7 @@ export async function configureImport(state: WizardState): Promise<WizardState> 
         type: 'number',
         name: 'rateLimit',
         message: 'Max requests per second',
-        initial: 50,
+        initial: DEFAULT_IMPORT_RATE_LIMIT,
         min: 1,
         max: 200,
       },

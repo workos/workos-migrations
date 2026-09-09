@@ -80,7 +80,7 @@ describe('Auth0 parity end-to-end', () => {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   });
 
-  it('produces a complete, importable package and plans handoff for SSO', async () => {
+  it('produces a complete, importable package and plans SSO connection creation', async () => {
     const acmeOrg: Auth0Organization = {
       id: 'org_acme',
       name: 'acme',
@@ -254,7 +254,7 @@ describe('Auth0 parity end-to-end', () => {
     expect(summary.users).toMatchObject({ status: 'planned', total: 3 });
     expect(summary.roleDefinitions).toMatchObject({ status: 'planned' });
     expect(summary.roleAssignments).toMatchObject({ status: 'planned' });
-    expect(summary.ssoConnections).toMatchObject({ status: 'handoff' });
+    expect(summary.ssoConnections).toMatchObject({ status: 'planned' });
 
     // Warnings include all the expected codes.
     const warnings = readJsonl(path.join(tempRoot, 'warnings.jsonl'));

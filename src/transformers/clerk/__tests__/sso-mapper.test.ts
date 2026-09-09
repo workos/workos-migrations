@@ -1,4 +1,8 @@
-import { mapClerkEnterpriseConnection, type ClerkEnterpriseConnection } from '../sso-mapper';
+import {
+  mapClerkEnterpriseConnection,
+  type ClerkEnterpriseConnection,
+  clerkProviderToConnectionType,
+} from '../sso-mapper';
 
 const baseSaml: ClerkEnterpriseConnection = {
   id: 'ec_01_saml',
@@ -219,5 +223,39 @@ describe('mapClerkEnterpriseConnection — discrimination', () => {
     expect(result.status).toBe('mapped');
     if (result.status !== 'mapped') return;
     expect(result.protocol).toBe('saml');
+  });
+});
+
+describe('mapClerkEnterpriseConnection — connection type', () => {
+  it('maps Clerk provider slugs to WorkOS connection types', () => {
+    expect(clerkProviderToConnectionType('saml_okta')).toBe('OktaSAML');
+    expect(clerkProviderToConnectionType('saml_microsoft')).toBe('AzureSAML');
+    expect(clerkProviderToConnectionType('saml_google')).toBe('GoogleSAML');
+    expect(clerkProviderToConnectionType('saml_custom')).toBeUndefined();
+    expect(clerkProviderToConnectionType(null)).toBeUndefined();
+  });
+
+  it('writes connectionType from the provider slug, falling back to the IdP URL', () => {
+    const fromProvider = mapClerkEnterpriseConnection({
+      connection: { ...baseSaml, provider: 'saml_microsoft' },
+    });
+    expect(fromProvider.status).toBe('mapped');
+    if (fromProvider.status !== 'mapped' || fromProvider.protocol !== 'saml') return;
+    expect(fromProvider.samlRow.connectionType).toBe('AzureSAML');
+
+    const fromUrl = mapClerkEnterpriseConnection({
+      connection: {
+        ...baseSaml,
+        provider: 'saml_custom',
+        saml_connection: {
+          ...baseSaml.saml_connection!,
+          idp_sso_url: 'https://acme.okta.com/app/abc/sso/saml',
+          idp_metadata_url: null,
+        },
+      },
+    });
+    expect(fromUrl.status).toBe('mapped');
+    if (fromUrl.status !== 'mapped' || fromUrl.protocol !== 'saml') return;
+    expect(fromUrl.samlRow.connectionType).toBe('OktaSAML');
   });
 });

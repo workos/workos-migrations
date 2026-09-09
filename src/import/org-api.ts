@@ -25,15 +25,24 @@ export async function getOrganizationByExternalId(
   }
 }
 
+export type OrganizationDomainState = 'verified' | 'pending';
+
+export interface OrganizationDomainData {
+  domain: string;
+  state: OrganizationDomainState;
+}
+
 export async function createOrganization(
   workos: WorkOS,
   name: string,
   externalId: string,
+  domainData?: OrganizationDomainData[],
 ): Promise<string> {
   try {
     const org = await (workos as any).organizations.createOrganization({
       name,
       externalId,
+      ...(domainData && domainData.length > 0 ? { domainData } : {}),
     });
     return org.id as string;
   } catch (err: any) {
@@ -45,4 +54,72 @@ export async function createOrganization(
     (enhancedErr as any).original = err;
     throw enhancedErr;
   }
+}
+
+export interface EnsureOrganizationDomainsResult {
+  added: string[];
+  existing: string[];
+}
+
+/**
+ * Add any missing domains to an existing organization. Domains already on the
+ * organization keep their current verification state; new ones are added with
+ * the requested state. Returns which domains were added.
+ */
+export async function ensureOrganizationDomains(
+  workos: WorkOS,
+  orgId: string,
+  domains: string[],
+  state: OrganizationDomainState = 'verified',
+  /** Called before each request so callers can pace this helper's two calls. */
+  acquire?: () => Promise<void>,
+): Promise<EnsureOrganizationDomainsResult> {
+  const wanted = Array.from(new Set(domains.map((domain) => domain.trim().toLowerCase()))).filter(
+    Boolean,
+  );
+  if (wanted.length === 0) return { added: [], existing: [] };
+
+  await acquire?.();
+  const org = await (workos as any).organizations.getOrganization(orgId);
+  const current: Array<{ domain: string; state: string }> = Array.isArray(org?.domains)
+    ? org.domains
+    : [];
+  const currentByName = new Map(current.map((d) => [d.domain.toLowerCase(), d]));
+
+  const missing = wanted.filter((domain) => !currentByName.has(domain));
+  if (missing.length === 0) return { added: [], existing: wanted };
+
+  // updateOrganization replaces the whole domain set and only accepts
+  // verified/pending. Refuse to touch an organization whose existing domains
+  // carry any other state (failed, legacy_verified, ...) rather than silently
+  // rewriting their verification state.
+  const untouchable = current.filter(
+    (d) => d.state.toLowerCase() !== 'verified' && d.state.toLowerCase() !== 'pending',
+  );
+  if (untouchable.length > 0) {
+    throw new Error(
+      `Organization ${orgId} has domain(s) in a state the update API cannot round-trip (${untouchable
+        .map((d) => `${d.domain}=${d.state}`)
+        .join(', ')}); add ${missing.join(', ')} in the WorkOS dashboard instead.`,
+    );
+  }
+
+  const domainData = [
+    ...current.map((d) => ({
+      domain: d.domain,
+      state: d.state.toLowerCase() === 'verified' ? 'verified' : 'pending',
+    })),
+    ...missing.map((domain) => ({ domain, state })),
+  ];
+
+  await acquire?.();
+  await (workos as any).organizations.updateOrganization({
+    organization: orgId,
+    domainData,
+  });
+
+  return {
+    added: missing,
+    existing: wanted.filter((domain) => currentByName.has(domain)),
+  };
 }

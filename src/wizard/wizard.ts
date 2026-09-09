@@ -118,7 +118,8 @@ export class MigrationWizard {
       this.state = await runExport(this.state);
       if (this.state.cancelled) return this.onCancel();
 
-      // If SSO handoff only, skip remaining steps (no connection import API yet)
+      // SSO-only packages have no users.csv to import here; `import-package <dir>`
+      // creates the connections through the Connections API.
       if (this.isSsoHandoffOnly()) {
         await showSummary(this.state);
         return;

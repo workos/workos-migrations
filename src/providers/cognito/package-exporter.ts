@@ -563,7 +563,7 @@ function buildHandoffNotes(input: { includeSso: boolean }): string {
   return [
     '# Cognito SSO handoff notes',
     '',
-    'Cognito SSO export is handoff-only. SAML and OIDC identity providers are mapped onto WorkOS connection CSVs but no WorkOS connections are created automatically.',
+    'SAML and OIDC identity providers are mapped onto WorkOS connection CSVs that `import-package` creates in WorkOS through the Connections API (POST /connections). If the Connections API migration capabilities are not enabled for the target environment, use these files for manual processing instead.',
     'Use the proxy templates and proxy_routes.csv when staging a callback proxy during enterprise-connection cutover.',
     '',
   ].join('\n');

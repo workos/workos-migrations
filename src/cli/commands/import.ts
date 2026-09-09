@@ -4,8 +4,9 @@ import chalk from 'chalk';
 import { createWorkOSClient } from '../../shared/workos-client.js';
 import { countCSVRows } from '../../shared/csv-utils.js';
 import * as logger from '../../shared/logger.js';
-import { runImport } from '../../import/importer.js';
+import { runImport, DEFAULT_IMPORT_RATE_LIMIT } from '../../import/importer.js';
 import { CheckpointManager, calculateCsvHash, findLastJob } from '../../import/checkpoint.js';
+import { parsePositiveInteger } from '../options.js';
 
 export function registerImportCommand(program: Command): void {
   program
@@ -15,7 +16,7 @@ export function registerImportCommand(program: Command): void {
     )
     .requiredOption('--csv <path>', 'Path to CSV file')
     .option('--concurrency <n>', 'Concurrent API requests', '10')
-    .option('--rate-limit <n>', 'Max requests per second', '50')
+    .option('--rate-limit <n>', 'Max requests per second', String(DEFAULT_IMPORT_RATE_LIMIT))
     .option('--workers <n>', 'Number of worker threads', '1')
     .option('--chunk-size <n>', 'Rows per chunk', '1000')
     .option('--job-id <id>', 'Job ID for checkpoint/resume')
@@ -37,10 +38,10 @@ export function registerImportCommand(program: Command): void {
           process.exit(1);
         }
 
-        const concurrency = parseInt(opts.concurrency, 10);
-        const rateLimit = parseInt(opts.rateLimit, 10);
-        const workers = parseInt(opts.workers, 10);
-        const chunkSize = parseInt(opts.chunkSize, 10);
+        const concurrency = parsePositiveInteger(opts.concurrency, '--concurrency');
+        const rateLimit = parsePositiveInteger(opts.rateLimit, '--rate-limit');
+        const workers = parsePositiveInteger(opts.workers, '--workers');
+        const chunkSize = parsePositiveInteger(opts.chunkSize, '--chunk-size');
 
         // Validate worker flag requires checkpoint
         if (workers > 1 && !opts.jobId && opts.resume === undefined) {

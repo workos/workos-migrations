@@ -106,9 +106,12 @@ export const SAML_CONNECTION_CSV_HEADERS = [
   'nameAttribute',
   'idpInitiatedEnabled',
   'requestSigningKey',
+  'requestSigningCert',
   'assertionEncryptionKey',
+  'assertionEncryptionCert',
   'nameIdEncryptionKey',
   'externalId',
+  'connectionType',
 ] as const;
 
 export const OIDC_CONNECTION_CSV_HEADERS = [
@@ -122,7 +125,18 @@ export const OIDC_CONNECTION_CSV_HEADERS = [
   'discoveryEndpoint',
   'customRedirectUri',
   'externalId',
+  'connectionType',
 ] as const;
+
+/**
+ * Columns added after the schema-1 contract shipped. Packages written by older
+ * exporters omit them; the validator accepts either shape and readers treat a
+ * missing column as an empty string.
+ */
+export const OPTIONAL_CSV_HEADERS: Partial<Record<string, readonly string[]>> = {
+  samlConnections: ['requestSigningCert', 'assertionEncryptionCert', 'connectionType'],
+  oidcConnections: ['connectionType'],
+};
 
 export const CUSTOM_ATTRIBUTE_MAPPING_CSV_HEADERS = [
   'externalId',
@@ -218,7 +232,7 @@ export const DEFAULT_IMPORTABILITY: MigrationPackageImportability = {
   memberships: 'automatic',
   roles: 'automatic',
   totpSecrets: 'automatic',
-  ssoConnections: 'handoff',
+  ssoConnections: 'automatic',
 };
 
 export type SecretRedactionMode = 'redacted' | 'included' | 'not-applicable';

@@ -1,0 +1,861 @@
+import fs from 'node:fs';
+import fsp from 'node:fs/promises';
+import path from 'node:path';
+import { parse } from 'csv-parse';
+import type { WorkOS } from '@workos-inc/node';
+import { PROXY_ROUTE_CSV_HEADERS } from '../package/manifest.js';
+import { getPackageFilePath } from '../package/writer.js';
+import { writeCsvRows, type CustomAttrRow, type OidcRow, type SamlRow } from '../sso/handoff.js';
+import {
+  buildOidcConnectionRequest,
+  buildSamlConnectionRequest,
+  connectionIdentityKey,
+  indexCustomAttributeMappings,
+  parseDomainListDetailed,
+  type ConnectionMappingResult,
+  type CustomAttributeIndex,
+} from '../sso/connection-request-mapper.js';
+import {
+  createConnection,
+  describeWorkOSApiError,
+  isConnectionsApiDisabledError,
+  isCustomAttributeError,
+  isRetryableConnectionsApiError,
+  CONNECTIONS_API_FEATURE_FLAG,
+  type ConnectionResponse,
+  type ConnectionsApiClient,
+  type CreateConnectionRequest,
+} from '../sso/connections-api.js';
+import {
+  createOrganization,
+  ensureOrganizationDomains,
+  getOrganizationByExternalId,
+} from '../import/org-api.js';
+import { RateLimiter, withRetry } from '../shared/rate-limiter.js';
+import * as logger from '../shared/logger.js';
+
+/**
+ * Creates WorkOS SSO connections from a migration package's `sso/` files via
+ * the Connections API (`POST /connections`).
+ *
+ * Per row: resolve or create the organization (adding exported domains as
+ * verified), translate the CSV row into a create request, call the API, and
+ * record the resulting connection id + callback endpoint. Results are written
+ * to `workos_sso_connections.csv` in the package root and, when present,
+ * copied into `sso/proxy_routes.csv` so callback proxies can be configured
+ * without a manual mapping step.
+ */
+
+export type SsoCustomAttributeMode = 'include' | 'skip';
+
+/**
+ * How exported `domains` are applied to organizations: added as verified
+ * (default; the migrating customer already proved ownership at the source),
+ * added as pending (customer verifies in the dashboard), or not touched.
+ */
+export type SsoDomainMode = 'verified' | 'pending' | 'skip';
+
+export const SSO_RESULTS_FILENAME = 'workos_sso_connections.csv';
+
+export const SSO_RESULT_CSV_HEADERS = [
+  'externalId',
+  'protocol',
+  'name',
+  'organizationExternalId',
+  'workosOrganizationId',
+  'workosConnectionId',
+  'connectionType',
+  'state',
+  'callbackEndpoint',
+  'acsUrl',
+  'spEntityId',
+  'redirectUri',
+  'domains',
+  'domainsAdded',
+  'outcome',
+  'code',
+  'error',
+  'warnings',
+] as const;
+
+export interface SsoImportOptions {
+  packageDir: string;
+  /** Required unless dryRun is true. */
+  workos?: WorkOS;
+  dryRun?: boolean;
+  quiet?: boolean;
+  /** Max Connections API requests per second. Defaults to 5. */
+  rateLimit?: number;
+  /** OIDC client secrets keyed by connection externalId; override CSV values. */
+  secrets?: Map<string, string>;
+  /** Whether to send custom attribute mappings. Defaults to include. */
+  customAttributes?: SsoCustomAttributeMode;
+  /** How exported domains are applied to organizations. Defaults to verified. */
+  domains?: SsoDomainMode;
+  /** JSONL file that receives one record per skipped/failed connection. */
+  errorsPath?: string;
+  /** Defaults to <packageDir>/workos_sso_connections.csv. */
+  resultsPath?: string;
+  /** Write connection ids/callbacks back into sso/proxy_routes.csv. Defaults to true. */
+  updateProxyRoutes?: boolean;
+}
+
+export type SsoConnectionOutcome =
+  | 'created'
+  | 'existing'
+  | 'planned'
+  | 'skipped'
+  | 'failed'
+  | 'not_attempted';
+
+export interface SsoConnectionResult {
+  externalId: string;
+  protocol: 'saml' | 'oidc';
+  name: string;
+  organizationExternalId: string;
+  organizationId?: string;
+  connectionId?: string;
+  connectionType?: string;
+  state?: string;
+  callbackEndpoint?: string;
+  acsUrl?: string;
+  spEntityId?: string;
+  redirectUri?: string;
+  domains: string[];
+  domainsAdded: string[];
+  outcome: SsoConnectionOutcome;
+  code?: string;
+  error?: string;
+  warnings: string[];
+}
+
+export interface SsoImportSummary {
+  status: 'imported' | 'planned' | 'handoff' | 'absent';
+  total: number;
+  succeeded: number;
+  failed: number;
+  skipped: number;
+  notAttempted: number;
+  warnings: string[];
+  notes: string[];
+  /** Custom attribute names referenced by the package (must exist in WorkOS). */
+  customAttributeNames: string[];
+  results: SsoConnectionResult[];
+  resultsPath?: string;
+  proxyRoutesUpdated: number;
+  /** True when POST /connections reported the migration capabilities flag is off. */
+  apiDisabled: boolean;
+}
+
+export interface SsoPackageRows {
+  saml: SamlRow[];
+  oidc: OidcRow[];
+  customAttributes: CustomAttrRow[];
+  proxyRoutes: Record<string, string>[];
+}
+
+export async function loadSsoPackageRows(packageDir: string): Promise<SsoPackageRows> {
+  const [saml, oidc, customAttributes, proxyRoutes] = await Promise.all([
+    readCsvRows(getPackageFilePath(packageDir, 'samlConnections')),
+    readCsvRows(getPackageFilePath(packageDir, 'oidcConnections')),
+    readCsvRows(getPackageFilePath(packageDir, 'customAttributeMappings')),
+    readCsvRows(getPackageFilePath(packageDir, 'proxyRoutes')),
+  ]);
+  return {
+    saml: saml as SamlRow[],
+    oidc: oidc as OidcRow[],
+    customAttributes: customAttributes as CustomAttrRow[],
+    proxyRoutes,
+  };
+}
+
+/** Unique custom attribute names referenced by `sso/custom_attribute_mappings.csv`. */
+export function collectCustomAttributeNames(rows: Iterable<Partial<CustomAttrRow>>): string[] {
+  return indexCustomAttributeMappings(rows).names();
+}
+
+/**
+ * Load OIDC client secrets from a sidecar file. Accepts JSON (`{ "<externalId>": "<secret>" }`
+ * or `[{ "externalId": "...", "clientSecret": "..." }]`) or CSV with `externalId` and
+ * `clientSecret` columns.
+ */
+export async function loadSsoSecrets(filePath: string): Promise<Map<string, string>> {
+  const secrets = new Map<string, string>();
+  const raw = await fsp.readFile(filePath, 'utf-8');
+
+  if (/\.json$/i.test(filePath) || /^\s*[[{]/.test(raw)) {
+    const parsed: unknown = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      for (const entry of parsed) {
+        if (!entry || typeof entry !== 'object') continue;
+        const record = entry as Record<string, unknown>;
+        const externalId = firstString(record, ['externalId', 'external_id']);
+        const secret = firstString(record, ['clientSecret', 'client_secret', 'secret']);
+        if (externalId && secret) secrets.set(externalId, secret);
+      }
+    } else if (parsed && typeof parsed === 'object') {
+      for (const [externalId, secret] of Object.entries(parsed as Record<string, unknown>)) {
+        if (typeof secret === 'string' && secret) secrets.set(externalId, secret);
+      }
+    }
+    return secrets;
+  }
+
+  const rows = await readCsvRows(filePath);
+  for (const row of rows) {
+    const externalId = firstString(row, ['externalId', 'external_id']);
+    const secret = firstString(row, ['clientSecret', 'client_secret', 'secret']);
+    if (externalId && secret) secrets.set(externalId, secret);
+  }
+  return secrets;
+}
+
+interface PlannedConnection {
+  protocol: 'saml' | 'oidc';
+  externalId: string;
+  name: string;
+  organizationId: string;
+  organizationExternalId: string;
+  organizationName: string;
+  domains: string[];
+  mapping: ConnectionMappingResult;
+}
+
+const PENDING_ORGANIZATION_ID = 'org_pending';
+
+export async function importSsoConnections(options: SsoImportOptions): Promise<SsoImportSummary> {
+  const packageDir = path.resolve(options.packageDir);
+  const dryRun = options.dryRun ?? false;
+  const quiet = options.quiet ?? false;
+  const customAttributeMode = options.customAttributes ?? 'include';
+  const domainMode = options.domains ?? 'verified';
+
+  const rows = await loadSsoPackageRows(packageDir);
+  const customAttributeNames = collectCustomAttributeNames(rows.customAttributes);
+
+  if (rows.saml.length === 0 && rows.oidc.length === 0) {
+    return {
+      status: 'absent',
+      total: 0,
+      succeeded: 0,
+      failed: 0,
+      skipped: 0,
+      notAttempted: 0,
+      warnings: [],
+      notes: [],
+      customAttributeNames,
+      results: [],
+      proxyRoutesUpdated: 0,
+      apiDisabled: false,
+    };
+  }
+
+  const customAttributes = indexCustomAttributeMappings(rows.customAttributes);
+  const planned = planConnections(rows, {
+    customAttributes,
+    customAttributeMode,
+    secrets: options.secrets,
+  });
+
+  const notes: string[] = [];
+  if (customAttributeMode === 'skip' && customAttributeNames.length > 0) {
+    notes.push(
+      `Custom attribute mappings were not sent (${customAttributeNames.join(', ')}). Add them to the connections in the WorkOS dashboard.`,
+    );
+  }
+
+  if (dryRun) {
+    const results = planned.map((entry) =>
+      entry.mapping.ok
+        ? baseResult(entry, 'planned')
+        : {
+            ...baseResult(entry, 'skipped'),
+            code: entry.mapping.code,
+            error: entry.mapping.message,
+          },
+    );
+    return finalizeSummary({
+      status: 'planned',
+      results,
+      notes,
+      customAttributeNames,
+      apiDisabled: false,
+      proxyRoutesUpdated: 0,
+    });
+  }
+
+  const workos = options.workos;
+  if (!workos) {
+    throw new Error('importSsoConnections requires options.workos when dryRun is false');
+  }
+
+  const limiter = new RateLimiter(options.rateLimit ?? 5);
+  const runStartedAt = Date.now();
+  const organizationCache = new Map<string, OrganizationIdentity>();
+  const results: SsoConnectionResult[] = [];
+  let apiDisabled = false;
+
+  for (const entry of planned) {
+    if (!entry.mapping.ok) {
+      results.push({
+        ...baseResult(entry, 'skipped'),
+        code: entry.mapping.code,
+        error: entry.mapping.message,
+      });
+      if (!quiet) logger.warn(`  Skipped ${entry.externalId}: ${entry.mapping.message}`);
+      continue;
+    }
+
+    if (apiDisabled) {
+      results.push({
+        ...baseResult(entry, 'not_attempted'),
+        code: 'connections_api_disabled',
+        error: 'Not attempted because the Connections API migration capabilities are disabled.',
+      });
+      continue;
+    }
+
+    const result = baseResult(entry, 'failed');
+
+    let organizationId: string;
+    try {
+      // Pace and retry organization resolution the same way as the POST below:
+      // a limiter token per outbound call, taken inside the retried callback.
+      const resolved = await withRetry(
+        () => resolveOrganization(workos, entry, organizationCache, domainMode, limiter),
+        { maxRetries: 3, retryOn: isRetryableConnectionsApiError },
+      );
+      organizationId = resolved.id;
+      result.organizationId = resolved.id;
+      result.organizationExternalId = resolved.externalId;
+      result.domainsAdded = resolved.domainsAdded;
+    } catch (error: unknown) {
+      const details = describeWorkOSApiError(error);
+      result.code = 'organization_resolution_failed';
+      result.error = details.message;
+      results.push(result);
+      if (!quiet) logger.error(`  Failed ${entry.externalId}: ${details.message}`);
+      continue;
+    }
+
+    // A row can name its organization by external id or by WorkOS id; scoped
+    // mappings and proxy routes may be keyed by either, so try both.
+    const organizationKeys = [result.organizationExternalId, result.organizationId].filter(
+      (key): key is string => Boolean(key),
+    );
+    const scopedAttributes =
+      customAttributeMode === 'include'
+        ? customAttributes.lookup(entry.externalId, organizationKeys)
+        : undefined;
+    if (customAttributeMode === 'include') {
+      const scopes = customAttributes.organizationScopes(entry.externalId);
+      if (scopes.length > 0 && !scopes.some((scope) => organizationKeys.includes(scope))) {
+        result.warnings.push(
+          `custom_attributes_organization_mismatch: mappings for ${entry.externalId} are scoped to organization(s) ${scopes.join(', ')}, which do not match this row's organization (${organizationKeys.join(', ') || 'none resolved'}); they were not sent.`,
+        );
+      }
+    }
+    const request: CreateConnectionRequest = {
+      ...entry.mapping.request,
+      organization_id: organizationId,
+      ...(scopedAttributes
+        ? {
+            attribute_maps: {
+              ...entry.mapping.request.attribute_maps,
+              custom_attributes: scopedAttributes,
+            },
+          }
+        : {}),
+    };
+
+    try {
+      // Acquire a token per attempt so retries after 429/5xx stay within the limit.
+      const connection = await withRetry(
+        async () => {
+          await limiter.acquire();
+          return createConnection(asApiClient(workos), request);
+        },
+        { maxRetries: 3, retryOn: isRetryableConnectionsApiError },
+      );
+      applyConnection(result, connection);
+      result.outcome = isPreexisting(connection, runStartedAt) ? 'existing' : 'created';
+      results.push(result);
+      if (!quiet) {
+        const verb = result.outcome === 'existing' ? 'Reused existing' : 'Created';
+        logger.success(
+          `  ${verb} ${entry.protocol.toUpperCase()} connection ${connection.id} for ${entry.externalId}`,
+        );
+      }
+    } catch (error: unknown) {
+      const details = describeWorkOSApiError(error);
+      if (isConnectionsApiDisabledError(error)) {
+        apiDisabled = true;
+        result.outcome = 'not_attempted';
+        result.code = 'connections_api_disabled';
+        result.error = details.message;
+        results.push(result);
+        if (!quiet) logger.warn(`  Connections API disabled: ${details.message}`);
+        continue;
+      }
+
+      result.code = details.code ?? (details.status ? `http_${details.status}` : 'request_failed');
+      result.error = details.message;
+      if (isCustomAttributeError(error) && request.attribute_maps?.custom_attributes) {
+        const names = Object.keys(request.attribute_maps.custom_attributes).join(', ');
+        result.error = `${details.message} Create the custom attribute(s) ${names} in the WorkOS dashboard and re-run import-package, or re-run with --sso-custom-attributes skip.`;
+      } else if (details.code === 'connection_already_exists_for_organization') {
+        result.error = `${details.message} This environment allows one SSO connection per organization. Give the connection its own organizationExternalId, or ask WorkOS to lift the restriction for the environment.`;
+      }
+      results.push(result);
+      if (!quiet) logger.error(`  Failed ${entry.externalId}: ${result.error}`);
+    }
+  }
+
+  if (apiDisabled) {
+    notes.push(
+      `POST /connections is not enabled for this environment (feature flag ${CONNECTIONS_API_FEATURE_FLAG}). Ask WorkOS to enable Connections API migration capabilities, then re-run import-package; creation is idempotent on externalId. Until then, follow sso/handoff_notes.md.`,
+    );
+  }
+
+  const resultsPath = options.resultsPath ?? path.join(packageDir, SSO_RESULTS_FILENAME);
+  await writeResultsCsv(resultsPath, results);
+
+  if (options.errorsPath) {
+    await appendErrorRecords(options.errorsPath, results);
+  }
+
+  let proxyRoutesUpdated = 0;
+  if (options.updateProxyRoutes ?? true) {
+    const proxyRoutes = await writeProxyRouteResults(packageDir, rows.proxyRoutes, results);
+    proxyRoutesUpdated = proxyRoutes.updated;
+    if (proxyRoutesUpdated > 0) {
+      notes.push(
+        `Updated ${proxyRoutesUpdated} row(s) in sso/proxy_routes.csv with WorkOS connection ids and callback endpoints.`,
+      );
+    }
+    if (proxyRoutes.unmatched.length > 0) {
+      notes.push(
+        `Left ${proxyRoutes.unmatched.length} row(s) in sso/proxy_routes.csv untouched because their organizationExternalId does not match the imported connection's organization (${proxyRoutes.unmatched.join(', ')}); update those rows by hand.`,
+      );
+    }
+  }
+
+  const created = results.filter((result) => result.outcome === 'created').length;
+  const existing = results.filter((result) => result.outcome === 'existing').length;
+  if (existing > 0) {
+    notes.push(
+      `${existing} connection(s) already existed with the same externalId and were left unchanged (POST /connections is idempotent on externalId and does not update configuration).`,
+    );
+  }
+  if (created > 0) {
+    notes.push(
+      'New connections start in the validating state and activate on the first successful sign-in. Update customer IdPs (or the callback proxy) to the callbackEndpoint values in workos_sso_connections.csv.',
+    );
+  }
+
+  return finalizeSummary({
+    status: apiDisabled ? 'handoff' : 'imported',
+    results,
+    notes,
+    customAttributeNames,
+    apiDisabled,
+    proxyRoutesUpdated,
+    resultsPath,
+  });
+}
+
+function planConnections(
+  rows: SsoPackageRows,
+  context: {
+    customAttributes: CustomAttributeIndex;
+    customAttributeMode: SsoCustomAttributeMode;
+    secrets?: Map<string, string>;
+  },
+): PlannedConnection[] {
+  const planned: PlannedConnection[] = [];
+  const customAttributesFor = (row: SamlRow | OidcRow): Record<string, string> | undefined =>
+    context.customAttributeMode === 'skip'
+      ? undefined
+      : context.customAttributes.lookup(clean(row.externalId), clean(row.organizationExternalId));
+
+  for (const row of rows.saml) {
+    const mapping = buildSamlConnectionRequest({
+      row,
+      organizationId: PENDING_ORGANIZATION_ID,
+      customAttributes: customAttributesFor(row),
+    });
+    planned.push(toPlanned('saml', row, mapping));
+  }
+
+  for (const row of rows.oidc) {
+    const mapping = buildOidcConnectionRequest({
+      row,
+      organizationId: PENDING_ORGANIZATION_ID,
+      customAttributes: customAttributesFor(row),
+      clientSecret: context.secrets?.get(clean(row.externalId)),
+    });
+    planned.push(toPlanned('oidc', row, mapping));
+  }
+
+  // external_id is unique per WorkOS environment, so a repeated externalId in
+  // the package can never be created twice; skip later occurrences up front.
+  const seen = new Set<string>();
+  for (const entry of planned) {
+    if (!entry.mapping.ok) continue;
+    const key = clean(entry.mapping.request.external_id);
+    if (seen.has(key)) {
+      entry.mapping = {
+        ok: false,
+        protocol: entry.protocol,
+        code: 'duplicate_external_id',
+        message: `externalId "${key}" appears more than once in the package; external_id is unique per WorkOS environment. Give each connection its own externalId.`,
+        warnings: entry.mapping.warnings,
+      };
+    } else {
+      seen.add(key);
+    }
+  }
+
+  return planned;
+}
+
+function toPlanned(
+  protocol: 'saml' | 'oidc',
+  row: SamlRow | OidcRow,
+  mapping: ConnectionMappingResult,
+): PlannedConnection {
+  const organizationId = clean(row.organizationId);
+  const organizationExternalId = clean(row.organizationExternalId);
+  let effectiveMapping = mapping;
+  if (mapping.ok && !organizationId && !organizationExternalId) {
+    effectiveMapping = {
+      ok: false,
+      protocol,
+      code: 'missing_organization',
+      message: 'Row has neither organizationId nor organizationExternalId.',
+      warnings: mapping.warnings,
+    };
+  }
+  const { domains, wildcards } = parseDomainListDetailed(row.domains);
+  if (wildcards.length > 0) {
+    effectiveMapping.warnings.push({
+      code: 'wildcard_domains_dropped',
+      message: `Wildcard domain(s) ${wildcards.join(', ')} are not valid organization domains and were dropped; add the concrete subdomains to the organization in the WorkOS dashboard.`,
+    });
+  }
+  return {
+    protocol,
+    externalId: clean(row.externalId) || clean(row.name) || '(no externalId)',
+    name: clean(row.name) || clean(row.organizationName) || clean(row.externalId),
+    organizationId,
+    organizationExternalId,
+    organizationName: clean(row.organizationName),
+    domains,
+    mapping: effectiveMapping,
+  };
+}
+
+interface OrganizationIdentity {
+  id: string;
+  externalId: string;
+}
+
+interface ResolvedOrganization extends OrganizationIdentity {
+  domainsAdded: string[];
+}
+
+async function resolveOrganization(
+  workos: WorkOS,
+  entry: PlannedConnection,
+  cache: Map<string, OrganizationIdentity>,
+  domainMode: SsoDomainMode,
+  limiter: RateLimiter,
+): Promise<ResolvedOrganization> {
+  const cacheKey = entry.organizationId
+    ? `id:${entry.organizationId}`
+    : `ext:${entry.organizationExternalId}`;
+
+  let organization = cache.get(cacheKey);
+  let domainsAdded: string[] = [];
+
+  if (!organization) {
+    if (entry.organizationId) {
+      try {
+        await limiter.acquire();
+        const existing = await workos.organizations.getOrganization(entry.organizationId);
+        organization = { id: existing.id, externalId: clean(existing.externalId) };
+      } catch (error: unknown) {
+        if (describeWorkOSApiError(error).status === 404) {
+          throw new Error(`Organization ${entry.organizationId} was not found in WorkOS.`, {
+            cause: error,
+          });
+        }
+        throw error;
+      }
+    } else {
+      await limiter.acquire();
+      const existing = await getOrganizationByExternalId(workos, entry.organizationExternalId);
+      if (existing) {
+        organization = { id: existing, externalId: entry.organizationExternalId };
+      } else {
+        const name = entry.organizationName || entry.organizationExternalId;
+        const domainData =
+          domainMode === 'skip'
+            ? []
+            : entry.domains.map((domain) => ({ domain, state: domainMode }));
+        await limiter.acquire();
+        const id = await createOrganization(workos, name, entry.organizationExternalId, domainData);
+        organization = { id, externalId: entry.organizationExternalId };
+        domainsAdded = domainData.map((d) => d.domain);
+        cache.set(cacheKey, organization);
+        return { ...organization, domainsAdded };
+      }
+    }
+    cache.set(cacheKey, organization);
+  }
+
+  const { id } = organization;
+  if (domainMode !== 'skip' && entry.domains.length > 0) {
+    try {
+      const ensured = await ensureOrganizationDomains(workos, id, entry.domains, domainMode, () =>
+        limiter.acquire(),
+      );
+      domainsAdded = ensured.added;
+    } catch (error: unknown) {
+      const details = describeWorkOSApiError(error);
+      throw new Error(
+        `Could not add domain(s) ${entry.domains.join(', ')} to organization ${id}: ${details.message}`,
+        { cause: error },
+      );
+    }
+  }
+
+  return {
+    id,
+    externalId: entry.organizationExternalId || organization.externalId,
+    domainsAdded,
+  };
+}
+
+/** A connection whose created_at predates this run was returned by external_id idempotency. */
+function isPreexisting(connection: ConnectionResponse, runStartedAt: number): boolean {
+  const createdAt = Date.parse(connection.created_at ?? '');
+  if (Number.isNaN(createdAt)) return false;
+  return createdAt < runStartedAt - 5_000;
+}
+
+function applyConnection(result: SsoConnectionResult, connection: ConnectionResponse): void {
+  result.connectionId = connection.id;
+  result.connectionType = connection.connection_type;
+  result.state = connection.state;
+  result.callbackEndpoint = connection.callback_endpoint ?? undefined;
+  result.acsUrl = connection.saml_options?.acs_url ?? undefined;
+  result.spEntityId = connection.saml_options?.sp_entity_id ?? undefined;
+  result.redirectUri = connection.oidc_options?.redirect_uri ?? undefined;
+  if (connection.organization_id) {
+    // WorkOS owns the connection's organization (the package may name it wrong
+    // or not at all), but a re-run that lands on a different organization than
+    // the row asked for must not read as a clean success.
+    if (result.organizationId && result.organizationId !== connection.organization_id) {
+      const requested = result.organizationExternalId
+        ? `${result.organizationId} (${result.organizationExternalId})`
+        : result.organizationId;
+      result.warnings.push(
+        `organization_mismatch: row requested organization ${requested} but connection ${connection.id} belongs to ${connection.organization_id}; kept the organization WorkOS returned.`,
+      );
+    }
+    result.organizationId = connection.organization_id;
+  }
+}
+
+function baseResult(entry: PlannedConnection, outcome: SsoConnectionOutcome): SsoConnectionResult {
+  return {
+    externalId: entry.externalId,
+    protocol: entry.protocol,
+    name: entry.name,
+    organizationExternalId: entry.organizationExternalId,
+    ...(entry.organizationId ? { organizationId: entry.organizationId } : {}),
+    domains: [...entry.domains],
+    domainsAdded: [],
+    outcome,
+    warnings: entry.mapping.warnings.map((warning) => `${warning.code}: ${warning.message}`),
+  };
+}
+
+function finalizeSummary(input: {
+  status: SsoImportSummary['status'];
+  results: SsoConnectionResult[];
+  notes: string[];
+  customAttributeNames: string[];
+  apiDisabled: boolean;
+  proxyRoutesUpdated: number;
+  resultsPath?: string;
+}): SsoImportSummary {
+  const count = (outcome: SsoConnectionOutcome): number =>
+    input.results.filter((result) => result.outcome === outcome).length;
+
+  const warnings: string[] = [];
+  for (const result of input.results) {
+    for (const warning of result.warnings) {
+      warnings.push(`${result.externalId}: ${warning}`);
+    }
+    if (result.outcome === 'skipped' && result.error) {
+      warnings.push(`${result.externalId}: skipped (${result.code}) ${result.error}`);
+    }
+  }
+
+  return {
+    status: input.status,
+    total: input.results.length,
+    succeeded: input.status === 'planned' ? count('planned') : count('created') + count('existing'),
+    failed: count('failed'),
+    skipped: count('skipped'),
+    notAttempted: count('not_attempted'),
+    warnings,
+    notes: input.notes,
+    customAttributeNames: input.customAttributeNames,
+    results: input.results,
+    ...(input.resultsPath ? { resultsPath: input.resultsPath } : {}),
+    proxyRoutesUpdated: input.proxyRoutesUpdated,
+    apiDisabled: input.apiDisabled,
+  };
+}
+
+async function writeResultsCsv(filePath: string, results: SsoConnectionResult[]): Promise<void> {
+  await writeCsvRows(
+    filePath,
+    SSO_RESULT_CSV_HEADERS,
+    results.map((result) => ({
+      externalId: result.externalId,
+      protocol: result.protocol,
+      name: result.name,
+      organizationExternalId: result.organizationExternalId,
+      workosOrganizationId: result.organizationId ?? '',
+      workosConnectionId: result.connectionId ?? '',
+      connectionType: result.connectionType ?? '',
+      state: result.state ?? '',
+      callbackEndpoint: result.callbackEndpoint ?? '',
+      acsUrl: result.acsUrl ?? '',
+      spEntityId: result.spEntityId ?? '',
+      redirectUri: result.redirectUri ?? '',
+      domains: result.domains.join(';'),
+      domainsAdded: result.domainsAdded.join(';'),
+      outcome: result.outcome,
+      code: result.code ?? '',
+      error: result.error ?? '',
+      warnings: result.warnings.join(' | '),
+    })),
+  );
+}
+
+async function appendErrorRecords(
+  errorsPath: string,
+  results: SsoConnectionResult[],
+): Promise<void> {
+  const lines = results
+    .filter((result) => result.outcome === 'failed' || result.outcome === 'skipped')
+    .map((result) =>
+      JSON.stringify({
+        entity: 'sso_connection',
+        externalId: result.externalId,
+        protocol: result.protocol,
+        organizationExternalId: result.organizationExternalId,
+        outcome: result.outcome,
+        code: result.code,
+        message: result.error,
+      }),
+    );
+  if (lines.length === 0) return;
+  await fsp.mkdir(path.dirname(errorsPath), { recursive: true });
+  await fsp.appendFile(errorsPath, `${lines.join('\n')}\n`, 'utf-8');
+}
+
+export interface ProxyRouteUpdateResult {
+  updated: number;
+  /** Rows naming an imported connection under an organization it does not have. */
+  unmatched: string[];
+}
+
+/**
+ * Copy created connection ids and callback endpoints into `sso/proxy_routes.csv`
+ * rows with a matching externalId. Reports how many rows were updated and which
+ * ones named an organization the connection does not belong to.
+ */
+export async function writeProxyRouteResults(
+  packageDir: string,
+  proxyRoutes: Record<string, string>[],
+  results: SsoConnectionResult[],
+): Promise<ProxyRouteUpdateResult> {
+  const unmatched: string[] = [];
+  if (proxyRoutes.length === 0) return { updated: 0, unmatched };
+  const created = results.filter(
+    (result) =>
+      (result.outcome === 'created' || result.outcome === 'existing') && result.connectionId,
+  );
+  if (created.length === 0) return { updated: 0, unmatched };
+  // Match on (externalId, organizationExternalId) when the proxy row is
+  // organization-scoped; fall back to externalId alone otherwise. A row can
+  // name its organization by external id or by WorkOS id, so index both.
+  const byIdentity = new Map<string, SsoConnectionResult>();
+  for (const result of created) {
+    for (const org of [result.organizationExternalId, result.organizationId]) {
+      if (org) byIdentity.set(connectionIdentityKey(result.externalId, org), result);
+    }
+  }
+  const byExternalId = new Map(created.map((result) => [result.externalId, result]));
+
+  let updated = 0;
+  const rows = proxyRoutes.map((row) => {
+    const org = clean(row.organizationExternalId);
+    const externalId = clean(row.externalId);
+    const match = org
+      ? byIdentity.get(connectionIdentityKey(externalId, org))
+      : byExternalId.get(externalId);
+    if (!match) {
+      if (org && byExternalId.has(externalId)) unmatched.push(`${externalId} (${org})`);
+      return row;
+    }
+    updated += 1;
+    return {
+      ...row,
+      workosConnectionId: match.connectionId ?? '',
+      workosAcsUrl: match.callbackEndpoint ?? match.acsUrl ?? match.redirectUri ?? '',
+    };
+  });
+
+  if (updated === 0) return { updated: 0, unmatched };
+  await writeCsvRows(getPackageFilePath(packageDir, 'proxyRoutes'), PROXY_ROUTE_CSV_HEADERS, rows);
+  return { updated, unmatched };
+}
+
+function asApiClient(workos: WorkOS): ConnectionsApiClient {
+  return workos as unknown as ConnectionsApiClient;
+}
+
+export async function readCsvRows(filePath: string): Promise<Record<string, string>[]> {
+  try {
+    await fsp.access(filePath);
+  } catch {
+    return [];
+  }
+  return new Promise<Record<string, string>[]>((resolve, reject) => {
+    const rows: Record<string, string>[] = [];
+    fs.createReadStream(filePath)
+      .pipe(parse({ columns: true, skip_empty_lines: true, trim: true, bom: true }))
+      .on('data', (row: Record<string, string>) => rows.push(row))
+      .on('end', () => resolve(rows))
+      .on('error', reject);
+  });
+}
+
+function firstString(record: Record<string, unknown>, keys: string[]): string {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return '';
+}
+
+function clean(value: unknown): string {
+  return value == null ? '' : String(value).trim();
+}

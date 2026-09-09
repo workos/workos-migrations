@@ -9,6 +9,10 @@ import {
   type SamlRow,
   type SsoHandoffWarning,
 } from '../../sso/handoff.js';
+import {
+  inferSamlConnectionTypeFromUrl,
+  type WorkOSSamlConnectionType,
+} from '../../sso/connection-types.js';
 
 /**
  * Top-level Clerk EnterpriseConnection (unified SAML + OIDC), returned by
@@ -21,6 +25,8 @@ import {
 export interface ClerkEnterpriseConnection {
   id: string;
   name?: string | null;
+  /** Clerk provider slug, e.g. `saml_okta`, `saml_microsoft`, `saml_google`, `saml_custom`. */
+  provider?: string | null;
   active?: boolean;
   domains?: string[] | null;
   allow_subdomains?: boolean;
@@ -212,6 +218,10 @@ function mapSamlConnection(
     lastNameAttribute,
     idpInitiatedEnabled: saml.allow_idp_initiated ? 'true' : '',
     externalId,
+    connectionType:
+      clerkProviderToConnectionType(connection.provider) ??
+      inferSamlConnectionTypeFromUrl(idpMetadataUrl, idpUrl, idpEntityId) ??
+      '',
   });
 
   const customAttributeRows: CustomAttrRow[] = [];
@@ -320,4 +330,18 @@ function normalizeDomains(
     if (allowSubdomains) seen.add(`*.${trimmed}`);
   }
   return [...seen];
+}
+
+const CLERK_PROVIDER_CONNECTION_TYPES: Record<string, WorkOSSamlConnectionType> = {
+  saml_okta: 'OktaSAML',
+  saml_microsoft: 'AzureSAML',
+  saml_google: 'GoogleSAML',
+};
+
+/** Map a Clerk SAML provider slug to a WorkOS connection type; undefined for custom/unknown. */
+export function clerkProviderToConnectionType(
+  provider: string | null | undefined,
+): WorkOSSamlConnectionType | undefined {
+  if (!provider) return undefined;
+  return CLERK_PROVIDER_CONNECTION_TYPES[provider.trim().toLowerCase()];
 }

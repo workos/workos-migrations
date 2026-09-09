@@ -1436,7 +1436,7 @@ function buildHandoffNotes(input: { includeSso: boolean; includeSecrets: boolean
   return [
     '# Auth0 SSO handoff notes',
     '',
-    'Auth0 SSO export is handoff-only. The package writes SAML and OIDC connection CSVs for WorkOS/manual processing and does not create WorkOS SSO connections automatically.',
+    'The package writes SAML and OIDC connection CSVs that `import-package` creates in WorkOS through the Connections API (POST /connections). If the Connections API migration capabilities are not enabled for the target environment, use these files for manual processing instead.',
     'Auth0 enterprise strategies are inspected for SAML/OIDC configuration, and only connections with enough reliable handoff data are emitted. Database, passwordless, social, generic OAuth, non-SAML/OIDC enterprise, and incomplete connections are skipped with warnings.',
     'If one Auth0 connection is enabled for multiple Auth0 organizations, the exporter writes one handoff row with the union of source organization domains and a confirmation warning.',
     input.includeSecrets

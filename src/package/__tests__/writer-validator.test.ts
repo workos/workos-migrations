@@ -1,7 +1,11 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { MIGRATION_PACKAGE_FILES } from '../manifest';
+import {
+  MIGRATION_PACKAGE_FILES,
+  OPTIONAL_CSV_HEADERS,
+  SAML_CONNECTION_CSV_HEADERS,
+} from '../manifest';
 import {
   createMigrationPackage,
   loadMigrationPackage,
@@ -199,5 +203,34 @@ describe('migration package writer and validator', () => {
     const validation = await validateMigrationPackage(tempRoot);
     expect(validation.valid).toBe(false);
     expect(validation.errors.some((issue) => issue.code === 'invalid_csv_header')).toBe(true);
+  });
+});
+
+describe('legacy SSO CSV headers', () => {
+  it('accepts saml_connections.csv written before the Connections API columns existed', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'workos-legacy-headers-'));
+    try {
+      await createMigrationPackage({ provider: 'auth0', rootDir: root, warnings: [] });
+      const optional = OPTIONAL_CSV_HEADERS.samlConnections ?? [];
+      const legacyHeaders = SAML_CONNECTION_CSV_HEADERS.filter(
+        (header) => !optional.includes(header),
+      );
+      fs.writeFileSync(
+        path.join(root, MIGRATION_PACKAGE_FILES.samlConnections),
+        `${legacyHeaders.join(',')}\n`,
+      );
+
+      const result = await validateMigrationPackage(root);
+      expect(result.errors.filter((issue) => issue.code === 'invalid_csv_header')).toEqual([]);
+
+      fs.writeFileSync(
+        path.join(root, MIGRATION_PACKAGE_FILES.samlConnections),
+        `${legacyHeaders.slice(1).join(',')}\n`,
+      );
+      const drifted = await validateMigrationPackage(root);
+      expect(drifted.errors.some((issue) => issue.code === 'invalid_csv_header')).toBe(true);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   });
 });
