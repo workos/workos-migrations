@@ -9,10 +9,14 @@ export class RateLimiter {
   private readonly maxTokens: number;
   private readonly refillRate: number;
   private lastRefill: number;
+  private queue: Promise<void> = Promise.resolve();
 
   constructor(tokensPerSecond: number) {
-    this.maxTokens = tokensPerSecond;
-    this.tokens = tokensPerSecond;
+    if (!Number.isFinite(tokensPerSecond) || tokensPerSecond <= 0) {
+      throw new Error('Rate limit must be a positive finite number');
+    }
+    this.maxTokens = Math.max(1, tokensPerSecond);
+    this.tokens = this.maxTokens;
     this.refillRate = tokensPerSecond;
     this.lastRefill = Date.now();
   }
@@ -24,18 +28,17 @@ export class RateLimiter {
     this.lastRefill = now;
   }
 
-  async acquire(): Promise<void> {
-    this.refill();
-
-    if (this.tokens >= 1) {
+  acquire(): Promise<void> {
+    const request = this.queue.then(async () => {
+      this.refill();
+      while (this.tokens < 1) {
+        await sleep(Math.ceil(((1 - this.tokens) / this.refillRate) * 1000));
+        this.refill();
+      }
       this.tokens -= 1;
-      return;
-    }
-
-    const waitMs = ((1 - this.tokens) / this.refillRate) * 1000;
-    await sleep(waitMs);
-    this.refill();
-    this.tokens -= 1;
+    });
+    this.queue = request.catch(() => {});
+    return request;
   }
 
   getAvailableTokens(): number {
@@ -73,32 +76,47 @@ export async function withRetry<T>(
       if (attempt === maxRetries) break;
       if (retryOn && !retryOn(error)) break;
 
-      const retryAfter = getRetryAfterMs(error);
-      const delay = retryAfter ?? baseDelayMs * Math.pow(2, attempt);
-      await sleep(delay);
+      await sleep(getRetryDelayMs(error, attempt, baseDelayMs));
     }
   }
 
   throw lastError;
 }
 
+export function getRetryDelayMs(error: unknown, attempt: number, baseDelayMs = 500): number {
+  const retryAfter = getRetryAfterMs(error);
+  if (retryAfter !== undefined) return retryAfter;
+  const backoff = baseDelayMs * Math.pow(2, attempt);
+  return backoff + Math.floor(Math.random() * backoff * 0.25);
+}
+
 function getRetryAfterMs(error: unknown): number | undefined {
-  if (
-    error &&
-    typeof error === 'object' &&
-    'response' in error &&
-    error.response &&
-    typeof error.response === 'object' &&
-    'headers' in error.response
-  ) {
-    const headers = (error.response as { headers?: Record<string, string> }).headers;
-    const retryAfter = headers?.['retry-after'];
-    if (retryAfter) {
-      const seconds = parseFloat(retryAfter);
-      if (!isNaN(seconds)) return seconds * 1000;
+  if (!error || typeof error !== 'object') return undefined;
+  const sdkDelay = 'retryAfter' in error ? parseRetryAfter(error.retryAfter) : undefined;
+  if (sdkDelay !== undefined) return sdkDelay;
+  if ('response' in error && error.response && typeof error.response === 'object') {
+    const response = error.response;
+    if (!('headers' in response)) return undefined;
+    const headers = response.headers;
+    if (headers instanceof Headers) return parseRetryAfter(headers.get('retry-after'));
+    if (headers && typeof headers === 'object') {
+      const header = Object.entries(headers).find(([key]) => key.toLowerCase() === 'retry-after');
+      return parseRetryAfter(header?.[1]);
     }
   }
   return undefined;
+}
+
+function parseRetryAfter(value: unknown): number | undefined {
+  if (typeof value !== 'number' && typeof value !== 'string') return undefined;
+  if (typeof value === 'string' && !value.trim()) return undefined;
+  const seconds = Number(value);
+  if (!Number.isNaN(seconds)) {
+    return Number.isFinite(seconds) && seconds >= 0 ? seconds * 1000 : undefined;
+  }
+  if (typeof value !== 'string') return undefined;
+  const date = Date.parse(value);
+  return Number.isNaN(date) ? undefined : Math.max(0, date - Date.now());
 }
 
 /**

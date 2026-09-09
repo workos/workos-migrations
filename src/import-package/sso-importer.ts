@@ -29,7 +29,6 @@ import {
 import {
   createOrganization,
   ensureOrganizationDomains,
-  getOrganizationById,
   getOrganizationByExternalId,
 } from '../import/org-api.js';
 import { RateLimiter, withRetry } from '../shared/rate-limiter.js';
@@ -251,8 +250,9 @@ export async function importSsoConnections(options: SsoImportOptions): Promise<S
     };
   }
 
+  const customAttributes = indexCustomAttributeMappings(rows.customAttributes);
   const planned = planConnections(rows, {
-    customAttributes: indexCustomAttributeMappings(rows.customAttributes),
+    customAttributes,
     customAttributeMode,
     secrets: options.secrets,
   });
@@ -291,7 +291,7 @@ export async function importSsoConnections(options: SsoImportOptions): Promise<S
 
   const limiter = new RateLimiter(options.rateLimit ?? 5);
   const runStartedAt = Date.now();
-  const organizationCache = new Map<string, string>();
+  const organizationCache = new Map<string, OrganizationIdentity>();
   const results: SsoConnectionResult[] = [];
   let apiDisabled = false;
 
@@ -322,8 +322,8 @@ export async function importSsoConnections(options: SsoImportOptions): Promise<S
       const resolved = await resolveOrganization(workos, entry, organizationCache, domainMode);
       organizationId = resolved.id;
       result.organizationId = resolved.id;
+      result.organizationExternalId = resolved.externalId;
       result.domainsAdded = resolved.domainsAdded;
-      result.warnings.push(...resolved.warnings);
     } catch (error: unknown) {
       const details = describeWorkOSApiError(error);
       result.code = 'organization_resolution_failed';
@@ -333,9 +333,21 @@ export async function importSsoConnections(options: SsoImportOptions): Promise<S
       continue;
     }
 
+    const scopedAttributes =
+      customAttributeMode === 'include'
+        ? customAttributes.lookup(entry.externalId, result.organizationExternalId)
+        : undefined;
     const request: CreateConnectionRequest = {
       ...entry.mapping.request,
       organization_id: organizationId,
+      ...(scopedAttributes
+        ? {
+            attribute_maps: {
+              ...entry.mapping.request.attribute_maps,
+              custom_attributes: scopedAttributes,
+            },
+          }
+        : {}),
     };
 
     try {
@@ -512,65 +524,80 @@ function toPlanned(
   };
 }
 
-interface ResolvedOrganization {
+interface OrganizationIdentity {
   id: string;
+  externalId: string;
+}
+
+interface ResolvedOrganization extends OrganizationIdentity {
   domainsAdded: string[];
-  warnings: string[];
 }
 
 async function resolveOrganization(
   workos: WorkOS,
   entry: PlannedConnection,
-  cache: Map<string, string>,
+  cache: Map<string, OrganizationIdentity>,
   domainMode: SsoDomainMode,
 ): Promise<ResolvedOrganization> {
-  const warnings: string[] = [];
   const cacheKey = entry.organizationId
     ? `id:${entry.organizationId}`
     : `ext:${entry.organizationExternalId}`;
 
-  let id = cache.get(cacheKey);
+  let organization = cache.get(cacheKey);
   let domainsAdded: string[] = [];
 
-  if (!id) {
+  if (!organization) {
     if (entry.organizationId) {
-      const exists = await getOrganizationById(workos, entry.organizationId);
-      if (!exists) {
-        throw new Error(`Organization ${entry.organizationId} was not found in WorkOS.`);
+      try {
+        const existing = await workos.organizations.getOrganization(entry.organizationId);
+        organization = { id: existing.id, externalId: clean(existing.externalId) };
+      } catch (error: unknown) {
+        if (describeWorkOSApiError(error).status === 404) {
+          throw new Error(`Organization ${entry.organizationId} was not found in WorkOS.`, {
+            cause: error,
+          });
+        }
+        throw error;
       }
-      id = entry.organizationId;
     } else {
       const existing = await getOrganizationByExternalId(workos, entry.organizationExternalId);
       if (existing) {
-        id = existing;
+        organization = { id: existing, externalId: entry.organizationExternalId };
       } else {
         const name = entry.organizationName || entry.organizationExternalId;
         const domainData =
           domainMode === 'skip'
             ? []
             : entry.domains.map((domain) => ({ domain, state: domainMode }));
-        id = await createOrganization(workos, name, entry.organizationExternalId, domainData);
+        const id = await createOrganization(workos, name, entry.organizationExternalId, domainData);
+        organization = { id, externalId: entry.organizationExternalId };
         domainsAdded = domainData.map((d) => d.domain);
-        cache.set(cacheKey, id);
-        return { id, domainsAdded, warnings };
+        cache.set(cacheKey, organization);
+        return { ...organization, domainsAdded };
       }
     }
-    cache.set(cacheKey, id);
+    cache.set(cacheKey, organization);
   }
 
+  const { id } = organization;
   if (domainMode !== 'skip' && entry.domains.length > 0) {
     try {
       const ensured = await ensureOrganizationDomains(workos, id, entry.domains, domainMode);
       domainsAdded = ensured.added;
     } catch (error: unknown) {
       const details = describeWorkOSApiError(error);
-      warnings.push(
+      throw new Error(
         `Could not add domain(s) ${entry.domains.join(', ')} to organization ${id}: ${details.message}`,
+        { cause: error },
       );
     }
   }
 
-  return { id, domainsAdded, warnings };
+  return {
+    id,
+    externalId: entry.organizationExternalId || organization.externalId,
+    domainsAdded,
+  };
 }
 
 /** A connection whose created_at predates this run was returned by external_id idempotency. */

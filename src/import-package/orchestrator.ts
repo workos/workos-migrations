@@ -3,7 +3,7 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { parse } from 'csv-parse';
 import type { WorkOS } from '@workos-inc/node';
-import { runImport } from '../import/importer.js';
+import { runImport, DEFAULT_IMPORT_RATE_LIMIT } from '../import/importer.js';
 import { getOrganizationByExternalId } from '../import/org-api.js';
 import {
   validateMigrationPackage,
@@ -242,7 +242,7 @@ export async function importPackage(options: ImportPackageOptions): Promise<Impo
         workos: options.workos,
         csvPath: path.join(resolvedDir, 'users.csv'),
         concurrency: options.concurrency ?? 10,
-        rateLimit: options.rateLimit ?? 50,
+        rateLimit: options.rateLimit ?? DEFAULT_IMPORT_RATE_LIMIT,
         orgId: null,
         createOrgIfMissing: true,
         dryRun: false,
@@ -401,7 +401,7 @@ export async function importPackage(options: ImportPackageOptions): Promise<Impo
         inputPath: path.join(resolvedDir, 'totp_secrets.csv'),
         format: 'csv',
         concurrency: options.concurrency ?? 5,
-        rateLimit: Math.min(options.rateLimit ?? 50, 10),
+        rateLimit: Math.min(options.rateLimit ?? DEFAULT_IMPORT_RATE_LIMIT, 10),
         dryRun: false,
         errorsPath: path.join(resolvedDir, 'workos_totp_errors.jsonl'),
         quiet: true,

@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { DEFAULT_IMPORT_RATE_LIMIT } from '../../import/importer.js';
 import { Command } from 'commander';
 import chalk from 'chalk';
 import prompts from 'prompts';
@@ -25,7 +26,11 @@ export function registerImportPackageCommand(program: Command): void {
     .option('--dry-run', 'Validate and plan without contacting WorkOS')
     .option('--plan', 'Print the import plan only and exit')
     .option('--concurrency <n>', 'Concurrent API requests during user import', '10')
-    .option('--rate-limit <n>', 'Max requests per second during user import', '50')
+    .option(
+      '--rate-limit <n>',
+      'Max requests per second during user import',
+      String(DEFAULT_IMPORT_RATE_LIMIT),
+    )
     .option('--errors <path>', 'Path for per-row import errors')
     .option('--summary <path>', 'Path for the workos_import_summary.json file')
     .option('--endpoint <url>', 'WorkOS API endpoint URL (overrides WORKOS_API_URL)')

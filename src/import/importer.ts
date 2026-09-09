@@ -9,13 +9,15 @@ import type {
   ChunkMetadata,
   ChunkSummary,
 } from '../shared/types.js';
-import { RateLimiter } from '../shared/rate-limiter.js';
+import { RateLimiter, getRetryDelayMs } from '../shared/rate-limiter.js';
 import { isDuplicateUserError } from '../shared/workos-client.js';
 import { OrgCache } from './org-cache.js';
 import { CheckpointManager } from './checkpoint.js';
 import { ErrorWriter } from './error-writer.js';
 import { formatDuration, printImportSummary } from '../shared/progress.js';
 import * as logger from '../shared/logger.js';
+
+export const DEFAULT_IMPORT_RATE_LIMIT = 40;
 
 // ---------------------------------------------------------------------------
 // Semaphore for concurrency control
@@ -213,14 +215,7 @@ async function retryCreateUser(
       const isRetryable = status === 429 || status === 408 || /rate.?limit/i.test(message);
       attempt += 1;
       if (isRetryable && attempt <= maxRetries) {
-        let delay = baseDelayMs * Math.pow(2, attempt - 1);
-        const retryAfter =
-          err?.response?.headers?.['retry-after'] ?? err?.response?.headers?.['Retry-After'];
-        if (retryAfter) {
-          const seconds = parseInt(retryAfter, 10);
-          if (!isNaN(seconds)) delay = seconds * 1000;
-        }
-        await new Promise((r) => setTimeout(r, delay));
+        await new Promise((r) => setTimeout(r, getRetryDelayMs(err, attempt - 1, baseDelayMs)));
         continue;
       }
       throw err;
@@ -294,7 +289,7 @@ async function retryCreateMembership(
               retryAttempt += 1;
               if (retryIsRetryable && retryAttempt <= maxRetries) {
                 await new Promise((r) =>
-                  setTimeout(r, baseDelayMs * Math.pow(2, retryAttempt - 1)),
+                  setTimeout(r, getRetryDelayMs(retryErr, retryAttempt - 1, baseDelayMs)),
                 );
                 continue;
               }
@@ -307,14 +302,7 @@ async function retryCreateMembership(
 
       attempt += 1;
       if (isRetryable && attempt <= maxRetries) {
-        let delay = baseDelayMs * Math.pow(2, attempt - 1);
-        const retryAfter =
-          err?.response?.headers?.['retry-after'] ?? err?.response?.headers?.['Retry-After'];
-        if (retryAfter) {
-          const seconds = parseInt(retryAfter, 10);
-          if (!isNaN(seconds)) delay = seconds * 1000;
-        }
-        await new Promise((r) => setTimeout(r, delay));
+        await new Promise((r) => setTimeout(r, getRetryDelayMs(err, attempt - 1, baseDelayMs)));
         continue;
       }
       throw err;
@@ -439,7 +427,7 @@ async function runStreamingMode(options: ImporterOptions): Promise<ImportSummary
         summary.totalRows += 1;
         const email = typeof rowData.email === 'string' ? rowData.email : undefined;
 
-        const task = (async () => {
+        const task = async () => {
           const built = buildUserAndOrgFromRow(rowData);
           if (built.error) {
             errorWriter.write({
@@ -568,12 +556,12 @@ async function runStreamingMode(options: ImporterOptions): Promise<ImportSummary
               }
             }
           }
-        })();
+        };
 
         const run = (async () => {
           await semaphore.acquire();
           try {
-            await task;
+            await task();
           } finally {
             semaphore.release();
           }
@@ -615,6 +603,7 @@ async function runChunkedMode(options: ImporterOptions): Promise<ImportSummary> 
   if (!checkpointManager) throw new Error('Checkpoint manager required for chunked mode');
 
   const state = checkpointManager.getState();
+  const limiter = new RateLimiter(options.rateLimit);
 
   let orgCache: OrgCache | null = null;
   if (state.mode === 'multi-org') {
@@ -637,7 +626,7 @@ async function runChunkedMode(options: ImporterOptions): Promise<ImportSummary> 
     checkpointManager.markChunkStarted(chunk.chunkId);
 
     try {
-      const chunkSummary = await processChunk(chunk, options, orgCache);
+      const chunkSummary = await processChunk(chunk, options, orgCache, limiter);
       checkpointManager.markChunkCompleted(chunk.chunkId, chunkSummary);
     } catch (err: any) {
       checkpointManager.markChunkFailed(chunk.chunkId);
@@ -672,9 +661,9 @@ async function processChunk(
   chunk: ChunkMetadata,
   options: ImporterOptions,
   orgCache: OrgCache | null,
+  limiter: RateLimiter,
 ): Promise<ChunkSummary> {
   const { workos, csvPath, concurrency, orgId = null, dryRun, checkpointManager } = options;
-  const limiter = new RateLimiter(options.rateLimit);
   const sem = new Semaphore(concurrency);
 
   const chunkStartTime = Date.now();

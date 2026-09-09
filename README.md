@@ -514,16 +514,18 @@ In multi-org mode, the importer reads `org_id`, `org_external_id`, or `org_name`
 workos-migrate import \
   --csv users.csv \
   --concurrency 20 \
-  --rate-limit 50 \
+  --rate-limit 40 \
   --workers 4 \
   --chunk-size 5000 \
   --job-id my-migration
 ```
 
 - `--concurrency <n>` - Parallel API requests per worker (default: 10)
-- `--rate-limit <n>` - Max requests per second across all workers (default: 50)
+- `--rate-limit <n>` - Max requests per second across all workers (default: 40)
 - `--workers <n>` - Worker threads for CPU distribution (default: 1, requires `--job-id`)
 - `--chunk-size <n>` - Rows per checkpoint chunk (default: 1000)
+
+The default import rate of 40 requests/second leaves headroom below the [AuthKit write limit](https://workos.com/docs/reference/rate-limits). User creation, membership creation, and their retries share the same request budget; importing a user with a membership normally takes two writes. The limiter allows an initial burst of up to one second's budget and then paces concurrent callers. Checkpoint chunks retain the same limiter, and worker threads share the coordinator's budget. Retries honor the server's `Retry-After` delay, including the Node SDK's `retryAfter` field, and otherwise use exponential backoff with jitter. Other traffic in the same environment can still cause throttling.
 
 ### Checkpoint and resume
 
@@ -609,7 +611,7 @@ Options:
 - `--sso-secrets <path>` - OIDC client secrets keyed by connection `externalId` (JSON object, JSON array of `{ externalId, clientSecret }`, or CSV). Exporters redact `clientSecret` by default and the API requires it, so OIDC rows without a secret are skipped.
 - `--sso-custom-attributes <include|skip>` - Custom attribute mappings (`sso/custom_attribute_mappings.csv`) must already exist in the WorkOS dashboard. Interactive runs prompt to include them, continue without them, or abort; pass the flag for non-interactive runs.
 - `--sso-rate-limit <n>` - Connections API requests per second (default: 5).
-- `--sso-domains <verified|pending|skip>` - How exported `domains` are applied to organizations. `verified` (default) trusts the source provider's ownership proof and enables domain-based routing immediately; `pending` adds them for the customer to verify in the dashboard; `skip` leaves organization domains untouched. Existing domains in states other than verified/pending are never rewritten; such organizations are skipped with a warning.
+- `--sso-domains <verified|pending|skip>` - How exported `domains` are applied to organizations. `verified` (default) trusts the source provider's ownership proof and enables domain-based routing immediately; `pending` adds them for the customer to verify in the dashboard; `skip` leaves organization domains untouched. Existing domains in states other than verified/pending are never rewritten. If a domain update fails or cannot preserve existing states, the connection is not created and the row is reported as failed in the results and error output. Fix the organization's domains and re-run, or use `--sso-domains skip` to manage domains separately.
 
 Requirements and limits:
 

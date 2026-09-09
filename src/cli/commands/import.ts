@@ -4,7 +4,7 @@ import chalk from 'chalk';
 import { createWorkOSClient } from '../../shared/workos-client.js';
 import { countCSVRows } from '../../shared/csv-utils.js';
 import * as logger from '../../shared/logger.js';
-import { runImport } from '../../import/importer.js';
+import { runImport, DEFAULT_IMPORT_RATE_LIMIT } from '../../import/importer.js';
 import { CheckpointManager, calculateCsvHash, findLastJob } from '../../import/checkpoint.js';
 
 export function registerImportCommand(program: Command): void {
@@ -15,7 +15,7 @@ export function registerImportCommand(program: Command): void {
     )
     .requiredOption('--csv <path>', 'Path to CSV file')
     .option('--concurrency <n>', 'Concurrent API requests', '10')
-    .option('--rate-limit <n>', 'Max requests per second', '50')
+    .option('--rate-limit <n>', 'Max requests per second', String(DEFAULT_IMPORT_RATE_LIMIT))
     .option('--workers <n>', 'Number of worker threads', '1')
     .option('--chunk-size <n>', 'Rows per chunk', '1000')
     .option('--job-id <id>', 'Job ID for checkpoint/resume')

@@ -549,11 +549,12 @@ describe('importSsoConnections', () => {
       }),
     );
 
-    // Existing org with a failed domain is left alone and the row carries a warning.
+    // Existing org with a failed domain is left alone and no connection is created.
     expect(fake.organizations.updateOrganization).not.toHaveBeenCalled();
     const globex = pending.results.find((result) => result.externalId === 'globex-saml');
-    expect(globex?.outcome).toBe('created');
-    expect(globex?.warnings.join(' ')).toContain('old.globex.com=failed');
+    expect(globex?.outcome).toBe('failed');
+    expect(globex?.error).toContain('old.globex.com=failed');
+    expect(fake.post.mock.calls.some(([, body]) => body.external_id === 'globex-saml')).toBe(false);
 
     // domains=skip never sends domain data.
     const skipping = createFakeWorkOS();
@@ -633,6 +634,169 @@ describe('importSsoConnections', () => {
       proxyRoutes.find((row) => row.organizationExternalId === 'someone-else')?.workosConnectionId,
     ).toBe('');
   });
+
+  it.each(['failed', 'legacy_verified', 'api_error'])(
+    'reports domain update failure (%s) without creating a connection or updating its route',
+    async (state) => {
+      const fake = createFakeWorkOS({
+        orgs: [
+          {
+            id: 'org_existing',
+            name: 'Globex',
+            externalId: 'globex',
+            domains: [{ domain: 'globex.com', state: state === 'api_error' ? 'verified' : state }],
+          },
+        ],
+      });
+      if (state === 'api_error') {
+        fake.organizations.updateOrganization.mockRejectedValue(
+          new Error('Domain update rejected'),
+        );
+      }
+      const proxyPath = path.join(pkgDir, 'sso/proxy_routes.csv');
+      writeRows(proxyPath, MIGRATION_PACKAGE_CSV_HEADERS.proxyRoutes, [
+        {
+          externalId: 'globex-saml',
+          organizationExternalId: 'globex',
+          protocol: 'saml',
+        },
+      ]);
+      const errorsPath = path.join(pkgDir, 'errors.jsonl');
+      const summary = await importSsoConnections({
+        packageDir: pkgDir,
+        workos: fake.workos,
+        quiet: true,
+        rateLimit: 1000,
+        errorsPath,
+      });
+
+      expect(summary).toMatchObject({ succeeded: 1, failed: 1, skipped: 2, proxyRoutesUpdated: 0 });
+      expect(fake.post.mock.calls.some(([, body]) => body.external_id === 'globex-saml')).toBe(
+        false,
+      );
+      expect(fake.orgs.get('org_existing')?.domains).toEqual([
+        { domain: 'globex.com', state: state === 'api_error' ? 'verified' : state },
+      ]);
+      const errors = fs
+        .readFileSync(errorsPath, 'utf-8')
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line));
+      expect(errors).toContainEqual(
+        expect.objectContaining({
+          externalId: 'globex-saml',
+          outcome: 'failed',
+          message: expect.stringContaining('Could not add domain(s)'),
+        }),
+      );
+      const results = await readCsvRows(path.join(pkgDir, SSO_RESULTS_FILENAME));
+      expect(results.find((row) => row.externalId === 'globex-saml')).toMatchObject({
+        outcome: 'failed',
+        workosConnectionId: '',
+      });
+      expect((await readCsvRows(proxyPath))[0].workosConnectionId).toBe('');
+    },
+  );
+
+  it.each(['include', 'skip'] as const)(
+    'resolves organizationId-only rows for scoped attributes (%s) and proxy routes',
+    async (customAttributes) => {
+      const samlPath = path.join(pkgDir, 'sso/saml_connections.csv');
+      const oidcPath = path.join(pkgDir, 'sso/oidc_connections.csv');
+      const saml = (await readCsvRows(samlPath))[0];
+      const oidc = (await readCsvRows(oidcPath))[0];
+      for (const row of [saml, oidc]) {
+        row.organizationId = 'org_acme';
+        row.organizationExternalId = '';
+      }
+      oidc.clientSecret = 'secret';
+      writeRows(samlPath, MIGRATION_PACKAGE_CSV_HEADERS.samlConnections, [saml]);
+      writeRows(oidcPath, MIGRATION_PACKAGE_CSV_HEADERS.oidcConnections, [oidc]);
+      writeRows(
+        path.join(pkgDir, 'sso/custom_attribute_mappings.csv'),
+        MIGRATION_PACKAGE_CSV_HEADERS.customAttributeMappings,
+        [saml, oidc].flatMap((row) => [
+          {
+            externalId: row.externalId,
+            organizationExternalId: '',
+            userPoolAttribute: 'title',
+            idpClaim: 'title',
+          },
+          {
+            externalId: row.externalId,
+            organizationExternalId: 'acme',
+            userPoolAttribute: 'department',
+            idpClaim: 'RIGHT',
+          },
+          {
+            externalId: row.externalId,
+            organizationExternalId: 'someone-else',
+            userPoolAttribute: 'department',
+            idpClaim: 'WRONG',
+          },
+        ]),
+      );
+      const proxyPath = path.join(pkgDir, 'sso/proxy_routes.csv');
+      writeRows(
+        proxyPath,
+        MIGRATION_PACKAGE_CSV_HEADERS.proxyRoutes,
+        [saml, oidc].flatMap((row) => [
+          { externalId: row.externalId, organizationExternalId: 'acme' },
+          { externalId: row.externalId, organizationExternalId: 'someone-else' },
+        ]),
+      );
+      const fake = createFakeWorkOS({
+        orgs: [{ id: 'org_acme', name: 'Acme', externalId: 'acme', domains: [] }],
+      });
+      const options = {
+        packageDir: pkgDir,
+        workos: fake.workos,
+        quiet: true,
+        rateLimit: 1000,
+        domains: 'skip' as const,
+        customAttributes,
+      };
+
+      await importSsoConnections({ ...options, dryRun: true });
+      expect(fake.organizations.getOrganization).not.toHaveBeenCalled();
+      expect(fake.post).not.toHaveBeenCalled();
+
+      const summary = await importSsoConnections(options);
+      expect(summary).toMatchObject({ succeeded: 2, failed: 0, proxyRoutesUpdated: 2 });
+      expect(fake.organizations.getOrganization).toHaveBeenCalledTimes(1);
+      for (const [, body] of fake.post.mock.calls) {
+        expect(body.organization_id).toBe('org_acme');
+        expect(body.attribute_maps?.custom_attributes).toEqual(
+          customAttributes === 'include' ? { title: 'title', department: 'RIGHT' } : undefined,
+        );
+      }
+      expect(fake.post.mock.calls[0][1].attribute_maps.standard_attributes).toEqual({
+        email: 'mail',
+      });
+      const routes = await readCsvRows(proxyPath);
+      const results = await readCsvRows(path.join(pkgDir, SSO_RESULTS_FILENAME));
+      for (const result of summary.results) {
+        expect(result.organizationExternalId).toBe('acme');
+        expect(
+          routes.find(
+            (row) => row.externalId === result.externalId && row.organizationExternalId === 'acme',
+          ),
+        ).toMatchObject({
+          workosConnectionId: result.connectionId,
+          workosAcsUrl: result.callbackEndpoint,
+        });
+        expect(
+          routes.find(
+            (row) =>
+              row.externalId === result.externalId && row.organizationExternalId === 'someone-else',
+          )?.workosConnectionId,
+        ).toBe('');
+        expect(
+          results.find((row) => row.externalId === result.externalId)?.organizationExternalId,
+        ).toBe('acme');
+      }
+    },
+  );
 
   it('returns absent when the package has no SSO rows', async () => {
     const emptyDir = path.join(tempRoot, 'empty');

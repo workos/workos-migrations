@@ -175,20 +175,20 @@ name,organizationName,organizationId,organizationExternalId,domains,idpEntityId,
 
 `import-package` maps each row onto a `POST /connections` call:
 
-| Column                                                                                             | Connections API                                                                                                |
-| -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `organizationId` / `organizationExternalId`                                                        | `organization_id` (resolved, or created from `organizationName` + `organizationExternalId`)                    |
-| `domains`                                                                                          | Added to the organization (verified by default, `--sso-domains pending|skip` to change; `,`/`;` separated)     |
-| `name`                                                                                             | `name` (falls back to `organizationName`, then `externalId`)                                                   |
-| `externalId`                                                                                       | `external_id` — required; creation is idempotent on it and rows without one (or duplicates) are skipped        |
-| `connectionType`                                                                                   | `connection_type` (e.g. `OktaSAML`); blank lets WorkOS infer `GenericSAML`                                     |
-| `idpMetadataUrl`                                                                                   | `saml_options.idp_metadata_url` (preferred; manual IdP columns are ignored when set)                           |
-| `idpEntityId` / `idpUrl` / `x509Cert`                                                              | `saml_options.idp_entity_id` / `idp_sso_url` / `idp_signing_certs[]` (PEM or bare base64 accepted)             |
-| `customAcsUrl` / `customEntityId`                                                                  | `saml_options.acs_url` / `sp_entity_id` (legacy overrides so customer IdPs need no changes)                     |
-| `requestSigningKey` + `requestSigningCert`                                                         | `saml_options.sp_signing_key_pair` (both required; otherwise WorkOS generates the SP signing key pair)         |
-| `assertionEncryptionKey` + `assertionEncryptionCert`                                               | `saml_options.sp_encryption_key_pairs[]` (both required; otherwise WorkOS generates the encryption key pair)   |
-| `idpIdAttribute` / `emailAttribute` / `firstNameAttribute` / `lastNameAttribute` / `nameAttribute` | `attribute_maps.standard_attributes`                                                                           |
-| `nameIdEncryptionKey`, `idpInitiatedEnabled`                                                       | No API field yet — surfaced as warnings; configure in the WorkOS dashboard after import                        |
+| Column                                                                                             | Connections API                                                                                              |
+| -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `organizationId` / `organizationExternalId`                                                        | `organization_id` (resolved, or created from `organizationName` + `organizationExternalId`)                  |
+| `domains`                                                                                          | Added to the organization (verified by default, `--sso-domains pending\|skip` to change; `,`/`;` separated)  |
+| `name`                                                                                             | `name` (falls back to `organizationName`, then `externalId`)                                                 |
+| `externalId`                                                                                       | `external_id` — required; creation is idempotent on it and rows without one (or duplicates) are skipped      |
+| `connectionType`                                                                                   | `connection_type` (e.g. `OktaSAML`); blank lets WorkOS infer `GenericSAML`                                   |
+| `idpMetadataUrl`                                                                                   | `saml_options.idp_metadata_url` (preferred; manual IdP columns are ignored when set)                         |
+| `idpEntityId` / `idpUrl` / `x509Cert`                                                              | `saml_options.idp_entity_id` / `idp_sso_url` / `idp_signing_certs[]` (PEM or bare base64 accepted)           |
+| `customAcsUrl` / `customEntityId`                                                                  | `saml_options.acs_url` / `sp_entity_id` (legacy overrides so customer IdPs need no changes)                  |
+| `requestSigningKey` + `requestSigningCert`                                                         | `saml_options.sp_signing_key_pair` (both required; otherwise WorkOS generates the SP signing key pair)       |
+| `assertionEncryptionKey` + `assertionEncryptionCert`                                               | `saml_options.sp_encryption_key_pairs[]` (both required; otherwise WorkOS generates the encryption key pair) |
+| `idpIdAttribute` / `emailAttribute` / `firstNameAttribute` / `lastNameAttribute` / `nameAttribute` | `attribute_maps.standard_attributes`                                                                         |
+| `nameIdEncryptionKey`, `idpInitiatedEnabled`                                                       | No API field yet — surfaced as warnings; configure in the WorkOS dashboard after import                      |
 
 `requestSigningCert`, `assertionEncryptionCert`, and `connectionType` were added after the schema-1 contract shipped. Packages written without them still validate, and readers treat the missing columns as empty.
 
@@ -208,7 +208,9 @@ OIDC `clientSecret` should be omitted unless the exporter has an explicit includ
 externalId,organizationExternalId,providerType,userPoolAttribute,idpClaim
 ```
 
-This keeps the current Cognito-compatible shape until all provider exporters move to the package contract. `import-package` groups rows by `externalId` and sends them as `attribute_maps.custom_attributes` (`userPoolAttribute` → WorkOS custom attribute name, `idpClaim` → IdP attribute). Custom attributes must already exist in the WorkOS dashboard; `import-package` lists the referenced names up front and lets the operator include them, skip them, or abort to create them first.
+This keeps the current Cognito-compatible shape until all provider exporters move to the package contract. `import-package` matches rows by `externalId` and, when supplied, `organizationExternalId`, then sends them as `attribute_maps.custom_attributes` (`userPoolAttribute` → WorkOS custom attribute name, `idpClaim` → IdP attribute). Organization-scoped mappings override unscoped mappings for the same attribute. Custom attributes must already exist in the WorkOS dashboard; `import-package` lists the referenced names up front and lets the operator include them, skip them, or abort to create them first.
+
+When a connection row supplies only `organizationId`, the live importer reads the organization's external ID from WorkOS to match scoped custom attributes and proxy routes. Offline `--plan` and `--dry-run` do not resolve this identity; supply `organizationExternalId` on the connection row to make the scope available during planning.
 
 ### Proxy Routes
 
