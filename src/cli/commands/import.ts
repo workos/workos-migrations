@@ -27,6 +27,7 @@ export function registerImportCommand(program: Command): void {
     .option('--org-external-id <id>', 'External org ID for single-org mode')
     .option('--create-org-if-missing', 'Auto-create orgs not found in WorkOS')
     .option('--dedupe', 'Deduplicate rows by email')
+    .option('--allow-empty', 'Treat a CSV with no data rows as a successful no-op import')
     .option('--endpoint <url>', 'WorkOS API endpoint URL (overrides WORKOS_API_URL)')
     .option('--errors <path>', 'Error output file path', 'errors.jsonl')
     .option('--quiet', 'Suppress progress output')
@@ -67,6 +68,14 @@ export function registerImportCommand(program: Command): void {
           if (opts.dryRun) console.log(`  Mode:            ${chalk.yellow('DRY RUN')}`);
           console.log(chalk.cyan('  ' + '═'.repeat(40)));
           return;
+        }
+
+        if (!opts.allowEmpty && (await countCSVRows(opts.csv)) === 0) {
+          logger.error(
+            `${opts.csv} has no data rows. This usually means the export produced nothing. ` +
+              'Re-run the export, or pass --allow-empty to import anyway.',
+          );
+          process.exit(1);
         }
 
         // Set endpoint env var so all subsystems (including roles/api-client) pick it up

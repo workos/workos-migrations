@@ -66,6 +66,8 @@ export interface ImportPackageOptions {
   ssoRateLimit?: number;
   /** How exported SSO domains are applied to organizations. Defaults to verified. */
   ssoDomains?: SsoDomainMode;
+  /** Import a package with no rows instead of failing. */
+  allowEmpty?: boolean;
 }
 
 export interface PlanImportPackageOptions {
@@ -198,6 +200,13 @@ export async function importPackage(options: ImportPackageOptions): Promise<Impo
   if (plan.validationErrors.length > 0) {
     throw new Error(
       `Package failed validation:\n${plan.validationErrors.map((issue) => `- ${issue.message}`).join('\n')}`,
+    );
+  }
+
+  if (!options.allowEmpty && isEmptyPlan(plan)) {
+    throw new Error(
+      `Package at ${resolvedDir} has no rows to import: every entity CSV contains only a header. ` +
+        'This usually means the export produced nothing. Re-run the export, or pass --allow-empty to import anyway.',
     );
   }
 
@@ -506,6 +515,20 @@ function toSsoEntityResult(summary: SsoImportSummary): ImportEntityResult {
       })),
     },
   };
+}
+
+function isEmptyPlan(plan: ImportPackagePlan): boolean {
+  return (
+    !plan.hasUsersCsv &&
+    !plan.hasOrganizationsCsv &&
+    !plan.hasMembershipsCsv &&
+    !plan.hasRoleDefinitionsCsv &&
+    !plan.hasRoleAssignmentsCsv &&
+    !plan.hasTotpCsv &&
+    !plan.hasSso &&
+    !plan.hasProxyRoutes &&
+    plan.ssoCustomAttributeNames.length === 0
+  );
 }
 
 async function csvHasRows(filePath: string): Promise<boolean> {
