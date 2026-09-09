@@ -1,5 +1,7 @@
+import { gzipSync } from 'node:zlib';
 import { jest } from '@jest/globals';
 import { Auth0ApiError, Auth0Client, isMissingConnectionOptionsScopeError } from '../client';
+import { parseAuth0BulkExportPayload } from '../bulk-export';
 
 describe('Auth0Client Management API expansion', () => {
   let fetchMock: jest.MockedFunction<typeof fetch>;
@@ -177,13 +179,25 @@ describe('Auth0Client Management API expansion', () => {
 
   it('downloads a completed job location without adding Auth0 authorization headers', async () => {
     const client = createClient();
-    fetchMock.mockResolvedValueOnce(textResponse('{"email":"alice@example.com"}\n'));
+    fetchMock.mockResolvedValueOnce(bytesResponse('{"email":"alice@example.com"}\n'));
 
-    await expect(client.downloadJobLocation('https://signed.example.com/job.ndjson')).resolves.toBe(
-      '{"email":"alice@example.com"}\n',
-    );
+    const payload = await client.downloadJobLocation('https://signed.example.com/job.ndjson');
 
+    expect(parseAuth0BulkExportPayload(payload)).toEqual([{ email: 'alice@example.com' }]);
     expect(fetchMock).toHaveBeenCalledWith('https://signed.example.com/job.ndjson');
+  });
+
+  it('downloads gzipped job output served without a Content-Encoding header', async () => {
+    const client = createClient();
+    const lines = ['{"email":"alice@example.com"}', '{"email":"bob@example.com"}'].join('\n');
+    fetchMock.mockResolvedValueOnce(bytesResponse(gzipSync(Buffer.from(lines, 'utf-8'))));
+
+    const payload = await client.downloadJobLocation('https://signed.example.com/job.ndjson.gz');
+
+    expect(parseAuth0BulkExportPayload(payload)).toEqual([
+      { email: 'alice@example.com' },
+      { email: 'bob@example.com' },
+    ]);
   });
 
   it('retries 429 responses for new Management API endpoints', async () => {
@@ -242,12 +256,15 @@ function jsonResponse(body: unknown, status = 200, headers: Record<string, strin
   });
 }
 
-function textResponse(body: string, status = 200): Response {
+function bytesResponse(body: string | Buffer, status = 200): Response {
+  const buffer = typeof body === 'string' ? Buffer.from(body, 'utf-8') : body;
   return response({
     status,
     headers: {},
-    json: async () => JSON.parse(body),
-    text: async () => body,
+    json: async () => JSON.parse(buffer.toString('utf-8')),
+    text: async () => buffer.toString('utf-8'),
+    arrayBuffer: async () =>
+      buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength),
   });
 }
 
@@ -256,6 +273,7 @@ function response(input: {
   headers: Record<string, string>;
   json: () => Promise<unknown>;
   text: () => Promise<string>;
+  arrayBuffer?: () => Promise<ArrayBuffer>;
 }): Response {
   return {
     ok: input.status >= 200 && input.status < 300,
@@ -267,5 +285,6 @@ function response(input: {
     },
     json: input.json,
     text: input.text,
+    arrayBuffer: input.arrayBuffer,
   } as Response;
 }

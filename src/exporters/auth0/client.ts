@@ -286,7 +286,11 @@ export class Auth0Client {
     return this.apiCall<Auth0Job>(`/api/v2/jobs/${encodeURIComponent(jobId)}`);
   }
 
-  async downloadJobLocation(location: string): Promise<string> {
+  // Auth0 serves completed export jobs gzipped but omits `Content-Encoding`, so
+  // `fetch` hands back compressed bytes without decompressing them. Reading the
+  // body as text would UTF-8 decode the gzip stream; the raw bytes let the
+  // payload parser detect the gzip header and inflate it.
+  async downloadJobLocation(location: string): Promise<Uint8Array> {
     return this.retryWithRateLimit(async () => {
       const response = await fetch(location);
 
@@ -306,7 +310,7 @@ export class Auth0Client {
         throw new Error(`Failed to download Auth0 job output (${response.status})`);
       }
 
-      return response.text();
+      return new Uint8Array(await response.arrayBuffer());
     });
   }
 
