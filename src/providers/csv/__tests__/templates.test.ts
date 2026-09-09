@@ -27,6 +27,17 @@ describe('CSV_TEMPLATES', () => {
     }
   });
 
+  it('gives every example row one field per header', () => {
+    for (const [name, template] of Object.entries(CSV_TEMPLATES)) {
+      for (const example of template.example) {
+        expect({ name, fields: example.split(',').length }).toEqual({
+          name,
+          fields: template.headers.length,
+        });
+      }
+    }
+  });
+
   it('users template validates email format', () => {
     const users = CSV_TEMPLATES.users;
     expect(users.validation).toBeDefined();

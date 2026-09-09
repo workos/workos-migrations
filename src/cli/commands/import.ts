@@ -6,6 +6,7 @@ import { countCSVRows } from '../../shared/csv-utils.js';
 import * as logger from '../../shared/logger.js';
 import { runImport, DEFAULT_IMPORT_RATE_LIMIT } from '../../import/importer.js';
 import { CheckpointManager, calculateCsvHash, findLastJob } from '../../import/checkpoint.js';
+import { parsePositiveInteger } from '../options.js';
 
 export function registerImportCommand(program: Command): void {
   program
@@ -37,10 +38,10 @@ export function registerImportCommand(program: Command): void {
           process.exit(1);
         }
 
-        const concurrency = parseInt(opts.concurrency, 10);
-        const rateLimit = parseInt(opts.rateLimit, 10);
-        const workers = parseInt(opts.workers, 10);
-        const chunkSize = parseInt(opts.chunkSize, 10);
+        const concurrency = parsePositiveInteger(opts.concurrency, '--concurrency');
+        const rateLimit = parsePositiveInteger(opts.rateLimit, '--rate-limit');
+        const workers = parsePositiveInteger(opts.workers, '--workers');
+        const chunkSize = parsePositiveInteger(opts.chunkSize, '--chunk-size');
 
         // Validate worker flag requires checkpoint
         if (workers > 1 && !opts.jobId && opts.resume === undefined) {

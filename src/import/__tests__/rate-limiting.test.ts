@@ -39,6 +39,9 @@ describe('import concurrency and aggregate request rate', () => {
       };
       const createUser = jest.fn(async ({ email }: { email: string }) => {
         await request();
+        if (email === 'user0@example.com') {
+          throw Object.assign(new Error('Email address is invalid'), { status: 400 });
+        }
         return { id: `user_${email}` };
       });
       const createOrganizationMembership = jest.fn(request);
@@ -59,6 +62,7 @@ describe('import concurrency and aggregate request rate', () => {
               checkpointDir: root,
             })
           : undefined;
+      const errorsPath = path.join(root, 'errors.jsonl');
       const result = await runImport({
         csvPath,
         workos,
@@ -69,13 +73,32 @@ describe('import concurrency and aggregate request rate', () => {
         dryRun: false,
         dedupe: false,
         quiet: true,
+        errorsPath,
         checkpointManager,
       });
 
-      expect(result).toMatchObject({ usersCreated: 30, membershipsCreated: 30, errors: 0 });
+      expect(result).toMatchObject({ usersCreated: 29, membershipsCreated: 29, errors: 1 });
+      // Per-row failures only reach the operator through the error file:
+      // errorsPath in streaming mode, the checkpoint dir in chunked mode.
+      const errorFile =
+        mode === 'checkpointed'
+          ? path.join(checkpointManager!.getCheckpointDir(), 'errors.jsonl')
+          : errorsPath;
+      const errors = fs
+        .readFileSync(errorFile, 'utf-8')
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line));
+      expect(errors).toEqual([
+        expect.objectContaining({
+          email: 'user0@example.com',
+          errorType: 'user_create',
+          errorMessage: expect.stringContaining('Email address is invalid'),
+        }),
+      ]);
       expect(peak).toBeLessThanOrEqual(3);
       expect(peak).toBeGreaterThan(1);
-      expect(requests).toHaveLength(60);
+      expect(requests).toHaveLength(59);
       const minDuration =
         ((requests.length - DEFAULT_IMPORT_RATE_LIMIT) / DEFAULT_IMPORT_RATE_LIMIT) * 1000;
       expect(requests.at(-1)! - requests[0]).toBeGreaterThanOrEqual(minDuration - 25);

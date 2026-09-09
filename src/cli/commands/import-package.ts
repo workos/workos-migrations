@@ -15,6 +15,7 @@ import {
   type SsoDomainMode,
 } from '../../import-package/sso-importer.js';
 import * as logger from '../../shared/logger.js';
+import { parsePositiveInteger } from '../options.js';
 
 export function registerImportPackageCommand(program: Command): void {
   program
@@ -99,8 +100,8 @@ export function registerImportPackageCommand(program: Command): void {
           packageDir: dir,
           dryRun,
           quiet: Boolean(opts.quiet),
-          concurrency: parseInt(opts.concurrency, 10),
-          rateLimit: parseInt(opts.rateLimit, 10),
+          concurrency: parsePositiveInteger(opts.concurrency, '--concurrency'),
+          rateLimit: parsePositiveInteger(opts.rateLimit, '--rate-limit'),
           errorsPath: opts.errors,
           summaryPath: opts.summary,
           workos,
@@ -244,14 +245,6 @@ function printPlan(plan: ImportPackagePlan): void {
     }
     console.log();
   }
-}
-
-function parsePositiveInteger(value: unknown, flag: string): number {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed <= 0) {
-    throw new Error(`${flag} must be a positive integer (got "${String(value)}")`);
-  }
-  return parsed;
 }
 
 function parseDomainMode(value: unknown): SsoDomainMode {

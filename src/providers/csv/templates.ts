@@ -124,8 +124,8 @@ export const CSV_TEMPLATES: Record<string, CSVTemplate> = {
       'connectionType',
     ],
     example: [
-      'Acme SAML,Acme Corporation,org_123,,acme.com;app.acme.com,https://acme.okta.com,https://acme.okta.com/app/saml,MIICXjCCAcegAwIBAgIBADANBgkqhkiG9w0BAQ0FADCBhzELMAkGA1UEBhMCVVMx...,https://acme.okta.com/app/metadata,,https://acme.com/saml/acs,email,,,,,,,,,,,OktaSAML',
-      'Example SAML,Example Industries,org_456,,example.com,https://example.auth0.com/,https://example.auth0.com/saml,,https://example.auth0.com/samlp/metadata,,,uid,,,,,,,,,,,',
+      'Acme SAML,Acme Corporation,org_123,,acme.com;app.acme.com,https://acme.okta.com,https://acme.okta.com/app/saml,MIICXjCCAcegAwIBAgIBADANBgkqhkiG9w0BAQ0FADCBhzELMAkGA1UEBhMCVVMx...,https://acme.okta.com/app/metadata,,https://acme.com/saml/acs,email,,,,,,,,,,,acme-okta-saml,OktaSAML',
+      'Example SAML,Example Industries,org_456,,example.com,https://example.auth0.com/,https://example.auth0.com/saml,,https://example.auth0.com/samlp/metadata,,,uid,,,,,,,,,,,example-auth0-saml,',
     ],
     validation: {
       organizationName: (value: string) => {
