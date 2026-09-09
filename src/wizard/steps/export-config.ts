@@ -36,7 +36,8 @@ async function configureAuth0Export(state: WizardState): Promise<WizardState> {
         message: 'Export shape',
         choices: [
           {
-            title: 'Migration package (recommended — users, orgs, memberships, roles, SSO handoff)',
+            title:
+              'Migration package (recommended — users, orgs, memberships, roles, SSO connections)',
             value: 'package',
           },
           { title: 'Single users CSV (legacy)', value: 'csv' },
@@ -53,7 +54,7 @@ async function configureAuth0Export(state: WizardState): Promise<WizardState> {
           { title: 'organizations', value: 'organizations', selected: true },
           { title: 'memberships', value: 'memberships', selected: true },
           { title: 'roles', value: 'roles', selected: true },
-          { title: 'sso (handoff)', value: 'sso', selected: true },
+          { title: 'sso (connections)', value: 'sso', selected: true },
         ],
         min: 1,
       },

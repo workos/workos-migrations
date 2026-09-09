@@ -48,11 +48,12 @@ If a single Auth0 connection is enabled for several Auth0 organizations, the exp
 ### Manual fallback
 
 When the Connections API is not enabled, or for rows the importer skipped, work through `sso/saml_connections.csv` and `sso/oidc_connections.csv` by hand:
-   1. Create the WorkOS organization that matches `organizationExternalId` (or use an existing one) and add the listed domains.
-   2. Create a SAML or OIDC connection in WorkOS using the IdP metadata fields. Re-upload signing certificates and metadata XML where required.
-   3. For OIDC connections, regenerate or paste the client secret manually (it is redacted in the export by default).
-   4. Apply `customAttributes` from the corresponding rows in `sso/custom_attribute_mappings.csv` to the new WorkOS connection.
-   5. If a callback proxy is in use during cutover (see `proxy-sample-auth0/`), update `sso/proxy_routes.csv` rows with the WorkOS connection ID and ACS URL so the proxy can route traffic during cutover.
+
+1. Create the WorkOS organization that matches `organizationExternalId` (or use an existing one) and add the listed domains.
+2. Create a SAML or OIDC connection in WorkOS using the IdP metadata fields. Re-upload signing certificates and metadata XML where required.
+3. For OIDC connections, regenerate or paste the client secret manually (it is redacted in the export by default).
+4. Apply `customAttributes` from the corresponding rows in `sso/custom_attribute_mappings.csv` to the new WorkOS connection.
+5. If a callback proxy is in use during cutover (see `proxy-sample-auth0/`), update `sso/proxy_routes.csv` rows with the WorkOS connection ID and ACS URL so the proxy can route traffic during cutover.
 
 ## What the importer cannot do
 
