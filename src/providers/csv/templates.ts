@@ -1,3 +1,5 @@
+import { USER_CSV_HEADERS } from '../../package/manifest.js';
+
 export interface CSVTemplate {
   name: string;
   description: string;
@@ -16,20 +18,12 @@ export const CSV_TEMPLATES: Record<string, CSVTemplate> = {
     name: 'Users',
     description: 'User accounts with authentication details',
     filename: 'users.csv',
-    headers: [
-      'user_id',
-      'email',
-      'email_verified',
-      'first_name',
-      'last_name',
-      'name',
-      'password_hash',
-    ],
-    required: ['user_id', 'email'],
-    optional: ['email_verified', 'first_name', 'last_name', 'name', 'password_hash'],
+    headers: [...USER_CSV_HEADERS],
+    required: ['email'],
+    optional: USER_CSV_HEADERS.filter((header) => header !== 'email'),
     example: [
-      'user_123,john.doe@company.com,true,John,Doe,John Doe,$2a$10$abcd...',
-      'user_456,jane.smith@company.com,false,Jane,Smith,Jane Smith,$2a$10$efgh...',
+      'john.doe@company.com,,$2a$10$abcd...,bcrypt,John,Doe,true,user_123,,,org_1,Acme Corporation,admin',
+      'jane.smith@company.com,,$2a$10$efgh...,bcrypt,Jane,Smith,false,user_456,,,org_1,Acme Corporation,member',
     ],
     validation: {
       email: (value: string) => {
