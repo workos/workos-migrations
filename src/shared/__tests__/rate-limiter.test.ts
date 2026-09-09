@@ -106,6 +106,15 @@ describe('retry delays', () => {
     },
   );
 
+  it('honors Retry-After carried by the error the SDK wrapped', () => {
+    // A 429 whose body did not parse reaches callers as a plain Error whose
+    // cause holds the response.
+    const wrapped = new Error(`Unexpected error: ParseError: Unexpected token '<'`, {
+      cause: { rawStatus: 429, response: { headers: { 'retry-after': '2' } } },
+    });
+    expect(getRetryDelayMs(wrapped, 0)).toBe(2000);
+  });
+
   it('waits for SDK retryAfter before retrying', async () => {
     const fn = jest
       .fn<() => Promise<string>>()

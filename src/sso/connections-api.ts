@@ -9,8 +9,9 @@
  * every row.
  *
  * The official Node SDK does not expose this endpoint yet, so requests go
- * through the SDK's raw `post` helper to reuse its auth, base URL, retries, and
- * error classes.
+ * through the SDK's raw `post` helper to reuse its auth, base URL, and error
+ * classes. Retrying is this module's job: the SDK only retries `/vault/` and
+ * `/audit_logs/events`, never `/connections`.
  */
 
 export interface ConnectionKeyPair {
@@ -150,7 +151,7 @@ export function describeWorkOSApiError(error: unknown): WorkOSApiErrorDetails {
   }
   const err = error as Record<string, unknown>;
   const rawData = (err.rawData ?? {}) as Record<string, unknown>;
-  const status = numberOrUndefined(err.status ?? err.httpStatus);
+  const status = statusOf(err, 0);
   const code = stringOrUndefined(err.code) ?? stringOrUndefined(rawData.code);
   const message =
     stringOrUndefined(err.message) ??
@@ -174,6 +175,8 @@ export function isConnectionsApiDisabledError(error: unknown): boolean {
   if (details.status !== 404) return false;
   const message = details.message.toLowerCase();
   if (message.includes('migration capabilities') || message.includes('not enabled')) return true;
+  // A body that never parsed says nothing about the route.
+  if (message.includes('parseerror') || message.includes('unexpected token')) return false;
   // The importer resolves the organization before calling POST /connections,
   // so any other 404 that does not mention an entity is the route being off.
   return !/organization|connection|not found/.test(message);
@@ -188,8 +191,31 @@ export function isCustomAttributeError(error: unknown): boolean {
 }
 
 export function isRetryableConnectionsApiError(error: unknown): boolean {
-  const { status } = describeWorkOSApiError(error);
-  return status === 429 || (status !== undefined && status >= 500);
+  const { status, message } = describeWorkOSApiError(error);
+  // 408 is how an SDK request timeout surfaces (the user import path retries it
+  // too); a failure with no status never reached the API, so retry the ones
+  // that look like transport failures.
+  if (status === undefined) return TRANSPORT_ERROR_PATTERN.test(message);
+  return status === 429 || status === 408 || status >= 500;
+}
+
+const TRANSPORT_ERROR_PATTERN =
+  /fetch failed|socket hang up|network error|econnreset|econnrefused|epipe|etimedout|eai_again|und_err_/i;
+
+/**
+ * The HTTP status of a failure, wherever the SDK left it: `status` on its
+ * exceptions, `rawStatus` on a ParseError (a body it could not parse, which
+ * still had a status), `response.status` on an HttpClientError, or on the cause
+ * of the plain Error the SDK wraps anything it cannot classify in.
+ */
+function statusOf(error: unknown, depth: number): number | undefined {
+  if (!error || typeof error !== 'object' || depth > 3) return undefined;
+  const err = error as Record<string, unknown>;
+  const response = (err.response ?? {}) as Record<string, unknown>;
+  return (
+    numberOrUndefined(err.rawStatus ?? err.status ?? err.httpStatus ?? response.status) ??
+    statusOf(err.cause, depth + 1)
+  );
 }
 
 function stringOrUndefined(value: unknown): string | undefined {

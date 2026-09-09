@@ -96,6 +96,43 @@ describe('isRetryableConnectionsApiError', () => {
     expect(isRetryableConnectionsApiError({ status: 400 })).toBe(false);
     expect(isRetryableConnectionsApiError(new Error('network'))).toBe(false);
   });
+
+  it('retries SDK request timeouts and transport failures', () => {
+    // The SDK turns its own timeout into a 408 and rethrows a dropped socket
+    // wrapped in a plain Error, so neither carries a WorkOS status.
+    expect(isRetryableConnectionsApiError({ status: 408, message: 'Error: Request timeout' })).toBe(
+      true,
+    );
+    expect(
+      isRetryableConnectionsApiError(
+        new Error('Unexpected error: TypeError: fetch failed', {
+          cause: new TypeError('fetch failed'),
+        }),
+      ),
+    ).toBe(true);
+    expect(isRetryableConnectionsApiError(new Error('Bad certificate'))).toBe(false);
+  });
+
+  it('keeps the status of a response whose body is not JSON', () => {
+    // A 429 or 5xx from a proxy arrives as an HTML page: the SDK raises a
+    // ParseError carrying rawStatus and wraps it in a plain Error.
+    const parseError = (rawStatus: number) =>
+      new Error(`Unexpected error: ParseError: Unexpected token '<'`, {
+        cause: Object.assign(new Error(`Unexpected token '<'`), {
+          name: 'ParseError',
+          status: 500,
+          rawStatus,
+          rawBody: '<html><body>429 Too Many Requests</body></html>',
+        }),
+      });
+    expect(describeWorkOSApiError(parseError(429)).status).toBe(429);
+    expect(isRetryableConnectionsApiError(parseError(429))).toBe(true);
+    expect(isRetryableConnectionsApiError(parseError(502))).toBe(true);
+    // ParseError's blanket status is 500; the real 404 must not look retryable
+    // and must not be mistaken for the feature flag being off.
+    expect(isRetryableConnectionsApiError(parseError(404))).toBe(false);
+    expect(isConnectionsApiDisabledError(parseError(404))).toBe(false);
+  });
 });
 
 describe('connection types', () => {

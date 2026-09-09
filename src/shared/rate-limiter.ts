@@ -90,19 +90,28 @@ export function getRetryDelayMs(error: unknown, attempt: number, baseDelayMs = 5
   return backoff + Math.floor(Math.random() * backoff * 0.25);
 }
 
-function getRetryAfterMs(error: unknown): number | undefined {
-  if (!error || typeof error !== 'object') return undefined;
+function getRetryAfterMs(error: unknown, depth = 0): number | undefined {
+  if (!error || typeof error !== 'object' || depth > 3) return undefined;
   const sdkDelay = 'retryAfter' in error ? parseRetryAfter(error.retryAfter) : undefined;
   if (sdkDelay !== undefined) return sdkDelay;
-  if ('response' in error && error.response && typeof error.response === 'object') {
-    const response = error.response;
-    if (!('headers' in response)) return undefined;
-    const headers = response.headers;
-    if (headers instanceof Headers) return parseRetryAfter(headers.get('retry-after'));
-    if (headers && typeof headers === 'object') {
-      const header = Object.entries(headers).find(([key]) => key.toLowerCase() === 'retry-after');
-      return parseRetryAfter(header?.[1]);
-    }
+  const headerDelay = getRetryAfterFromHeaders(error);
+  if (headerDelay !== undefined) return headerDelay;
+  // The SDK wraps anything it cannot classify (an unparseable error body, a
+  // dropped socket) in a plain Error, so the real response is on the cause.
+  return 'cause' in error ? getRetryAfterMs(error.cause, depth + 1) : undefined;
+}
+
+function getRetryAfterFromHeaders(error: object): number | undefined {
+  if (!('response' in error) || !error.response || typeof error.response !== 'object') {
+    return undefined;
+  }
+  const response = error.response;
+  if (!('headers' in response)) return undefined;
+  const headers = response.headers;
+  if (headers instanceof Headers) return parseRetryAfter(headers.get('retry-after'));
+  if (headers && typeof headers === 'object') {
+    const header = Object.entries(headers).find(([key]) => key.toLowerCase() === 'retry-after');
+    return parseRetryAfter(header?.[1]);
   }
   return undefined;
 }
