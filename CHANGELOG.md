@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.6.0](https://github.com/workos/workos-migrations/compare/v2.5.1...v2.6.0) (2026-09-10)
+
+
+### Features
+
+* import SSO connections and fix migration rate limiting ([#141](https://github.com/workos/workos-migrations/issues/141)) ([8987809](https://github.com/workos/workos-migrations/commit/898780960bbae739c1cc2a0b7e3f26a5b4145204))
+
+
+### Bug Fixes
+
+* **auth0:** Download bulk export job as bytes ([#143](https://github.com/workos/workos-migrations/issues/143)) ([ab6f67e](https://github.com/workos/workos-migrations/commit/ab6f67e8a6169b046e364f0ac1f382edfd54a65f))
+* **import:** Fail when there are no rows to import ([#144](https://github.com/workos/workos-migrations/issues/144)) ([c221314](https://github.com/workos/workos-migrations/commit/c221314bfe77c39fd25ba4772c3c29d7b1791673))
+* **templates:** Emit a users template the validator accepts ([#145](https://github.com/workos/workos-migrations/issues/145)) ([1ba723a](https://github.com/workos/workos-migrations/commit/1ba723a95750c776707fa22fa02d544cbe0a1fc6))
+
 ## [2.5.1](https://github.com/workos/workos-migrations/compare/v2.5.0...v2.5.1) (2026-08-25)
 
 
