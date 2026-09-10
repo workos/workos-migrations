@@ -1,4 +1,8 @@
-import { CSV_TEMPLATES } from '../templates.js';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { CSV_TEMPLATES, generateTemplateExample } from '../templates.js';
+import { validateCsv } from '../../../validator/validator.js';
 
 describe('CSV_TEMPLATES', () => {
   it('exposes the expected templates', () => {
@@ -35,6 +39,20 @@ describe('CSV_TEMPLATES', () => {
           fields: template.headers.length,
         });
       }
+    }
+  });
+
+  it('emits a users template that the validator accepts', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'workos-template-test-'));
+    const csvPath = path.join(dir, 'users.csv');
+    fs.writeFileSync(csvPath, `${generateTemplateExample('users')}\n`, 'utf-8');
+
+    try {
+      const result = await validateCsv({ csvPath, quiet: true });
+      expect(result.errors).toEqual([]);
+      expect(result.warnings).toEqual([]);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
     }
   });
 
