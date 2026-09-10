@@ -32,6 +32,7 @@ export function registerImportPackageCommand(program: Command): void {
       'Max requests per second during user import',
       String(DEFAULT_IMPORT_RATE_LIMIT),
     )
+    .option('--allow-empty', 'Treat a package with no rows as a successful no-op import')
     .option('--errors <path>', 'Path for per-row import errors')
     .option('--summary <path>', 'Path for the workos_import_summary.json file')
     .option('--endpoint <url>', 'WorkOS API endpoint URL (overrides WORKOS_API_URL)')
@@ -104,6 +105,7 @@ export function registerImportPackageCommand(program: Command): void {
           rateLimit: parsePositiveInteger(opts.rateLimit, '--rate-limit'),
           errorsPath: opts.errors,
           summaryPath: opts.summary,
+          allowEmpty: Boolean(opts.allowEmpty),
           workos,
           skipSso,
           ssoSecrets,

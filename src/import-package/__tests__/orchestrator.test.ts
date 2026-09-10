@@ -208,6 +208,55 @@ describe('import-package orchestrator', () => {
     expect(summary.ssoConnections).toMatchObject({ status: 'planned', total: 1, succeeded: 1 });
   });
 
+  it('refuses to import a package whose CSVs are all header-only', async () => {
+    const pkgDir = path.join(tempRoot, 'empty');
+    await createMigrationPackage({
+      provider: 'auth0',
+      rootDir: pkgDir,
+      entitiesRequested: ['users', 'organizations', 'memberships'],
+      entitiesExported: { users: 0, organizations: 0, memberships: 0 },
+      warnings: [],
+    });
+
+    await expect(importPackage({ packageDir: pkgDir, dryRun: true, quiet: true })).rejects.toThrow(
+      /no rows to import/,
+    );
+
+    const summary = await importPackage({
+      packageDir: pkgDir,
+      dryRun: true,
+      quiet: true,
+      allowEmpty: true,
+    });
+    expect(summary.users).toEqual({ status: 'absent' });
+  });
+
+  it('imports a package that only carries SSO handoff metadata', async () => {
+    const pkgDir = path.join(tempRoot, 'handoff-only');
+    await createMigrationPackage({
+      provider: 'auth0',
+      rootDir: pkgDir,
+      entitiesRequested: ['sso'],
+      entitiesExported: { proxyRoutes: 1 },
+      warnings: [],
+    });
+    writeRows(
+      path.join(pkgDir, 'sso', 'proxy_routes.csv'),
+      MIGRATION_PACKAGE_CSV_HEADERS.proxyRoutes,
+      [
+        {
+          externalId: 'con_1',
+          organizationExternalId: 'auth0_org_1',
+          provider: 'okta',
+          protocol: 'saml',
+        },
+      ],
+    );
+
+    const summary = await importPackage({ packageDir: pkgDir, dryRun: true, quiet: true });
+    expect(summary.plan.hasProxyRoutes).toBe(true);
+  });
+
   describe('groupAssignmentsByOrg', () => {
     it('groups by org_external_id when org_id is missing and tracks both keys', async () => {
       const csvPath = path.join(tempRoot, 'role_assignments.csv');

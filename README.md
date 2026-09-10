@@ -486,6 +486,8 @@ Auto-fix handles whitespace trimming, email lowercasing, and empty field cleanup
 workos-migrate import --csv users.csv
 ```
 
+Import fails with a non-zero exit code when the CSV has no data rows, since that usually means an export produced nothing. Pass `--allow-empty` to treat it as a successful no-op instead.
+
 ### Organization modes
 
 **User only** (no org membership):
@@ -584,6 +586,8 @@ workos-migrate import-package ./migration-auth0 --dry-run
 # Live import
 workos-migrate import-package ./migration-auth0
 ```
+
+Like `import`, `import-package` fails when every entity CSV in the package is header-only; `--allow-empty` opts back into importing nothing.
 
 The orchestrator runs entities in this order:
 
