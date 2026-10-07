@@ -12,6 +12,16 @@ import {
   mergePasswordsIntoCsv,
   mergePasswordsIntoPackage,
 } from '../password-merger.js';
+import type { PasswordLookup, PasswordLookupEntry } from '../../../shared/types.js';
+
+function emptyLookup(entries: Record<string, PasswordLookupEntry>): PasswordLookup {
+  return {
+    byExternalId: new Map(Object.entries(entries)),
+    collidingEmails: [],
+    ambiguousExternalIds: [],
+    recordsWithoutId: 0,
+  };
+}
 
 describe('Password Merger', () => {
   let tmpDir: string;
@@ -50,15 +60,17 @@ describe('Password Merger', () => {
   });
 
   describe('loadPasswordHashes', () => {
-    it('should parse NDJSON password file', async () => {
+    it('keys hashes by Auth0 identity, not email', async () => {
       const ndjsonPath = path.join(tmpDir, 'passwords.ndjson');
       const lines = [
         JSON.stringify({
+          _id: { $oid: 'alice-oid' },
           email: 'Alice@Example.com',
           passwordHash: '$2a$10$abcdefghij',
           password_set_date: { $date: '2024-01-15T00:00:00.000Z' },
         }),
         JSON.stringify({
+          _id: { $oid: 'bob-oid' },
           email: 'bob@example.com',
           passwordHash: '$2b$12$klmnopqrst',
         }),
@@ -70,57 +82,118 @@ describe('Password Merger', () => {
 
       const lookup = await loadPasswordHashes(ndjsonPath);
 
-      expect(Object.keys(lookup)).toHaveLength(2);
-      // Email should be lowercased
-      expect(lookup['alice@example.com']).toEqual({
+      expect(lookup.byExternalId.size).toBe(2);
+      expect(lookup.byExternalId.get('auth0|alice-oid')).toEqual({
         hash: '$2a$10$abcdefghij',
         algorithm: 'bcrypt',
         setDate: '2024-01-15T00:00:00.000Z',
       });
-      expect(lookup['bob@example.com']).toEqual({
+      expect(lookup.byExternalId.get('auth0|bob-oid')).toEqual({
         hash: '$2b$12$klmnopqrst',
         algorithm: 'bcrypt',
         setDate: undefined,
       });
+      expect(lookup.collidingEmails).toEqual([]);
+      expect(lookup.ambiguousExternalIds).toEqual([]);
+      expect(lookup.recordsWithoutId).toBe(0);
     });
 
     it('should skip records without email or hash', async () => {
       const ndjsonPath = path.join(tmpDir, 'passwords.ndjson');
       const lines = [
-        JSON.stringify({ email: 'no-hash@test.com' }),
-        JSON.stringify({ passwordHash: '$2a$10$noemail' }),
-        JSON.stringify({ email: 'valid@test.com', passwordHash: '$2a$10$valid' }),
+        JSON.stringify({ _id: { $oid: 'x' }, email: 'no-hash@test.com' }),
+        JSON.stringify({ _id: { $oid: 'y' }, passwordHash: '$2a$10$noemail' }),
+        JSON.stringify({
+          _id: { $oid: 'z' },
+          email: 'valid@test.com',
+          passwordHash: '$2a$10$valid',
+        }),
       ].join('\n');
 
       fs.writeFileSync(ndjsonPath, lines);
 
       const lookup = await loadPasswordHashes(ndjsonPath);
-      expect(Object.keys(lookup)).toHaveLength(1);
-      expect(lookup['valid@test.com']).toBeDefined();
+      expect(lookup.byExternalId.size).toBe(1);
+      expect(lookup.byExternalId.get('auth0|z')).toBeDefined();
+    });
+
+    it('skips records without an identity instead of guessing by email', async () => {
+      const ndjsonPath = path.join(tmpDir, 'passwords.ndjson');
+      fs.writeFileSync(
+        ndjsonPath,
+        JSON.stringify({ email: 'orphan@test.com', passwordHash: '$2a$10$orphan' }),
+      );
+
+      const lookup = await loadPasswordHashes(ndjsonPath);
+      expect(lookup.byExternalId.size).toBe(0);
+      expect(lookup.recordsWithoutId).toBe(1);
+    });
+
+    it('binds no hash for an identity that appears on multiple records', async () => {
+      const ndjsonPath = path.join(tmpDir, 'passwords.ndjson');
+      fs.writeFileSync(
+        ndjsonPath,
+        [
+          JSON.stringify({ _id: { $oid: 'dup' }, email: 'a@test.com', passwordHash: '$2a$10$one' }),
+          JSON.stringify({ _id: { $oid: 'dup' }, email: 'a@test.com', passwordHash: '$2a$10$two' }),
+          JSON.stringify({
+            _id: { $oid: 'dup' },
+            email: 'a@test.com',
+            passwordHash: '$2a$10$three',
+          }),
+        ].join('\n'),
+      );
+
+      const lookup = await loadPasswordHashes(ndjsonPath);
+      expect(lookup.byExternalId.has('auth0|dup')).toBe(false);
+      expect(lookup.ambiguousExternalIds).toEqual(['auth0|dup']);
+    });
+
+    it('reports emails that appear on multiple records', async () => {
+      const ndjsonPath = path.join(tmpDir, 'passwords.ndjson');
+      fs.writeFileSync(
+        ndjsonPath,
+        [
+          JSON.stringify({
+            _id: { $oid: 'conn-a' },
+            email: 'Shared@Corp.com',
+            passwordHash: '$2a$10$one',
+          }),
+          JSON.stringify({
+            _id: { $oid: 'conn-b' },
+            email: 'shared@corp.com',
+            passwordHash: '$2a$10$two',
+          }),
+        ].join('\n'),
+      );
+
+      const lookup = await loadPasswordHashes(ndjsonPath);
+      expect(lookup.collidingEmails).toEqual(['shared@corp.com']);
+      expect(lookup.byExternalId.size).toBe(2);
     });
   });
 
   describe('mergePasswordsIntoCsv', () => {
-    it('should merge passwords into CSV by email (case-insensitive)', async () => {
+    it('merges passwords into CSV by external_id', async () => {
       const inputCsv = path.join(tmpDir, 'input.csv');
       const outputCsv = path.join(tmpDir, 'output.csv');
 
       fs.writeFileSync(
         inputCsv,
-        'email,first_name,last_name,email_verified\n' +
-          'Alice@Example.com,Alice,Johnson,true\n' +
-          'bob@example.com,Bob,Smith,true\n' +
-          'carol@example.com,Carol,Williams,false\n',
+        'email,first_name,last_name,email_verified,external_id\n' +
+          'Alice@Example.com,Alice,Johnson,true,auth0|alice-oid\n' +
+          'bob@example.com,Bob,Smith,true,auth0|bob-oid\n' +
+          'carol@example.com,Carol,Williams,false,auth0|carol-oid\n',
       );
 
-      const passwordLookup = {
-        'alice@example.com': { hash: '$2a$10$alicehash', algorithm: 'bcrypt', setDate: undefined },
-        'bob@example.com': {
+      const passwordLookup = emptyLookup({
+        'auth0|alice-oid': { hash: '$2a$10$alicehash', algorithm: 'bcrypt', setDate: undefined },
+        'auth0|bob-oid': {
           hash: 'd41d8cd98f00b204e9800998ecf8427e',
           algorithm: 'md5',
           setDate: undefined,
         },
-      };
+      });
 
       const stats = await mergePasswordsIntoCsv(inputCsv, outputCsv, passwordLookup);
 
@@ -135,6 +208,80 @@ describe('Password Merger', () => {
       expect(output).toContain('bcrypt');
       expect(output).toContain('d41d8cd98f00b204e9800998ecf8427e');
       expect(output).toContain('md5');
+    });
+
+    it("never binds another user's hash by shared email", async () => {
+      const inputCsv = path.join(tmpDir, 'input.csv');
+      const outputCsv = path.join(tmpDir, 'output.csv');
+
+      // The victim's row from the user export. The attacker self-registered
+      // the same email on a second database connection, so the password
+      // export carries a record for each identity.
+      fs.writeFileSync(
+        inputCsv,
+        'email,first_name,last_name,email_verified,external_id\n' +
+          'victim@corp.com,Vera,Victim,true,auth0|victim-oid\n',
+      );
+
+      const ndjsonPath = path.join(tmpDir, 'passwords.ndjson');
+      fs.writeFileSync(
+        ndjsonPath,
+        [
+          JSON.stringify({
+            _id: { $oid: 'victim-oid' },
+            email: 'victim@corp.com',
+            email_verified: true,
+            passwordHash: '$2b$10$victimhash',
+            connection: 'prod-users',
+          }),
+          JSON.stringify({
+            _id: { $oid: 'attacker-oid' },
+            email: 'victim@corp.com',
+            email_verified: false,
+            passwordHash: '$2b$10$attackerhash',
+            connection: 'legacy-users',
+          }),
+        ].join('\n'),
+      );
+      const passwordLookup = await loadPasswordHashes(ndjsonPath);
+
+      await mergePasswordsIntoCsv(inputCsv, outputCsv, passwordLookup);
+
+      const output = fs.readFileSync(outputCsv, 'utf-8');
+      expect(output).toContain('$2b$10$victimhash');
+      expect(output).not.toContain('$2b$10$attackerhash');
+    });
+
+    it('binds no hash to a user whose identity has no password record', async () => {
+      const inputCsv = path.join(tmpDir, 'input.csv');
+      const outputCsv = path.join(tmpDir, 'output.csv');
+
+      // A social-login victim has no password record of their own; the only
+      // record for their email belongs to an attacker-registered account on a
+      // database connection.
+      fs.writeFileSync(
+        inputCsv,
+        'email,first_name,last_name,email_verified,external_id\n' +
+          'victim@corp.com,Vera,Victim,true,google-oauth2|12345\n',
+      );
+
+      const ndjsonPath = path.join(tmpDir, 'passwords.ndjson');
+      fs.writeFileSync(
+        ndjsonPath,
+        JSON.stringify({
+          _id: { $oid: 'attacker-oid' },
+          email: 'victim@corp.com',
+          passwordHash: '$2b$10$attackerhash',
+          connection: 'legacy-users',
+        }),
+      );
+      const passwordLookup = await loadPasswordHashes(ndjsonPath);
+
+      const stats = await mergePasswordsIntoCsv(inputCsv, outputCsv, passwordLookup);
+
+      expect(stats.passwordsAdded).toBe(0);
+      expect(stats.passwordsNotFound).toBe(1);
+      expect(fs.readFileSync(outputCsv, 'utf-8')).not.toContain('$2b$10$attackerhash');
     });
   });
 
@@ -198,8 +345,13 @@ describe('Password Merger', () => {
       fs.writeFileSync(
         passwordsPath,
         [
-          JSON.stringify({ email: 'alice@example.com', passwordHash: '$2a$10$alicehash' }),
           JSON.stringify({
+            _id: { $oid: 'alice' },
+            email: 'alice@example.com',
+            passwordHash: '$2a$10$alicehash',
+          }),
+          JSON.stringify({
+            _id: { $oid: 'bob' },
             email: 'bob@example.com',
             passwordHash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
           }),
