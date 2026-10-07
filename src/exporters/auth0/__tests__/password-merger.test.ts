@@ -499,8 +499,9 @@ describe('Password Merger', () => {
           last_name: 'User',
           email_verified: 'true',
           external_id: 'auth0|blocked-oid',
-          // CSV-quoted by hand because writeUsersCsv joins raw cells.
-          metadata: '"{""auth0_blocked"":true,""auth0_metadata_only"":true}"',
+          // CSV-quoted by hand because writeUsersCsv joins raw cells; values
+          // are strings, matching the exporter's metadata sanitizer.
+          metadata: '"{""auth0_blocked"":""true"",""auth0_metadata_only"":""true""}"',
         },
       ]);
       writeUploadUsersCsv(packageDir, [

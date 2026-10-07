@@ -89,11 +89,14 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 function hasSuppressedCredentials(row: Record<string, string>): boolean {
   if (!row.metadata) return false;
 
+  // The exporter's metadata sanitizer stringifies values, so real exports
+  // carry 'true'; accept the boolean for hand-built CSVs.
+  const isSet = (value: unknown): boolean => value === true || value === 'true';
+
   try {
     const metadata: unknown = JSON.parse(row.metadata);
     return (
-      isRecord(metadata) &&
-      (metadata.auth0_metadata_only === true || metadata.auth0_blocked === true)
+      isRecord(metadata) && (isSet(metadata.auth0_metadata_only) || isSet(metadata.auth0_blocked))
     );
   } catch {
     return false;
