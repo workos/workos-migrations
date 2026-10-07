@@ -5,6 +5,7 @@ import {
   loadPasswordHashes,
   mergePasswordsIntoCsv,
   mergePasswordsIntoPackage,
+  passwordLookupWarnings,
 } from '../../exporters/auth0/password-merger.js';
 
 export function registerMergePasswordsCommand(program: Command): void {
@@ -55,6 +56,9 @@ export function registerMergePasswordsCommand(program: Command): void {
             console.log(`  Upload rows updated: ${stats.uploadRowsUpdated}`);
             console.log(`  Duration: ${duration}ms`);
             console.log(`  Package: ${opts.package}`);
+            for (const warning of stats.warnings) {
+              console.log(chalk.yellow(`  Warning: ${warning.message}`));
+            }
           }
           return;
         }
@@ -75,10 +79,13 @@ export function registerMergePasswordsCommand(program: Command): void {
         }
 
         const passwordLookup = await loadPasswordHashes(opts.passwords);
-        const passwordCount = Object.keys(passwordLookup).length;
+        const passwordCount = passwordLookup.byExternalId.size;
 
         if (!opts.quiet) {
           console.log(chalk.green(`Loaded ${passwordCount} password hashes`));
+          for (const warning of passwordLookupWarnings(passwordLookup)) {
+            console.log(chalk.yellow(`Warning: ${warning.message}`));
+          }
           console.log(chalk.blue('Merging passwords into CSV...'));
         }
 
