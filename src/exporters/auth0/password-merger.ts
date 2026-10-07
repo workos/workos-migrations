@@ -24,7 +24,7 @@ const AUTH0_DATABASE_USER_ID_PREFIX = 'auth0|';
 
 export async function loadPasswordHashes(filePath: string): Promise<PasswordLookup> {
   const byExternalId = new Map<string, PasswordLookupEntry>();
-  const emailCounts = new Map<string, number>();
+  const identitiesByEmail = new Map<string, Set<string>>();
   const ambiguousExternalIds = new Set<string>();
   let recordsWithoutId = 0;
 
@@ -39,13 +39,16 @@ export async function loadPasswordHashes(filePath: string): Promise<PasswordLook
       if (!record.email || !record.passwordHash) continue;
 
       const email = record.email.toLowerCase();
-      emailCounts.set(email, (emailCounts.get(email) ?? 0) + 1);
 
       const oid = record._id?.$oid;
       if (!oid) {
         recordsWithoutId++;
         continue;
       }
+
+      const identities = identitiesByEmail.get(email) ?? new Set<string>();
+      identities.add(oid);
+      identitiesByEmail.set(email, identities);
 
       const externalId = `${AUTH0_DATABASE_USER_ID_PREFIX}${oid}`;
       if (byExternalId.has(externalId) || ambiguousExternalIds.has(externalId)) {
@@ -68,12 +71,33 @@ export async function loadPasswordHashes(filePath: string): Promise<PasswordLook
 
   return {
     byExternalId,
-    collidingEmails: [...emailCounts.entries()]
-      .filter(([, count]) => count > 1)
+    collidingEmails: [...identitiesByEmail.entries()]
+      .filter(([, identities]) => identities.size > 1)
       .map(([email]) => email),
     ambiguousExternalIds: [...ambiguousExternalIds],
     recordsWithoutId,
   };
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+/**
+ * The exporter deliberately strips credentials from blocked Auth0 users and
+ * marks that in the row's metadata; the merge must not reattach them.
+ */
+function hasSuppressedCredentials(row: Record<string, string>): boolean {
+  if (!row.metadata) return false;
+
+  try {
+    const metadata: unknown = JSON.parse(row.metadata);
+    return (
+      isRecord(metadata) &&
+      (metadata.auth0_metadata_only === true || metadata.auth0_blocked === true)
+    );
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -87,7 +111,7 @@ export function passwordLookupWarnings(lookup: PasswordLookup): PackageMergeWarn
   if (lookup.collidingEmails.length > 0) {
     warnings.push({
       code: 'password_email_collision',
-      message: `${lookup.collidingEmails.length} email(s) appear on multiple password records (multiple Auth0 connections); hashes are bound by user identity (external_id), never by email.`,
+      message: `${lookup.collidingEmails.length} email(s) belong to multiple Auth0 user identities (multiple connections); hashes are bound by user identity (external_id), never by email.`,
     });
   }
 
@@ -184,9 +208,10 @@ export async function mergePasswordsIntoCsv(
       .on('error', reject);
 
     for (const row of rows) {
-      const passwordData = row.external_id
-        ? passwordLookup.byExternalId.get(row.external_id.trim())
-        : undefined;
+      const passwordData =
+        row.external_id && !hasSuppressedCredentials(row)
+          ? passwordLookup.byExternalId.get(row.external_id.trim())
+          : undefined;
 
       if (passwordData) {
         row.password_hash = passwordData.hash;
@@ -212,7 +237,8 @@ export interface PackageMergeWarning {
     | 'package_users_csv_missing'
     | 'password_email_collision'
     | 'password_identity_ambiguous'
-    | 'password_record_unmatchable';
+    | 'password_record_unmatchable'
+    | 'password_suppressed_blocked_user';
   message: string;
   email?: string;
   external_id?: string;
@@ -224,6 +250,7 @@ export interface PackageMergeStats {
   passwordsAdded: number;
   passwordsNotFound: number;
   passwordsRejectedAlgorithm: number;
+  passwordsSuppressedForBlockedUsers: number;
   uploadRowsUpdated: number;
   warnings: PackageMergeWarning[];
 }
@@ -250,6 +277,7 @@ export async function mergePasswordsIntoPackage(
       passwordsAdded: 0,
       passwordsNotFound: 0,
       passwordsRejectedAlgorithm: 0,
+      passwordsSuppressedForBlockedUsers: 0,
       uploadRowsUpdated: 0,
       warnings: [
         {
@@ -267,6 +295,7 @@ export async function mergePasswordsIntoPackage(
     passwordsAdded: 0,
     passwordsNotFound: 0,
     passwordsRejectedAlgorithm: 0,
+    passwordsSuppressedForBlockedUsers: 0,
     uploadRowsUpdated: 0,
     warnings: [],
   };
@@ -284,6 +313,17 @@ export async function mergePasswordsIntoPackage(
     const candidate = externalId ? passwordLookup.byExternalId.get(externalId.trim()) : undefined;
     if (!candidate) {
       stats.passwordsNotFound++;
+      continue;
+    }
+
+    if (hasSuppressedCredentials(row)) {
+      stats.passwordsSuppressedForBlockedUsers++;
+      stats.warnings.push({
+        code: 'password_suppressed_blocked_user',
+        message: `Skipped password hash for ${externalId}: the exporter stripped credentials for this blocked user.`,
+        ...(email ? { email } : {}),
+        ...(externalId ? { external_id: externalId } : {}),
+      });
       continue;
     }
 
@@ -350,6 +390,20 @@ async function updatePackageManifestForMerge(
   const messages = stats.warnings.map((warning) => warning.message);
   manifest.warnings = [...(manifest.warnings ?? []), ...messages];
 
+  // The validator checks entitiesExported.warnings against the record count
+  // in warnings.jsonl, so the file must gain a record per counted warning.
+  const warningsPath = getPackageFilePath(path.dirname(manifestPath), 'warnings');
+  const existingWarnings = await fsp.readFile(warningsPath, 'utf-8').catch(() => '');
+  const appendedWarnings = stats.warnings.map((warning) => JSON.stringify(warning)).join('\n');
+  if (appendedWarnings) {
+    const separator = existingWarnings === '' || existingWarnings.endsWith('\n') ? '' : '\n';
+    await fsp.writeFile(
+      warningsPath,
+      `${existingWarnings}${separator}${appendedWarnings}\n`,
+      'utf-8',
+    );
+  }
+
   const counts = manifest.entitiesExported ?? {};
   counts.warnings = (counts.warnings ?? 0) + messages.length;
   manifest.entitiesExported = counts;
@@ -361,6 +415,7 @@ async function updatePackageManifestForMerge(
       passwordsAdded: stats.passwordsAdded,
       passwordsNotFound: stats.passwordsNotFound,
       passwordsRejectedAlgorithm: stats.passwordsRejectedAlgorithm,
+      passwordsSuppressedForBlockedUsers: stats.passwordsSuppressedForBlockedUsers,
       uploadRowsUpdated: stats.uploadRowsUpdated,
     },
   };

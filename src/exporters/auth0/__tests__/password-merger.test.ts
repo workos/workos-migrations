@@ -147,6 +147,8 @@ describe('Password Merger', () => {
       const lookup = await loadPasswordHashes(ndjsonPath);
       expect(lookup.byExternalId.has('auth0|dup')).toBe(false);
       expect(lookup.ambiguousExternalIds).toEqual(['auth0|dup']);
+      // One identity repeated is not an email shared across identities.
+      expect(lookup.collidingEmails).toEqual([]);
     });
 
     it('reports emails that appear on multiple records', async () => {
@@ -405,6 +407,136 @@ describe('Password Merger', () => {
         uploadRowsUpdated: 1,
       });
       expect(manifest.warnings.some((m) => m.includes('algorithm "sha256"'))).toBe(true);
+    });
+
+    it("never binds another user's hash by shared email, in both user files", async () => {
+      const packageDir = path.join(tmpDir, 'pkg-attack');
+      await createMigrationPackage({
+        provider: 'auth0',
+        rootDir: packageDir,
+        entitiesRequested: ['users'],
+        entitiesExported: { users: 1, uploadUsers: 1 },
+        warnings: [],
+      });
+      writeUsersCsv(packageDir, [
+        {
+          email: 'victim@corp.com',
+          first_name: 'Vera',
+          last_name: 'Victim',
+          email_verified: 'true',
+          external_id: 'auth0|victim-oid',
+        },
+      ]);
+      writeUploadUsersCsv(packageDir, [
+        {
+          user_id: 'auth0|victim-oid',
+          email: 'victim@corp.com',
+          email_verified: 'true',
+          first_name: 'Vera',
+          last_name: 'Victim',
+          password_hash: '',
+        },
+      ]);
+
+      const passwordsPath = path.join(tmpDir, 'attack.ndjson');
+      fs.writeFileSync(
+        passwordsPath,
+        [
+          JSON.stringify({
+            _id: { $oid: 'victim-oid' },
+            email: 'victim@corp.com',
+            passwordHash: '$2b$10$victimhash',
+            connection: 'prod-users',
+          }),
+          JSON.stringify({
+            _id: { $oid: 'attacker-oid' },
+            email: 'victim@corp.com',
+            passwordHash: '$2b$10$attackerhash',
+            connection: 'legacy-users',
+          }),
+        ].join('\n'),
+      );
+
+      const stats = await mergePasswordsIntoPackage({ packageDir, passwordsPath });
+
+      expect(stats.passwordsAdded).toBe(1);
+      const usersCsv = fs.readFileSync(path.join(packageDir, 'users.csv'), 'utf-8');
+      expect(usersCsv).toContain('$2b$10$victimhash');
+      expect(usersCsv).not.toContain('$2b$10$attackerhash');
+      const uploadCsv = fs.readFileSync(
+        path.join(packageDir, 'workos_upload', 'users.csv'),
+        'utf-8',
+      );
+      expect(uploadCsv).toContain('$2b$10$victimhash');
+      expect(uploadCsv).not.toContain('$2b$10$attackerhash');
+      expect(stats.warnings.map((warning) => warning.code)).toContain('password_email_collision');
+
+      // Every warning counted in the manifest has a record in warnings.jsonl,
+      // so validate-package's count check holds after a merge.
+      const manifest = JSON.parse(
+        fs.readFileSync(path.join(packageDir, 'manifest.json'), 'utf-8'),
+      ) as MigrationPackageManifest;
+      const jsonlRecords = fs
+        .readFileSync(path.join(packageDir, 'warnings.jsonl'), 'utf-8')
+        .split('\n')
+        .filter((line) => line.trim() !== '');
+      expect(jsonlRecords).toHaveLength(manifest.entitiesExported?.warnings ?? -1);
+    });
+
+    it('does not reattach a hash the exporter suppressed for a blocked user', async () => {
+      const packageDir = path.join(tmpDir, 'pkg-blocked');
+      await createMigrationPackage({
+        provider: 'auth0',
+        rootDir: packageDir,
+        entitiesRequested: ['users'],
+        entitiesExported: { users: 1, uploadUsers: 1 },
+        warnings: [],
+      });
+      writeUsersCsv(packageDir, [
+        {
+          email: 'blocked@corp.com',
+          first_name: 'Blocked',
+          last_name: 'User',
+          email_verified: 'true',
+          external_id: 'auth0|blocked-oid',
+          // CSV-quoted by hand because writeUsersCsv joins raw cells.
+          metadata: '"{""auth0_blocked"":true,""auth0_metadata_only"":true}"',
+        },
+      ]);
+      writeUploadUsersCsv(packageDir, [
+        {
+          user_id: 'auth0|blocked-oid',
+          email: 'blocked@corp.com',
+          email_verified: 'true',
+          first_name: 'Blocked',
+          last_name: 'User',
+          password_hash: '',
+        },
+      ]);
+
+      const passwordsPath = path.join(tmpDir, 'blocked.ndjson');
+      fs.writeFileSync(
+        passwordsPath,
+        JSON.stringify({
+          _id: { $oid: 'blocked-oid' },
+          email: 'blocked@corp.com',
+          passwordHash: '$2b$10$blockedhash',
+        }),
+      );
+
+      const stats = await mergePasswordsIntoPackage({ packageDir, passwordsPath });
+
+      expect(stats.passwordsAdded).toBe(0);
+      expect(stats.passwordsSuppressedForBlockedUsers).toBe(1);
+      expect(stats.warnings.map((warning) => warning.code)).toContain(
+        'password_suppressed_blocked_user',
+      );
+      expect(fs.readFileSync(path.join(packageDir, 'users.csv'), 'utf-8')).not.toContain(
+        '$2b$10$blockedhash',
+      );
+      expect(
+        fs.readFileSync(path.join(packageDir, 'workos_upload', 'users.csv'), 'utf-8'),
+      ).not.toContain('$2b$10$blockedhash');
     });
 
     it('reports a single warning when users.csv is missing', async () => {
