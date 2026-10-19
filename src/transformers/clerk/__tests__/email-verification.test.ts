@@ -25,9 +25,15 @@ describe('isClerkPrimaryEmailVerified', () => {
   });
 
   it('finds the primary address in comma, pipe, and semicolon separated lists', () => {
-    expect(isClerkPrimaryEmailVerified(row('other@corp.com, alice@corp.com'), 'alice@corp.com')).toBe(true);
-    expect(isClerkPrimaryEmailVerified(row('other@corp.com|alice@corp.com'), 'alice@corp.com')).toBe(true);
-    expect(isClerkPrimaryEmailVerified(row('other@corp.com;alice@corp.com'), 'alice@corp.com')).toBe(true);
+    expect(
+      isClerkPrimaryEmailVerified(row('other@corp.com, alice@corp.com'), 'alice@corp.com'),
+    ).toBe(true);
+    expect(
+      isClerkPrimaryEmailVerified(row('other@corp.com|alice@corp.com'), 'alice@corp.com'),
+    ).toBe(true);
+    expect(
+      isClerkPrimaryEmailVerified(row('other@corp.com;alice@corp.com'), 'alice@corp.com'),
+    ).toBe(true);
   });
 
   it('returns false for an empty primary address', () => {
