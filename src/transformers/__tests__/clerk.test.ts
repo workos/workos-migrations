@@ -188,6 +188,8 @@ describe('Clerk Transformer', () => {
         'user_unverified,Mallory,Evil,victim@corp.com,mallory,,,victim@corp.com,,,,$2b$10$hash,bcrypt',
         // Primary address recorded as verified → stays verified.
         'user_verified,Alice,Good,alice@corp.com,alice,,alice@corp.com,,,,,$2b$10$hash,bcrypt',
+        // Primary address among several verified addresses (pipe-delimited cell).
+        'user_multi,Carol,Multi,carol@corp.com,carol,,other@corp.com|carol@corp.com,,,,,$2b$10$hash,bcrypt',
       ].join('\n'),
     );
 
@@ -204,9 +206,11 @@ describe('Clerk Transformer', () => {
 
     const unverifiedRow = rows.find((r) => r[emailIdx] === 'victim@corp.com');
     const verifiedRow = rows.find((r) => r[emailIdx] === 'alice@corp.com');
+    const multiRow = rows.find((r) => r[emailIdx] === 'carol@corp.com');
 
     expect(unverifiedRow?.[verifiedIdx]).toBe('false');
     expect(verifiedRow?.[verifiedIdx]).toBe('true');
+    expect(multiRow?.[verifiedIdx]).toBe('true');
   });
 
   it('should include metadata with clerk fields', async () => {

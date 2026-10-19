@@ -13,8 +13,9 @@ export function isClerkPrimaryEmailVerified(row: ClerkUserRow, primaryEmail: str
   const target = primaryEmail.trim().toLowerCase();
   if (!target) return false;
 
+  // Same delimiters workos/migrate-clerk-users accepts for these cells.
   const verified = (row.verified_email_addresses ?? '')
-    .split(',')
+    .split(/[|,;]\s*/)
     .map((value) => value.trim().toLowerCase())
     .filter(Boolean);
 
