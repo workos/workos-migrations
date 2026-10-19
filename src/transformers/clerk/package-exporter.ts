@@ -31,6 +31,7 @@ import {
   type SsoHandoffWarning,
 } from '../../sso/handoff.js';
 import { ClerkClient, type ClerkClientOptions } from './client.js';
+import { isClerkPrimaryEmailVerified } from './email-verification.js';
 import { mapClerkEnterpriseConnection, type ClerkEnterpriseConnection } from './sso-mapper.js';
 
 export interface ClerkPackageExportOptions {
@@ -219,7 +220,7 @@ export async function exportClerkPackage(
           password_hash_type: password.algorithm ?? '',
           first_name: row.first_name?.trim() ?? '',
           last_name: row.last_name?.trim() ?? '',
-          email_verified: 'true',
+          email_verified: isClerkPrimaryEmailVerified(row, email) ? 'true' : 'false',
           external_id: clerkUserId ?? '',
           metadata: Object.keys(metadata).length > 0 ? JSON.stringify(metadata) : '',
           org_id: '',

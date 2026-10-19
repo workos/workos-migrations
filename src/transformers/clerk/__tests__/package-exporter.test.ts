@@ -95,6 +95,25 @@ describe('exportClerkPackage', () => {
     expect(upload.find((u) => u.user_id === 'user_alice')?.password_hash).toBe('$2a$10$alicehash');
   });
 
+  it('derives email_verified from the Clerk verification columns', async () => {
+    const inputCsv = path.join(tempRoot, 'clerk.csv');
+    fs.writeFileSync(
+      inputCsv,
+      [
+        'id,primary_email_address,verified_email_addresses,unverified_email_addresses,password_hasher,password_digest',
+        'user_unverified,victim@corp.com,,victim@corp.com,bcrypt,$2b$10$hash',
+        'user_verified,alice@corp.com,alice@corp.com,,bcrypt,$2b$10$hash',
+      ].join('\n'),
+    );
+
+    const pkgDir = path.join(tempRoot, 'pkg');
+    await exportClerkPackage({ input: inputCsv, outputDir: pkgDir, quiet: true });
+
+    const users = await readCsv(path.join(pkgDir, 'users.csv'));
+    expect(users.find((u) => u.external_id === 'user_unverified')?.email_verified).toBe('false');
+    expect(users.find((u) => u.external_id === 'user_verified')?.email_verified).toBe('true');
+  });
+
   it('writes a package without orgs when no mapping is provided', async () => {
     const inputCsv = path.join(tempRoot, 'clerk.csv');
     fs.writeFileSync(
