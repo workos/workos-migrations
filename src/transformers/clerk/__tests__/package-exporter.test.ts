@@ -103,6 +103,7 @@ describe('exportClerkPackage', () => {
         'id,primary_email_address,verified_email_addresses,unverified_email_addresses,password_hasher,password_digest',
         'user_unverified,victim@corp.com,,victim@corp.com,bcrypt,$2b$10$hash',
         'user_verified,alice@corp.com,alice@corp.com,,bcrypt,$2b$10$hash',
+        'user_secondary_only,carol@corp.com,other@corp.com,carol@corp.com,bcrypt,$2b$10$hash',
       ].join('\n'),
     );
 
@@ -112,6 +113,9 @@ describe('exportClerkPackage', () => {
     const users = await readCsv(path.join(pkgDir, 'users.csv'));
     expect(users.find((u) => u.external_id === 'user_unverified')?.email_verified).toBe('false');
     expect(users.find((u) => u.external_id === 'user_verified')?.email_verified).toBe('true');
+    expect(users.find((u) => u.external_id === 'user_secondary_only')?.email_verified).toBe(
+      'false',
+    );
   });
 
   it('writes a package without orgs when no mapping is provided', async () => {
