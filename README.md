@@ -295,6 +295,7 @@ Options:
 The transformer handles:
 
 - Field mapping (Clerk columns to WorkOS columns)
+- Email verification state: a user imports as verified only when their primary address appears in the export's `verified_email_addresses` column; otherwise — including when that column is absent from the export — they are imported unverified and re-verify on first sign-in. Include `verified_email_addresses` in the export to preserve verified status
 - bcrypt password passthrough (other hash types like argon2 are dropped with a warning since WorkOS does not support them)
 - Username, phone number, and TOTP secret preservation in metadata
 - Organization and role sidecar merging into the output CSV (or package)
