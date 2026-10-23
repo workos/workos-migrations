@@ -514,9 +514,9 @@ export interface TotpRecord {
   totpSecret: string; // Base32-encoded
   totpIssuer?: string;
   totpUser?: string;
-  // Source-system user id (e.g. Auth0 user_id), matched against the WorkOS
-  // user's external_id. Emails are not unique per account in some source
-  // systems, so email-only matching can bind a secret to the wrong account.
+  // Source-system user id, matched against the WorkOS user's external_id.
+  // Emails are not unique per account in some source systems, so email-only
+  // matching can bind a secret to the wrong account.
   externalId?: string;
 }
 
