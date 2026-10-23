@@ -35,6 +35,7 @@ import {
   isFederatedUser,
   isOidc,
   isSaml,
+  redactProviderSecrets,
   toOidcRow,
   toSamlRow,
   toCustomAttrRows,
@@ -98,6 +99,8 @@ export interface CognitoPackageStats {
   skippedUsers: number;
   warnings: CognitoPackageWarning[];
   skipped: CognitoPackageSkipped[];
+  /** ProviderDetails keys whose values were redacted from handoff/raw output. */
+  redactedSecretFields: string[];
 }
 
 const USER_HEADERS = MIGRATION_PACKAGE_CSV_HEADERS.users;
@@ -179,7 +182,7 @@ export async function exportCognitoPackage(
       skippedUsers: stats.skipped.length,
     },
     secretsRedacted: true,
-    secretRedaction: buildSecretRedactionMetadata(wantSso),
+    secretRedaction: buildSecretRedactionMetadata(wantSso, stats.redactedSecretFields),
     warnings: stats.warnings.map((warning) => warning.message),
   });
 
@@ -434,6 +437,11 @@ async function writeSsoEntities(ctx: SsoWriteContext): Promise<void> {
     }
   }
 
+  const redacted = ctx.providers.map((provider) => redactProviderSecrets(provider));
+  ctx.stats.redactedSecretFields = [
+    ...new Set(redacted.flatMap((entry) => entry.redactedKeys)),
+  ].sort();
+
   await Promise.all([
     writeSamlConnectionsCsv(getPackageFilePath(ctx.outputDir, 'samlConnections'), samlRows),
     writeOidcConnectionsCsv(getPackageFilePath(ctx.outputDir, 'oidcConnections'), oidcRows),
@@ -442,7 +450,10 @@ async function writeSsoEntities(ctx: SsoWriteContext): Promise<void> {
       customAttrRows,
     ),
     writeProxyRoutesCsv(getPackageFilePath(ctx.outputDir, 'proxyRoutes'), proxyRows),
-    writeRawCognitoProviders(ctx.outputDir, ctx.providers),
+    writeRawCognitoProviders(
+      ctx.outputDir,
+      redacted.map((entry) => entry.provider),
+    ),
   ]);
 
   ctx.stats.samlConnections = samlRows.length;
@@ -514,6 +525,7 @@ function createEmptyStats(): CognitoPackageStats {
     skippedUsers: 0,
     warnings: [],
     skipped: [],
+    redactedSecretFields: [],
   };
 }
 
@@ -569,7 +581,10 @@ function buildHandoffNotes(input: { includeSso: boolean }): string {
   ].join('\n');
 }
 
-function buildSecretRedactionMetadata(includeSso: boolean): SecretRedactionMetadata {
+function buildSecretRedactionMetadata(
+  includeSso: boolean,
+  redactedFields: string[],
+): SecretRedactionMetadata {
   if (!includeSso) {
     return {
       mode: 'not-applicable',
@@ -577,11 +592,22 @@ function buildSecretRedactionMetadata(includeSso: boolean): SecretRedactionMetad
       notes: ['Cognito package mode does not export user passwords or connection secrets.'],
     };
   }
+  if (redactedFields.length === 0) {
+    return {
+      mode: 'redacted',
+      redacted: true,
+      redactedFields: [],
+      files: ['raw/cognito-providers.jsonl', 'sso/oidc_connections.csv'],
+      notes: ['No OIDC client secrets were present in the exported identity providers.'],
+    };
+  }
   return {
     mode: 'redacted',
     redacted: true,
-    redactedFields: ['client_secret'],
+    redactedFields,
     files: ['raw/cognito-providers.jsonl', 'sso/oidc_connections.csv'],
-    notes: ['Cognito does not export OIDC client secrets through DescribeIdentityProvider.'],
+    notes: [
+      'OIDC client secrets returned by DescribeIdentityProvider are redacted from the handoff CSV and raw provider dump. Re-enter them in the WorkOS dashboard.',
+    ],
   };
 }

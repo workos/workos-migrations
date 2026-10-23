@@ -197,11 +197,46 @@ export function toOidcRow(p: CognitoProvider, proxy: ProxyTemplates = {}): OidcR
     organizationName: p.providerName,
     organizationExternalId: p.providerName,
     clientId: details.client_id ?? '',
-    clientSecret: details.client_secret ?? '',
+    // Redact: WorkOS handoff CSVs must never carry source-provider client
+    // secrets — the customer re-enters them in the WorkOS dashboard. Cognito's
+    // DescribeIdentityProvider returns client_secret in plaintext for OIDC IdPs.
+    clientSecret: '',
     discoveryEndpoint: normalizeDiscoveryEndpoint(details.oidc_issuer) ?? '',
     customRedirectUri: renderTemplate(proxy.oidcCustomRedirectUri ?? null, p),
     externalId: externalId(p),
   });
+}
+
+export const REDACTED_SECRET_PLACEHOLDER = '[REDACTED]';
+
+/** ProviderDetails keys whose values are secret material and must never appear in handoff output. */
+export function isSecretDetailKey(key: string): boolean {
+  return key.toLowerCase().includes('secret');
+}
+
+/**
+ * Returns a copy of a Cognito provider with secret-bearing ProviderDetails values
+ * replaced by a redaction placeholder, along with the sorted list of redacted keys.
+ * Used to keep raw provider dumps free of live IdP client secrets.
+ */
+export function redactProviderSecrets(p: CognitoProvider): {
+  provider: CognitoProvider;
+  redactedKeys: string[];
+} {
+  const redactedKeys: string[] = [];
+  const providerDetails: Record<string, string> = {};
+  for (const [key, value] of Object.entries(p.providerDetails)) {
+    if (isSecretDetailKey(key)) {
+      providerDetails[key] = REDACTED_SECRET_PLACEHOLDER;
+      redactedKeys.push(key);
+    } else {
+      providerDetails[key] = value;
+    }
+  }
+  return {
+    provider: { ...p, providerDetails },
+    redactedKeys: redactedKeys.sort(),
+  };
 }
 
 export function toCustomAttrRows(p: CognitoProvider): CustomAttrRow[] {

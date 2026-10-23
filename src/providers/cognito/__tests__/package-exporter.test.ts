@@ -169,6 +169,51 @@ describe('exportCognitoPackage', () => {
     ).toBe(true);
   });
 
+  it('redacts OIDC client secrets from handoff CSV, raw dump, and manifest attestation', async () => {
+    const oidcWithSecret: CognitoProvider = {
+      ...oidcProvider,
+      providerName: 'AcmeAzureSecret',
+      providerDetails: {
+        client_id: 'azure_client',
+        client_secret: 'live-enterprise-oidc-secret',
+        oidc_issuer: 'https://login.microsoftonline.com/tenant',
+      },
+    };
+
+    const result = await exportCognitoPackage(
+      { providers: [oidcWithSecret], users: [] },
+      { outputDir: tempRoot, entities: ['sso'], quiet: true },
+    );
+
+    expect(result.stats.redactedSecretFields).toEqual(['client_secret']);
+
+    const oidcRows = await readCsv(path.join(tempRoot, 'sso', 'oidc_connections.csv'));
+    expect(oidcRows).toHaveLength(1);
+    expect(oidcRows[0].clientId).toBe('azure_client');
+    expect(oidcRows[0].clientSecret).toBe('');
+
+    const rawRaw = fs.readFileSync(path.join(tempRoot, 'raw', 'cognito-providers.jsonl'), 'utf-8');
+    expect(rawRaw).not.toContain('live-enterprise-oidc-secret');
+    const rawProviders = readJsonl(path.join(tempRoot, 'raw', 'cognito-providers.jsonl'));
+    expect((rawProviders[0].providerDetails as Record<string, string>).client_secret).toBe(
+      '[REDACTED]',
+    );
+
+    const validation = await validateMigrationPackage(tempRoot);
+    expect(validation.manifest?.secretsRedacted).toBe(true);
+    expect(validation.manifest?.secretRedaction).toMatchObject({
+      mode: 'redacted',
+      redacted: true,
+      redactedFields: ['client_secret'],
+    });
+
+    // The live secret must not appear anywhere in the produced package.
+    const allFiles = listFilesRecursive(tempRoot);
+    for (const file of allFiles) {
+      expect(fs.readFileSync(file, 'utf-8')).not.toContain('live-enterprise-oidc-secret');
+    }
+  });
+
   it('warns and writes header-only memberships when org strategy is connection', async () => {
     const result = await exportCognitoPackage(
       { providers: [samlProvider], users: [acmeUser] },
@@ -194,6 +239,16 @@ async function readCsv(filePath: string): Promise<Record<string, string>[]> {
     rows.push(row as Record<string, string>);
   }
   return rows;
+}
+
+function listFilesRecursive(dir: string): string[] {
+  const files: string[] = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) files.push(...listFilesRecursive(full));
+    else files.push(full);
+  }
+  return files;
 }
 
 function readJsonl(filePath: string): Array<Record<string, unknown>> {
