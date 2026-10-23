@@ -640,7 +640,9 @@ workos-migrate enroll-totp \
   --totp-issuer "MyApp"
 ```
 
-The input file can be CSV (`email,totp_secret`) or NDJSON (one JSON object per line with `email` and `totp_secret` or `mfa_factors` fields). Format is auto-detected from the file extension.
+The input file can be CSV (`email,totp_secret`, optionally `external_id`) or NDJSON (one JSON object per line with `email` and `totp_secret` or `mfa_factors` fields, optionally `user_id`). Format is auto-detected from the file extension.
+
+Include the source-system user id (`external_id` in CSV, `user_id` in NDJSON) whenever it is available: the enroller then resolves the target user by external id instead of email. Emails are not unique per account in some source systems (Auth0 enforces email uniqueness per connection), so email-only matching can enroll a secret on the wrong user. Records without a source user id fall back to email matching with a warning.
 
 Options:
 

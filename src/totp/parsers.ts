@@ -36,6 +36,7 @@ export async function parseTotpCsv(filePath: string): Promise<TotpRecord[]> {
           totpSecret: row.totp_secret.trim(),
           totpIssuer: row.totp_issuer?.trim() || undefined,
           totpUser: row.totp_user?.trim() || undefined,
+          externalId: row.external_id?.trim() || undefined,
         });
       }
     });
@@ -47,6 +48,7 @@ export async function parseTotpCsv(filePath: string): Promise<TotpRecord[]> {
 
 interface NdjsonRecord {
   email: string;
+  user_id?: string;
   totp_secret?: string;
   secret?: string;
   mfa_factors?: Array<{
@@ -87,6 +89,7 @@ export async function parseTotpNdjson(filePath: string): Promise<TotpRecord[]> {
         records.push({
           email: record.email.toLowerCase().trim(),
           totpSecret: secret.trim(),
+          externalId: record.user_id?.trim() || undefined,
         });
       }
     } catch {

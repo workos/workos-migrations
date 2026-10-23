@@ -158,6 +158,13 @@ export function registerImportPackageCommand(program: Command): void {
           if (summary.warnings.length > 0) {
             console.log(chalk.yellow(`  Warnings: ${summary.warnings.length}`));
           }
+          const totpWarnings = summary.totpFactors.warnings ?? [];
+          if (totpWarnings.length > 0) {
+            console.log(chalk.yellow(`  TOTP warnings: ${totpWarnings.length}`));
+            for (const warning of totpWarnings) {
+              console.log(chalk.yellow(`    - ${warning}`));
+            }
+          }
           const ssoWarnings = sso.warnings ?? [];
           if (ssoWarnings.length > 0) {
             console.log(chalk.yellow(`  SSO warnings: ${ssoWarnings.length}`));
