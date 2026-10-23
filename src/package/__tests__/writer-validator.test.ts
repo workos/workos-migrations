@@ -5,6 +5,7 @@ import {
   MIGRATION_PACKAGE_FILES,
   OPTIONAL_CSV_HEADERS,
   SAML_CONNECTION_CSV_HEADERS,
+  TOTP_SECRET_CSV_HEADERS,
 } from '../manifest';
 import {
   createMigrationPackage,
@@ -227,6 +228,32 @@ describe('legacy SSO CSV headers', () => {
         path.join(root, MIGRATION_PACKAGE_FILES.samlConnections),
         `${legacyHeaders.slice(1).join(',')}\n`,
       );
+      const drifted = await validateMigrationPackage(root);
+      expect(drifted.errors.some((issue) => issue.code === 'invalid_csv_header')).toBe(true);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('legacy TOTP CSV headers', () => {
+  it('accepts totp_secrets.csv written before the external_id column existed', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'workos-legacy-totp-headers-'));
+    try {
+      await createMigrationPackage({ provider: 'auth0', rootDir: root, warnings: [] });
+      const optional = OPTIONAL_CSV_HEADERS.totpSecrets ?? [];
+      const legacyHeaders = TOTP_SECRET_CSV_HEADERS.filter((header) => !optional.includes(header));
+      const totpPath = path.join(root, MIGRATION_PACKAGE_FILES.totpSecrets);
+
+      fs.writeFileSync(totpPath, `${legacyHeaders.join(',')}\n`);
+      const legacy = await validateMigrationPackage(root);
+      expect(legacy.errors.filter((issue) => issue.code === 'invalid_csv_header')).toEqual([]);
+
+      fs.writeFileSync(totpPath, `${TOTP_SECRET_CSV_HEADERS.join(',')}\n`);
+      const current = await validateMigrationPackage(root);
+      expect(current.errors.filter((issue) => issue.code === 'invalid_csv_header')).toEqual([]);
+
+      fs.writeFileSync(totpPath, `${legacyHeaders.slice(1).join(',')}\n`);
       const drifted = await validateMigrationPackage(root);
       expect(drifted.errors.some((issue) => issue.code === 'invalid_csv_header')).toBe(true);
     } finally {
