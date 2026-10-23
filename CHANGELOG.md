@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.6.1](https://github.com/workos/workos-migrations/compare/v2.6.0...v2.6.1) (2026-10-23)
+
+
+### Bug Fixes
+
+* derive email_verified from the Clerk export verification columns ([#149](https://github.com/workos/workos-migrations/issues/149)) ([66def82](https://github.com/workos/workos-migrations/commit/66def8210efa1365858113c4323d8936b9663d2e))
+* Omit provider client secret fields from the SSO export ([#135](https://github.com/workos/workos-migrations/issues/135)) ([bab5b45](https://github.com/workos/workos-migrations/commit/bab5b45a255d6612beb30db1519067302430da1a))
+
 ## [2.6.0](https://github.com/workos/workos-migrations/compare/v2.5.1...v2.6.0) (2026-09-10)
 
 
