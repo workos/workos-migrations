@@ -85,6 +85,7 @@ export const TOTP_SECRET_CSV_HEADERS = [
   'totp_secret',
   'totp_issuer',
   'totp_user',
+  'external_id',
 ] as const;
 
 export const SAML_CONNECTION_CSV_HEADERS = [
@@ -136,6 +137,7 @@ export const OIDC_CONNECTION_CSV_HEADERS = [
 export const OPTIONAL_CSV_HEADERS: Partial<Record<string, readonly string[]>> = {
   samlConnections: ['requestSigningCert', 'assertionEncryptionCert', 'connectionType'],
   oidcConnections: ['connectionType'],
+  totpSecrets: ['external_id'],
 };
 
 export const CUSTOM_ATTRIBUTE_MAPPING_CSV_HEADERS = [

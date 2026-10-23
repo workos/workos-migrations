@@ -28,6 +28,20 @@ async function lookupUserByEmail(workos: WorkOS, email: string): Promise<string 
 }
 
 /**
+ * Look up a user in WorkOS by external ID. Returns the user ID or null.
+ */
+async function lookupUserByExternalId(workos: WorkOS, externalId: string): Promise<string | null> {
+  try {
+    const user = await workos.userManagement.getUserByExternalId(externalId);
+    return user.id;
+  } catch (err: unknown) {
+    const status = (err as Record<string, unknown>)?.status;
+    if (status === 404) return null;
+    throw err;
+  }
+}
+
+/**
  * Simple semaphore for concurrency control.
  */
 class Semaphore {
@@ -75,6 +89,7 @@ export async function enrollTotp(
   const startedAt = Date.now();
   const errors: TotpErrorRecord[] = [];
   const warnings: string[] = [];
+  let emailOnlyCount = 0;
 
   let errorStream: fs.WriteStream | null = null;
   if (errorsPath) {
@@ -117,11 +132,21 @@ export async function enrollTotp(
     const task = (async () => {
       await semaphore.acquire();
       try {
-        // Step 1: Look up user by email
+        // Step 1: Resolve the target user. Prefer the record's external_id —
+        // it uniquely identifies the source account, while emails can be
+        // shared by multiple source accounts. A record with an external_id
+        // that resolves no user is a failure, never an email fallback:
+        // falling back would allow a same-email record from a different
+        // source account to enroll its secret on this user.
         let userId: string | null = null;
         try {
           await rateLimiter.acquire();
-          userId = await lookupUserByEmail(workos, record.email);
+          if (record.externalId) {
+            userId = await lookupUserByExternalId(workos, record.externalId);
+          } else {
+            emailOnlyCount += 1;
+            userId = await lookupUserByEmail(workos, record.email);
+          }
         } catch (err: unknown) {
           const error = err as Record<string, unknown>;
           recordError({
@@ -141,7 +166,9 @@ export async function enrollTotp(
             recordNumber,
             email: record.email,
             errorType: 'user_lookup',
-            errorMessage: `No WorkOS user found for email: ${record.email}`,
+            errorMessage: record.externalId
+              ? `No WorkOS user found for external_id: ${record.externalId} (email: ${record.email})`
+              : `No WorkOS user found for email: ${record.email}`,
             timestamp: new Date().toISOString(),
           });
           summary.userNotFound += 1;
@@ -211,6 +238,14 @@ export async function enrollTotp(
 
   // Wait for remaining tasks
   await Promise.all(inFlight);
+
+  if (emailOnlyCount > 0) {
+    warnings.push(
+      `${emailOnlyCount} record(s) had no external_id and were matched by email only. ` +
+        'Emails are not unique per account in some source systems, so a secret can bind to ' +
+        'the wrong user. Include the source user id as external_id in the TOTP input for exact matching.',
+    );
+  }
 
   summary.duration = Date.now() - startedAt;
 

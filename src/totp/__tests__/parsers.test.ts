@@ -72,6 +72,24 @@ describe('TOTP Parsers', () => {
       expect(records[0]!.totpUser).toBe('alice');
     });
 
+    it('should parse the optional external_id column', async () => {
+      const filePath = path.join(tmpDir, 'totp.csv');
+      fs.writeFileSync(
+        filePath,
+        [
+          'email,totp_secret,external_id',
+          'alice@example.com,JBSWY3DPEHPK3PXP,auth0|abc123',
+          'bob@example.com,KRSXG5CTMVRXEZLU,',
+        ].join('\n'),
+      );
+
+      const records = await parseTotpCsv(filePath);
+
+      expect(records).toHaveLength(2);
+      expect(records[0]!.externalId).toBe('auth0|abc123');
+      expect(records[1]!.externalId).toBeUndefined();
+    });
+
     it('should lowercase and trim emails', async () => {
       const filePath = path.join(tmpDir, 'totp.csv');
       fs.writeFileSync(
@@ -104,6 +122,19 @@ describe('TOTP Parsers', () => {
   });
 
   describe('parseTotpNdjson', () => {
+    it('should keep the source user_id as externalId', async () => {
+      const filePath = path.join(tmpDir, 'totp.ndjson');
+      fs.writeFileSync(
+        filePath,
+        '{"email":"alice@example.com","user_id":"auth0|abc123","totp_secret":"JBSWY3DPEHPK3PXP"}',
+      );
+
+      const records = await parseTotpNdjson(filePath);
+
+      expect(records).toHaveLength(1);
+      expect(records[0]!.externalId).toBe('auth0|abc123');
+    });
+
     it('should parse direct totp_secret field', async () => {
       const filePath = path.join(tmpDir, 'totp.ndjson');
       fs.writeFileSync(
@@ -118,6 +149,7 @@ describe('TOTP Parsers', () => {
 
       expect(records).toHaveLength(2);
       expect(records[0]!.totpSecret).toBe('JBSWY3DPEHPK3PXP');
+      expect(records[0]!.externalId).toBeUndefined();
     });
 
     it('should parse alternative secret field', async () => {
