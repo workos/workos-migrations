@@ -162,10 +162,15 @@ mapping.
 ### TOTP Secrets
 
 ```csv
-email,totp_secret,totp_issuer,totp_user
+email,totp_secret,totp_issuer,totp_user,external_id
 ```
 
-This matches the existing TOTP enrollment parser.
+This matches the existing TOTP enrollment parser. `external_id` is optional but strongly
+recommended: it is the source-system user id (the same value as `external_id` in `users.csv`).
+When present, the enroller resolves the target user by external id. When absent, it falls back
+to email matching and warns — emails are not unique per account in some source systems
+(e.g. Auth0 enforces email uniqueness per connection), so email-only matching can enroll a
+secret on the wrong user.
 
 ### SAML Connections
 

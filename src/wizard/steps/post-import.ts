@@ -91,6 +91,9 @@ async function handleTotp(state: WizardState): Promise<void> {
     if (summary.failures > 0) {
       console.log(chalk.red(`    Failures: ${summary.failures}`));
     }
+    for (const warning of summary.warnings) {
+      console.log(chalk.yellow(`    Warning: ${warning}`));
+    }
     console.log();
   } catch (err) {
     console.error(chalk.red(`  TOTP enrollment failed: ${(err as Error).message}\n`));

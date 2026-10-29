@@ -82,6 +82,9 @@ export function registerEnrollTotpCommand(program: Command): void {
           if (summary.failures > 0) {
             console.log(chalk.red(`  Failures: ${summary.failures}`));
           }
+          for (const warning of summary.warnings) {
+            console.log(chalk.yellow(`  Warning: ${warning}`));
+          }
           console.log(`  Duration: ${summary.duration}ms`);
         }
 

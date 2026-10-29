@@ -15,7 +15,10 @@ jest.unstable_mockModule('../../shared/logger.js', () => ({
 const { enrollTotp } = await import('../enroller.js');
 
 // Create a mock WorkOS client
-function createMockWorkOS(users: Record<string, string> = {}) {
+function createMockWorkOS(
+  users: Record<string, string> = {},
+  usersByExternalId: Record<string, string> = {},
+) {
   return {
     userManagement: {
       listUsers: jest.fn(async ({ email }: { email: string }) => {
@@ -23,6 +26,15 @@ function createMockWorkOS(users: Record<string, string> = {}) {
         return {
           data: userId ? [{ id: userId, email }] : [],
         };
+      }),
+      getUserByExternalId: jest.fn(async (externalId: string) => {
+        const userId = usersByExternalId[externalId];
+        if (!userId) {
+          const error = new Error(`User not found: ${externalId}`);
+          Object.assign(error, { status: 404 });
+          throw error;
+        }
+        return { id: userId };
       }),
       listOrganizationMemberships: jest.fn(),
       updateOrganizationMembership: jest.fn(),
@@ -252,5 +264,77 @@ describe('TOTP Enroller', () => {
 
     expect(summary.total).toBe(2);
     expect(summary.enrolled).toBe(2);
+  });
+
+  it('should resolve by external_id instead of email when the record has one', async () => {
+    const inputPath = path.join(tmpDir, 'totp.csv');
+    fs.writeFileSync(
+      inputPath,
+      ['email,totp_secret,external_id', 'alice@example.com,SECRET123,auth0|alice'].join('\n'),
+    );
+
+    const workos = createMockWorkOS(
+      { 'alice@example.com': 'user_wrong' },
+      { 'auth0|alice': 'user_alice' },
+    );
+
+    const { summary } = await enrollTotp(workos, {
+      inputPath,
+      concurrency: 1,
+      rateLimit: 100,
+      dryRun: false,
+      quiet: true,
+    });
+
+    expect(summary.enrolled).toBe(1);
+    expect(summary.warnings).toHaveLength(0);
+    expect(workos.userManagement.listUsers).not.toHaveBeenCalled();
+    expect(workos.multiFactorAuth.createUserAuthFactor).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'user_alice' }),
+    );
+  });
+
+  it('should fail without email fallback when external_id resolves no user', async () => {
+    const inputPath = path.join(tmpDir, 'totp.csv');
+    fs.writeFileSync(
+      inputPath,
+      ['email,totp_secret,external_id', 'alice@example.com,SECRET123,auth0|attacker'].join('\n'),
+    );
+
+    // A user with that email exists, but the external_id does not match any user
+    const workos = createMockWorkOS({ 'alice@example.com': 'user_alice' }, {});
+
+    const { summary, errors } = await enrollTotp(workos, {
+      inputPath,
+      concurrency: 1,
+      rateLimit: 100,
+      dryRun: false,
+      quiet: true,
+    });
+
+    expect(summary.enrolled).toBe(0);
+    expect(summary.userNotFound).toBe(1);
+    expect(workos.userManagement.listUsers).not.toHaveBeenCalled();
+    expect(workos.multiFactorAuth.createUserAuthFactor).not.toHaveBeenCalled();
+    expect(errors[0]?.errorMessage).toContain('auth0|attacker');
+  });
+
+  it('should warn when records are matched by email only', async () => {
+    const inputPath = path.join(tmpDir, 'totp.csv');
+    fs.writeFileSync(inputPath, ['email,totp_secret', 'alice@example.com,SECRET123'].join('\n'));
+
+    const workos = createMockWorkOS({ 'alice@example.com': 'user_alice' });
+
+    const { summary } = await enrollTotp(workos, {
+      inputPath,
+      concurrency: 1,
+      rateLimit: 100,
+      dryRun: false,
+      quiet: true,
+    });
+
+    expect(summary.enrolled).toBe(1);
+    expect(summary.warnings).toHaveLength(1);
+    expect(summary.warnings[0]).toContain('matched by email only');
   });
 });
