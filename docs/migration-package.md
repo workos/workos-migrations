@@ -33,7 +33,7 @@ migration-<provider>-<timestamp>/
 
 `raw/` is reserved for provider-specific files and is not required by the base validator.
 
-`workos_upload/` contains a narrow compatibility projection for WorkOS's existing user, organization, and membership upload templates. SSO connections live in `sso/` and are created by `import-package` through the WorkOS Connections API (`POST /connections`); the same files double as the handoff artifact when the API is not enabled for an environment.
+`workos_upload/` contains a narrow compatibility projection for WorkOS's existing user, organization, and membership upload templates. SSO connections live in `sso/` and are created by `import-package` through the WorkOS Connections API (`POST /connections`); the same files double as the handoff artifact when the API is not enabled for a team.
 
 ## Manifest
 

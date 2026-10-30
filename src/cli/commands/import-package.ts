@@ -225,7 +225,7 @@ function printPlan(plan: ImportPackagePlan): void {
     );
     console.log(
       chalk.gray(
-        '  Requires Connections API migration capabilities to be enabled for the environment; otherwise the run falls back to handoff.',
+        '  Requires Connections API migration capabilities to be enabled for the team; otherwise the run falls back to handoff.',
       ),
     );
     if (plan.ssoCustomAttributeNames.length > 0) {

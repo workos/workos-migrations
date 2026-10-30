@@ -372,7 +372,7 @@ describe('importSsoConnections', () => {
       postImpl: async () => {
         throw Object.assign(
           new Error(
-            'This endpoint is part of the Connections API migration capabilities, which are not enabled for your environment.',
+            'This endpoint is part of the Connections API migration capabilities, which are not enabled for your team.',
           ),
           { status: 404 },
         );
@@ -392,6 +392,7 @@ describe('importSsoConnections', () => {
     expect(summary.notAttempted).toBe(2);
     expect(summary.skipped).toBe(2);
     expect(summary.notes.join(' ')).toContain('connections-api-migrations-capabilities-api');
+    expect(summary.notes.join(' ')).toContain('not enabled for this team');
   });
 
   it('records per-row failures with a custom attribute hint and honors customAttributes=skip', async () => {
