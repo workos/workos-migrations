@@ -6,6 +6,7 @@ import {
   loadPasswordHashes,
   mergePasswordsIntoCsv,
   mergePasswordsIntoPackage,
+  passwordLookupWarnings,
 } from '../../exporters/auth0/password-merger.js';
 
 export async function mergePasswords(state: WizardState): Promise<WizardState> {
@@ -70,16 +71,17 @@ export async function mergePasswords(state: WizardState): Promise<WizardState> {
       console.log(`    workos_upload rows updated: ${stats.uploadRowsUpdated}\n`);
 
       for (const warning of stats.warnings) {
-        if (warning.code === 'unsupported_password_hash_algorithm') {
-          console.log(chalk.yellow(`    ${warning.message}`));
-        }
+        console.log(chalk.yellow(`    ${warning.message}`));
       }
       // csvFilePath continues to point at the package's users.csv,
       // which has been updated in-place with password hashes.
     } else {
       const passwordLookup = await loadPasswordHashes(state.auth0PasswordsPath!);
-      const passwordCount = Object.keys(passwordLookup).length;
+      const passwordCount = passwordLookup.byExternalId.size;
       console.log(chalk.green(`  Loaded ${passwordCount} password hashes`));
+      for (const warning of passwordLookupWarnings(passwordLookup)) {
+        console.log(chalk.yellow(`  Warning: ${warning.message}`));
+      }
 
       const outputPath = state.csvFilePath!.replace('.csv', '-with-passwords.csv');
       console.log(chalk.blue('  Merging passwords into CSV...'));

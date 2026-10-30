@@ -235,12 +235,25 @@ export interface Auth0PasswordRecord {
   connection?: string;
 }
 
+export interface PasswordLookupEntry {
+  hash: string;
+  algorithm: string;
+  setDate?: string;
+}
+
 export interface PasswordLookup {
-  [email: string]: {
-    hash: string;
-    algorithm: string;
-    setDate?: string;
-  };
+  /**
+   * Password hashes keyed by the user's `external_id` (`auth0|<_id.$oid>`).
+   * Identity is the only safe join key: Auth0 emails are unique per
+   * connection, not per tenant, so one email can belong to several users.
+   */
+  byExternalId: Map<string, PasswordLookupEntry>;
+  /** Lowercased emails that appear on more than one password record. */
+  collidingEmails: string[];
+  /** Identities that appeared on more than one record; no hash is bound. */
+  ambiguousExternalIds: string[];
+  /** Records with no `_id.$oid`, skipped because they cannot be matched. */
+  recordsWithoutId: number;
 }
 
 // --- Transformer Types ---
