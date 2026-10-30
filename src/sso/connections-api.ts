@@ -2,7 +2,7 @@
  * Thin client for the WorkOS Connections API (`POST /connections`).
  *
  * The endpoint is part of the Connections API migration capabilities and is
- * enabled per environment by WorkOS (feature flag
+ * enabled per team by WorkOS (feature flag
  * `connections-api-migrations-capabilities-api`). When the flag is off the API
  * responds 404 with a descriptive message; `isConnectionsApiDisabledError`
  * recognizes that case so callers can fall back to handoff instead of failing
@@ -168,7 +168,7 @@ export function describeWorkOSApiError(error: unknown): WorkOSApiErrorDetails {
 
 /**
  * True when `POST /connections` was rejected because the Connections API
- * migration capabilities are not enabled for the environment.
+ * migration capabilities are not enabled for the team.
  */
 export function isConnectionsApiDisabledError(error: unknown): boolean {
   const details = describeWorkOSApiError(error);

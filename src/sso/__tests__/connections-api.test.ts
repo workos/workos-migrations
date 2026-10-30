@@ -56,15 +56,17 @@ describe('describeWorkOSApiError', () => {
 });
 
 describe('isConnectionsApiDisabledError', () => {
-  it('recognizes the migration-capabilities 404', () => {
-    expect(
-      isConnectionsApiDisabledError({
-        status: 404,
-        message:
-          'This endpoint is part of the Connections API migration capabilities, which are not enabled for your environment. Contact support@workos.com to enable them.',
-      }),
-    ).toBe(true);
-  });
+  it.each(['team', 'environment'])(
+    'recognizes the migration-capabilities 404 mentioning %s',
+    (scope) => {
+      expect(
+        isConnectionsApiDisabledError({
+          status: 404,
+          message: `This endpoint is part of the Connections API migration capabilities, which are not enabled for your ${scope}. Contact support@workos.com to enable them.`,
+        }),
+      ).toBe(true);
+    },
+  );
 
   it('does not treat entity 404s or other statuses as the flag being off', () => {
     expect(isConnectionsApiDisabledError({ status: 404, message: 'Organization not found' })).toBe(

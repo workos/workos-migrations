@@ -2,7 +2,7 @@
 
 `export auth0 --entities sso` writes Auth0 enterprise SAML/OIDC connections into the package's `sso/` files. `import-package` then creates the WorkOS connections through the Connections API (`POST /connections`), including organizations, verified domains, legacy ACS URL / entity ID overrides, attribute mappings, and (with `--include-secrets`) bring-your-own SP key pairs. This document describes what the export produces and how to finish the job by hand when the automated path cannot be used.
 
-The Connections API migration capabilities are enabled per WorkOS environment. When they are off, `import-package` reports SSO as `handoff` and leaves the files below for manual processing; ask WorkOS to enable them and re-run (creation is idempotent on `externalId`).
+The Connections API migration capabilities are enabled per WorkOS team. When they are off, `import-package` reports SSO as `handoff` and leaves the files below for manual processing; ask WorkOS to enable them and re-run (creation is idempotent on `externalId`).
 
 ## What gets written
 
