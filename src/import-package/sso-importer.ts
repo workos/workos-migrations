@@ -413,7 +413,7 @@ export async function importSsoConnections(options: SsoImportOptions): Promise<S
 
   if (apiDisabled) {
     notes.push(
-      `POST /connections is not enabled for this environment (feature flag ${CONNECTIONS_API_FEATURE_FLAG}). Ask WorkOS to enable Connections API migration capabilities, then re-run import-package; creation is idempotent on externalId. Until then, follow sso/handoff_notes.md.`,
+      `POST /connections is not enabled for this team (feature flag ${CONNECTIONS_API_FEATURE_FLAG}). Ask WorkOS to enable Connections API migration capabilities, then re-run import-package; creation is idempotent on externalId. Until then, follow sso/handoff_notes.md.`,
     );
   }
 
