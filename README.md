@@ -623,7 +623,7 @@ Requirements and limits:
 - The Connections API migration capabilities (`POST /connections`) are enabled per team by WorkOS. If they are off, the run reports SSO as `handoff` with the reason; ask WorkOS to enable them and re-run.
 - New connections start in the `validating` state and activate on the first successful sign-in.
 - IdP-initiated SSO and NameID format overrides have no API field yet and are surfaced as warnings; configure them in the dashboard after import.
-- Environments that restrict organizations to one SSO connection reject a second connection for the same organization (`connection_already_exists_for_organization`); give each connection its own organization or ask WorkOS to lift the restriction.
+- WorkOS allows one SSO connection per organization, so a second connection for the same organization is rejected (`connection_already_exists_for_organization`); give each connection its own organization.
 - SP key pairs are accepted only at creation; without both key and cert columns WorkOS generates the SP keys and the customer IdP must be updated with the new SP certificate.
 
 ---
