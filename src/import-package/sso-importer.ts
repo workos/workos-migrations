@@ -404,7 +404,7 @@ export async function importSsoConnections(options: SsoImportOptions): Promise<S
         const names = Object.keys(request.attribute_maps.custom_attributes).join(', ');
         result.error = `${details.message} Create the custom attribute(s) ${names} in the WorkOS dashboard and re-run import-package, or re-run with --sso-custom-attributes skip.`;
       } else if (details.code === 'connection_already_exists_for_organization') {
-        result.error = `${details.message} This environment allows one SSO connection per organization. Give the connection its own organizationExternalId, or ask WorkOS to lift the restriction for the environment.`;
+        result.error = `${details.message} This environment allows one SSO connection per organization. Give the connection its own organizationExternalId.`;
       }
       results.push(result);
       if (!quiet) logger.error(`  Failed ${entry.externalId}: ${result.error}`);
