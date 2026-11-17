@@ -483,6 +483,161 @@ describe('Password Merger', () => {
       expect(jsonlRecords).toHaveLength(manifest.entitiesExported?.warnings ?? -1);
     });
 
+    it('leaves a social-login user passwordless when a database user shares their email', async () => {
+      const packageDir = path.join(tmpDir, 'pkg-social-victim');
+      await createPasswordMergePackage(
+        packageDir,
+        [
+          {
+            email: 'victim@corp.com',
+            email_verified: 'true',
+            external_id: 'google-oauth2|victim',
+          },
+        ],
+        [
+          {
+            user_id: 'google-oauth2|victim',
+            email: 'victim@corp.com',
+            password_hash: '',
+          },
+        ],
+      );
+
+      const passwordsPath = path.join(tmpDir, 'social-victim.ndjson');
+      fs.writeFileSync(
+        passwordsPath,
+        JSON.stringify({
+          _id: { $oid: 'attacker-oid' },
+          email: 'victim@corp.com',
+          passwordHash: '$2b$10$attackerhash',
+        }),
+      );
+
+      const stats = await mergePasswordsIntoPackage({ packageDir, passwordsPath });
+
+      expect(stats).toMatchObject({
+        passwordsAdded: 0,
+        passwordsNotFound: 1,
+        uploadRowsUpdated: 0,
+      });
+      expect(stats.warnings.map((warning) => warning.code)).toContain('missing_password_hash');
+      for (const file of ['users.csv', 'workos_upload/users.csv']) {
+        expect(fs.readFileSync(path.join(packageDir, file), 'utf-8')).not.toContain(
+          '$2b$10$attackerhash',
+        );
+      }
+      const manifest: unknown = JSON.parse(
+        fs.readFileSync(path.join(packageDir, 'manifest.json'), 'utf-8'),
+      );
+      expect(manifest).toEqual(
+        expect.objectContaining({
+          warnings: expect.arrayContaining([
+            expect.stringContaining('no matching Auth0 password hash'),
+          ]),
+        }),
+      );
+      const warningRecords: unknown[] = fs
+        .readFileSync(path.join(packageDir, 'warnings.jsonl'), 'utf-8')
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line));
+      expect(warningRecords).toEqual(
+        expect.arrayContaining([expect.objectContaining({ code: 'missing_password_hash' })]),
+      );
+    });
+
+    it('omits package hashes when password identities are missing or repeated', async () => {
+      const packageDir = path.join(tmpDir, 'pkg-ambiguous-identities');
+      await createPasswordMergePackage(
+        packageDir,
+        [
+          {
+            email: 'dup@corp.com',
+            email_verified: 'true',
+            external_id: 'auth0|dup-oid',
+          },
+          {
+            email: 'orphan@corp.com',
+            email_verified: 'true',
+            external_id: 'auth0|orphan-oid',
+          },
+        ],
+        [
+          { user_id: 'auth0|dup-oid', email: 'dup@corp.com', password_hash: '' },
+          { user_id: 'auth0|orphan-oid', email: 'orphan@corp.com', password_hash: '' },
+        ],
+      );
+
+      const passwordsPath = path.join(tmpDir, 'ambiguous-identities.ndjson');
+      fs.writeFileSync(
+        passwordsPath,
+        [
+          JSON.stringify({
+            _id: { $oid: 'dup-oid' },
+            email: 'dup@corp.com',
+            passwordHash: '$2b$10$firsthash',
+          }),
+          JSON.stringify({
+            _id: { $oid: 'dup-oid' },
+            email: 'dup@corp.com',
+            passwordHash: '$2b$10$secondhash',
+          }),
+          JSON.stringify({
+            email: 'orphan@corp.com',
+            passwordHash: '$2b$10$orphanhash',
+          }),
+        ].join('\n'),
+      );
+
+      const stats = await mergePasswordsIntoPackage({ packageDir, passwordsPath });
+
+      expect(stats).toMatchObject({
+        passwordsAdded: 0,
+        passwordsNotFound: 2,
+        uploadRowsUpdated: 0,
+      });
+      expect(stats.warnings.map((warning) => warning.code)).toEqual(
+        expect.arrayContaining([
+          'missing_password_hash',
+          'password_identity_ambiguous',
+          'password_record_unmatchable',
+        ]),
+      );
+      for (const file of ['users.csv', 'workos_upload/users.csv']) {
+        const output = fs.readFileSync(path.join(packageDir, file), 'utf-8');
+        for (const hash of ['$2b$10$firsthash', '$2b$10$secondhash', '$2b$10$orphanhash']) {
+          expect(output).not.toContain(hash);
+        }
+      }
+      const manifest: unknown = JSON.parse(
+        fs.readFileSync(path.join(packageDir, 'manifest.json'), 'utf-8'),
+      );
+      expect(manifest).toEqual(
+        expect.objectContaining({
+          warnings: expect.arrayContaining([
+            expect.stringContaining('no matching Auth0 password hash'),
+            expect.stringContaining('appeared on multiple password records'),
+            expect.stringContaining('had no _id.$oid'),
+          ]),
+          entitiesExported: expect.objectContaining({ warnings: 3 }),
+        }),
+      );
+
+      const warningRecords: unknown[] = fs
+        .readFileSync(path.join(packageDir, 'warnings.jsonl'), 'utf-8')
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line));
+      expect(warningRecords).toHaveLength(3);
+      expect(warningRecords).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ code: 'missing_password_hash' }),
+          expect.objectContaining({ code: 'password_identity_ambiguous' }),
+          expect.objectContaining({ code: 'password_record_unmatchable' }),
+        ]),
+      );
+    });
+
     it('does not reattach a hash the exporter suppressed for a blocked user', async () => {
       const packageDir = path.join(tmpDir, 'pkg-blocked');
       await createMigrationPackage({
@@ -552,6 +707,22 @@ describe('Password Merger', () => {
     });
   });
 });
+
+async function createPasswordMergePackage(
+  packageDir: string,
+  users: Record<string, string>[],
+  uploadUsers: Record<string, string>[],
+): Promise<void> {
+  await createMigrationPackage({
+    provider: 'auth0',
+    rootDir: packageDir,
+    entitiesRequested: ['users'],
+    entitiesExported: { users: users.length, uploadUsers: uploadUsers.length },
+    warnings: [],
+  });
+  writeUsersCsv(packageDir, users);
+  writeUploadUsersCsv(packageDir, uploadUsers);
+}
 
 function writeUsersCsv(packageDir: string, rows: Record<string, string>[]): void {
   const headers = MIGRATION_PACKAGE_CSV_HEADERS.users;
