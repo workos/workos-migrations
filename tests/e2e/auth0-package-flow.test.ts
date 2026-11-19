@@ -206,12 +206,21 @@ describe('Auth0 parity end-to-end', () => {
     fs.writeFileSync(
       passwordsPath,
       [
-        JSON.stringify({ email: 'alice@example.com', passwordHash: '$2a$10$alicehash' }),
         JSON.stringify({
+          _id: { $oid: 'alice' },
+          email: 'alice@example.com',
+          passwordHash: '$2a$10$alicehash',
+        }),
+        JSON.stringify({
+          _id: { $oid: 'bob' },
           email: 'bob@example.com',
           passwordHash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
         }),
-        JSON.stringify({ email: 'missing@example.com', passwordHash: '$2a$10$nope' }),
+        JSON.stringify({
+          _id: { $oid: 'missing' },
+          email: 'missing@example.com',
+          passwordHash: '$2a$10$nope',
+        }),
       ].join('\n'),
     );
 
