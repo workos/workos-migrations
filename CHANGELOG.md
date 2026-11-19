@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.6.1](https://github.com/workos/workos-migrations/compare/v2.6.0...v2.6.1) (2026-11-19)
+
+
+### Bug Fixes
+
+* bind merged Auth0 password hashes by identity, not email ([#148](https://github.com/workos/workos-migrations/issues/148)) ([4c2f19a](https://github.com/workos/workos-migrations/commit/4c2f19a518404789ab73a60d5b7ee2c121aa62be))
+* derive email_verified from the Clerk export verification columns ([#149](https://github.com/workos/workos-migrations/issues/149)) ([66def82](https://github.com/workos/workos-migrations/commit/66def8210efa1365858113c4323d8936b9663d2e))
+* describe migration API access as team-scoped ([#152](https://github.com/workos/workos-migrations/issues/152)) ([3d1e47c](https://github.com/workos/workos-migrations/commit/3d1e47c689af9778c31ec2c5a5896f8c93ec931f))
+* Omit provider client secret fields from the SSO export ([#135](https://github.com/workos/workos-migrations/issues/135)) ([bab5b45](https://github.com/workos/workos-migrations/commit/bab5b45a255d6612beb30db1519067302430da1a))
+* resolve enrollment target by source user id instead of email ([#151](https://github.com/workos/workos-migrations/issues/151)) ([b1c2aaa](https://github.com/workos/workos-migrations/commit/b1c2aaac8a0932d0367c912a41841e4b41caedc3))
+
 ## [2.6.0](https://github.com/workos/workos-migrations/compare/v2.5.1...v2.6.0) (2026-09-10)
 
 
